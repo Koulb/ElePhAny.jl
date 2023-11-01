@@ -183,11 +183,11 @@ abs_disp = 0.01
 Ndispalce = 12
 
 ## Electrons calculation
-#Ndispalce = create_disp_calc(directory_path, unitcell, scf_parameters, abs_disp, mesh; from_scratch = true)
-#run_disp_calc(directory_path*"displacements/", Ndispalce, mpi_ranks)
-#save_potential(directory_path*"displacements/", Ndispalce)
-#prepare_wave_functions_all(directory_path*"displacements/", ik, Ndispalce)
-# ## Phonons calculation
+Ndispalce = create_disp_calc(directory_path, unitcell, scf_parameters, abs_disp, mesh; from_scratch = true)
+run_disp_calc(directory_path*"displacements/", Ndispalce, mpi_ranks)
+save_potential(directory_path*"displacements/", Ndispalce)
+prepare_wave_functions_all(directory_path*"displacements/", ik, Ndispalce)
+## Phonons calculation
 calculate_phonons(directory_path*"displacements/",unitcell, abs_disp, Ndispalce)
 ### Electron-phonon matrix elements
 electron_phonon_qe(directory_path*"displacements/")

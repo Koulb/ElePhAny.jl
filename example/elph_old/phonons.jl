@@ -66,12 +66,13 @@ function calculate_phonons(path_to_in::String,unitcell,abs_disp, Ndispalce)
     #Dumb way of using phonopy since api gives diffrent result
     current_directory = pwd()
     cd(path_to_in)
-    command = `phonopy --no-show -c phonopy_params.yaml --dim="$mesh $mesh $mesh" --eigvecs --factor $factor -p mesh.conf`
+    command = `phonopy -c phonopy_params.yaml --dim="$mesh $mesh $mesh" --eigvecs --factor $factor -p mesh.conf`
     file_name = "mesh.conf"
     content = "MESH = $mesh $mesh $mesh\nGAMMA_CENTER = .TRUE."
     file = open(path_to_in*file_name, "w")
     write(file, content)
     close(file)
+    # run(pipeline(command))
     run(pipeline(command,stdout = devnull), wait = false)
 
     cd(current_directory)
