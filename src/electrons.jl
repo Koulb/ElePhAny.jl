@@ -1,0 +1,132 @@
+
+function create_scf_calc(path_to_scf::String,unitcell, scf_parameters)
+    # Create the FCC cell for Silicon
+    atoms = ase.Atoms(;unitcell...)
+        
+    # Write the input file using Quantum ESPRESSO format
+    ase_io.write(path_to_scf*"scf.in",atoms; scf_parameters...)
+end
+
+function create_disp_calc(path_to_in::String, unitcell, scf_parameters, abs_disp, mesh; from_scratch = false)
+    # Change to the specified directory
+    cd(path_to_in)
+
+    if (from_scratch && isdir(path_to_in * "displacements"))
+        run(`rm -rf displacements`)
+    end
+
+    command = `mkdir displacements`
+    try
+        run(command);
+        println(command)
+    catch; end
+    path_to_in = path_to_in * "displacements/" 
+    cd(path_to_in)
+    println("Creating folders in $path_to_in:")
+
+    command = `mkdir scf_0`        
+    try
+        run(command);
+        println(command)
+    catch; end
+    create_scf_calc(path_to_in*"scf_0/",unitcell, scf_parameters)
+
+    unitcells_disp = dislpaced_unitecells(path_to_in, unitcell, abs_disp)
+    Ndispalce = size(unitcells_disp)[1]
+
+    for i_disp in 1:Ndispalce
+        dir_name = "group_"*string(i_disp)*"/"
+        command = `mkdir $dir_name`        
+        try
+            run(command);
+            println(command)
+        catch; end
+        create_scf_calc(path_to_in*dir_name,unitcells_disp[i_disp], scf_parameters)
+    end
+
+    return Ndispalce
+end
+
+function run_scf(path_to_in::String, mpi_ranks::Int = 0)
+    # Change to the specified directory
+    cd(path_to_in)
+    
+    # Execute the command
+    if mpi_ranks > 0
+        command = `mpirun -np $mpi_ranks pw.x -in scf.in`
+    else
+        command = `pw.x -in scf.in`
+    end
+
+    println(command)
+    run(pipeline(command, stdout="scf.out", stderr="errs.txt"))
+end
+
+function run_disp_calc(path_to_in::String, Ndispalce::Int, mpi_ranks::Int = 0)
+    # Change to the specified directory
+    println("Running scf_0:")
+    run_scf(path_to_in*"scf_0/", mpi_ranks)
+
+    # Get a number of displacements
+    files = readdir(path_to_in; join=true)
+
+    for i_disp in 1:Ndispalce
+        println("Running displacement # $i_disp:")
+        dir_name = "group_"*string(i_disp)*"/"
+        run_scf(path_to_in*dir_name, mpi_ranks)
+    end
+
+    return true
+end
+
+function save_potential(path_to_in::String, Ndispalce)
+    # Get a number of displacements
+    files = readdir(path_to_in; join=true)
+
+    # Create a dictionary to store the pp.x input parameters
+    parameters = Dict(
+        "INPUTPP" => Dict(
+            "prefix" => "'scf'",
+            "outdir" => "'./tmp'",
+            "filplot" => "'Vks'",
+            "plot_num" => 1,
+            "spin_component" => 1,
+        )
+    )
+
+    command = `pp.x -in pp.in`
+
+    println("Saving potential: ")
+
+    for i_disp in 1:Ndispalce+1
+
+        if i_disp > Ndispalce
+            dir_name = "scf_0/"
+        else
+            dir_name = "group_"*string(i_disp)*"/"
+        end
+        cd(path_to_in*dir_name)
+
+        # Write the pp.x input file
+        open("pp.in", "w") do f
+            for (section, section_data) in parameters
+                write(f, "&$section\n")
+                for (key, value) in section_data
+                    write(f, "  $key = $value\n")
+                end
+                write(f, "/\n")
+            end
+        end
+
+        if i_disp >Ndispalce
+            println("Undisplaced")
+        else
+            println("Displacement #$i_disp")
+        end
+        
+        println(command)
+        run(pipeline(command, stdout="pp.out", stderr="errs_pp.txt"))
+
+    end
+
+end

@@ -1,0 +1,55 @@
+using ElectronPhonon
+
+# Example usage
+directory_path = "/home/apolyukhin/Development/julia_tests/qe_inputs/"
+mpi_ranks = 27
+
+# Lattice constant of Silicon
+a = 5.43052  # in Angstrom
+angstrom_to_bohr = 1.88973 # Need to understand why
+mesh = 1
+
+unitcell = Dict(
+        :symbols => ["Si","Si"],
+        :cell => [[-0.5 * a, 0.0, 0.5 * a],
+                  [0.0, 0.5 * a, 0.5 * a],
+                  [-0.5 * a, 0.5 * a, 0.0]],
+        :scaled_positions => [(0, 0, 0), (0.75, 0.75, 0.75)],
+        :masses => [28.08550,28.08550]
+)
+
+# Set up the calculation parameters as a Python dictionary
+scf_parameters = Dict(
+    :format => "espresso-in",
+    :kpts => (4, 4, 4),
+    :calculation =>"scf",
+    :prefix => "scf",
+    :outdir => "./tmp/",
+    :pseudo_dir => "/home/apolyukhin/Development/frozen_phonons/elph/example/pseudo",
+    :ecutwfc => 60,
+    :conv_thr => 1.6e-8,
+    :pseudopotentials => Dict("Si" => "Si.upf"),
+    :diagonalization => "david",
+    :mixing_mode => "plain",
+    :mixing_beta => 0.7,
+    :crystal_coordinates => true,
+    :verbosity => "high",
+    :tstress => true,
+    :tprnfor => true
+)
+
+#Wave-function index
+ik = 1
+abs_disp = 0.01 
+Ndispalce = 12
+
+## Electrons calculation
+Ndispalce = create_disp_calc(directory_path, unitcell, scf_parameters, abs_disp, mesh; from_scratch = true)
+run_disp_calc(directory_path*"displacements/", Ndispalce, mpi_ranks)
+save_potential(directory_path*"displacements/", Ndispalce)
+prepare_wave_functions_all(directory_path*"displacements/", ik, Ndispalce)
+# Phonons calculation
+calculate_phonons(directory_path*"displacements/",unitcell, abs_disp, Ndispalce, mesh)
+## Electron-phonon matrix elements
+electron_phonon_qe(directory_path*"displacements/")
+electron_phonon(directory_path*"displacements/", abs_disp, Ndispalce)
