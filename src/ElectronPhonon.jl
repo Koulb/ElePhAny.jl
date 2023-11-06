@@ -25,7 +25,7 @@ include("wave_function.jl")
 export calculate_phonons
 include("phonons.jl")
 
-export electron_phonon, electron_phonon_qe
+export electron_phonon, electron_phonon_qe, plot_ep_coupling
 include("electron_phonons.jl")
 
 end

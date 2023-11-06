@@ -50,6 +50,7 @@ save_potential(directory_path*"displacements/", Ndispalce)
 prepare_wave_functions_all(directory_path*"displacements/", ik, Ndispalce)
 # Phonons calculation
 calculate_phonons(directory_path*"displacements/",unitcell, abs_disp, Ndispalce, mesh)
-## Electron-phonon matrix elements
+# Electron-phonon matrix elements
 electron_phonon_qe(directory_path*"displacements/")
 electron_phonon(directory_path*"displacements/", abs_disp, Ndispalce)
+plot_ep_coupling(directory_path*"displacements/")

@@ -1,4 +1,4 @@
-using EzXML, WannierIO, LinearAlgebra, Printf,  YAML
+using EzXML, WannierIO, LinearAlgebra, Printf,  YAML, Plots
 
 function electron_phonon_qe(path_to_in::String)
     dir_name = "scf_0/"
@@ -368,4 +368,31 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp)
         end
     end 
 
+end
+
+function plot_ep_coupling(path_to_file::String)
+    # Initialize empty arrays for x and y
+    x = Float64[]
+    y = Float64[]
+    filename = path_to_file*"comparison"
+    # Read data from the file and populate x and y arrays
+    open(filename, "r") do file
+        for line in eachline(file)
+            # Split the line into columns
+            columns = split(line)
+            if length(columns) >= 5
+                # Extract the last two columns and convert them to Float64
+                x_val = parse(Float64, columns[4])
+                y_val = parse(Float64, columns[5])
+                push!(x, x_val)
+                push!(y, y_val)
+            end
+        end
+    end
+
+    # Create a scatter plot
+    scatter(x, y, xlabel="g_frozen", ylabel="g_DFPT", title="Comparison", color = "red")
+    line = LinRange(0, 1.1*maximum(max.(x,y)), 4)
+    plot!(line, line, color = "black", legend = false)
+    savefig(path_to_file*"comparison.png")
 end
