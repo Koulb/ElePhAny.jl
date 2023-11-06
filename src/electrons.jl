@@ -1,7 +1,7 @@
 
 function create_scf_calc(path_to_scf::String,unitcell, scf_parameters)
     # Create the FCC cell for Silicon
-    atoms = ase.Atoms(;unitcell...)
+    atoms  = pycall(ase.Atoms;unitcell...)
         
     # Write the input file using Quantum ESPRESSO format
     ase_io.write(path_to_scf*"scf.in",atoms; scf_parameters...)

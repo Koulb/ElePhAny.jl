@@ -1,4 +1,4 @@
-using ElectronPhonon
+using ElectronPhonon, PythonCall
 
 # Example usage
 directory_path = "/home/apolyukhin/Development/julia_tests/qe_inputs/"
@@ -10,18 +10,18 @@ angstrom_to_bohr = 1.88973 # Need to understand why
 mesh = 1
 
 unitcell = Dict(
-        :symbols => ["Si","Si"],
-        :cell => [[-0.5 * a, 0.0, 0.5 * a],
-                  [0.0, 0.5 * a, 0.5 * a],
-                  [-0.5 * a, 0.5 * a, 0.0]],
-        :scaled_positions => [(0, 0, 0), (0.75, 0.75, 0.75)],
-        :masses => [28.08550,28.08550]
+    :symbols =>  pylist(["Si", "Si"]),
+    :cell => pylist([[-0.5 * a, 0.0, 0.5 * a],
+    [0.0, 0.5 * a, 0.5 * a],
+    [-0.5 * a, 0.5 * a, 0.0]]),
+    :scaled_positions => pylist([(0, 0, 0), (0.75, 0.75, 0.75)]),
+    :masses => pylist([28.08550,28.08550])
 )
 
 # Set up the calculation parameters as a Python dictionary
 scf_parameters = Dict(
     :format => "espresso-in",
-    :kpts => (4, 4, 4),
+    :kpts => pytuple((4, 4, 4)),
     :calculation =>"scf",
     :prefix => "scf",
     :outdir => "./tmp/",

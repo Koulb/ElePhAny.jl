@@ -1,11 +1,11 @@
 
 function dislpaced_unitecells(path_to_save, unitcell, abs_disp)
     unitcell_phonopy = phonopy_structure_atoms.PhonopyAtoms(;symbols=unitcell[:symbols], 
-                                                             cell=unitcell[:cell]./ase.units.Bohr,#Should be in Bohr, hence conversion
+                                                             cell=pylist(pyconvert(Array,unitcell[:cell])./pyconvert(Float64,ase.units.Bohr)),#Should be in Bohr, hence conversion
                                                              scaled_positions=unitcell[:scaled_positions],
                                                              masses=unitcell[:masses])
 
-    phonon = phonopy.Phonopy(unitcell_phonopy, is_symmetry=false, supercell_matrix=[[1, 0, 0], [0, 1, 0], [0, 0, 1]])
+    phonon = phonopy.Phonopy(unitcell_phonopy, is_symmetry=false, supercell_matrix=pylist([[1, 0, 0], [0, 1, 0], [0, 0, 1]]))
     phonon.generate_displacements(distance=abs_disp)
     supercells_data = phonon.supercells_with_displacements
     supercells = []
@@ -13,7 +13,7 @@ function dislpaced_unitecells(path_to_save, unitcell, abs_disp)
     for supercell_data in supercells_data
         supercell = Dict(
             :symbols => supercell_data.get_chemical_symbols(),
-            :cell => supercell_data.get_cell().*ase.units.Bohr,#Bach to angstroms for ase
+            :cell => supercell_data.get_cell()*ase.units.Bohr, #Back to angstroms for ase
             :scaled_positions => supercell_data.get_scaled_positions(),
             :masses => supercell_data.get_masses())
         push!(supercells, supercell)    
@@ -28,28 +28,32 @@ function calculate_phonons(path_to_in::String,unitcell,abs_disp, Ndispalce, mesh
     files = readdir(path_to_in; join=true)
     number_atoms = length(unitcell[:symbols])
     forces = Array{Float64}(undef, Ndispalce, number_atoms, 3)
-    factor = phonopy.units.PwscfToTHz*33.35641
+    Bohr = pyconvert(Float64,ase.units.Bohr)
+    Rydberg = pyconvert(Float64,ase.units.Rydberg)
+    PwscfToTHz = pyconvert(Float64,phonopy.units.PwscfToTHz)
+    factor = PwscfToTHz*33.35641
+
     
     for i_disp in 1:Ndispalce
         dir_name = "group_"*string(i_disp)*"/"
         atom = ase.io.read(path_to_in*dir_name * "/scf.out")
-        forces[i_disp,:,:] = atom.get_forces()*(ase.units.Bohr/ase.units.Rydberg)
+        forces[i_disp,:,:] = pyconvert(Matrix{Float64},atom.get_forces())*(Bohr/Rydberg)
     end
 
-    println("Calculating phonon properties:")    
-
+    #This conversions Julia to Python are getting me worried 
+    unitcell[:cell] = pylist(pyconvert(Array,unitcell[:cell])./Bohr)#Should be in Bohr, hence conversion
     unitcell_phonopy = phonopy_structure_atoms.PhonopyAtoms(;symbols=unitcell[:symbols], 
-    cell=unitcell[:cell]./ase.units.Bohr,#Should be in Bohr, hence conversion
-    scaled_positions=unitcell[:scaled_positions])
+                                                             cell=unitcell[:cell], 
+                                                             scaled_positions=pylist(unitcell[:scaled_positions]))
 
     phonon = phonopy.Phonopy(unitcell_phonopy,
                              is_symmetry=false, 
-                             supercell_matrix=[[1, 0, 0], [0, 1, 0], [0, 0, 1]],
+                             supercell_matrix=pylist([[1, 0, 0], [0, 1, 0], [0, 0, 1]]),
                              calculator="qe",
-                             factor=phonopy.units.PwscfToTHz*33.35641)#from internal units to Thz and then to cm-1
+                             factor=PwscfToTHz*33.35641)#from internal units to Thz and then to cm-1
     
     phonon.generate_displacements(distance=abs_disp)
-    phonon.set_forces(forces)
+    phonon.set_forces(Py(forces).to_numpy())
     phonon.produce_force_constants()
     # phonon.symmetrize_force_constants_by_space_group()
     # phonon.symmetrize_force_constants()

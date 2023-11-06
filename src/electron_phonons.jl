@@ -196,17 +196,18 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp)
     #println(braket_list)
 
     phonon_params = phonopy.load("phonopy_params.yaml")
-    displacements = phonon_params.displacements[begin:2:end,2:end]
+    displacements =phonon_params.displacements[pyslice(0,Ndisp,2)]
 
     for iat in 1:Nat
         U = []
         temp_iat::Int = 1 + 3 *(iat-1)
-        for row in eachrow(displacements[temp_iat:temp_iat+2,:])
+        for row_py in displacements[pyslice(temp_iat-1,temp_iat+2)]
+            row = pyconvert(Vector,row_py)[2:end]
             push!(U,row/norm(row))
         end   
         U_inv =  vcat(U'...)^-1
         braket_temp = braket_list[temp_iat:temp_iat+2]
-        #println(size(braket_temp))
+       
         push!(braket_list_rotated, U_inv* braket_temp) #transpose(U_inv) * braket_temp
     end
 
@@ -220,7 +221,7 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp)
 
     εₐᵣᵣ = Array{ComplexF64, 3}(undef, (1, 3*Nat, 3*Nat))
     ωₐᵣᵣ = Array{Float64, 2}(undef, (1, 3*Nat))
-    mₐᵣᵣ = phonon_params.masses
+    mₐᵣᵣ = pyconvert(Vector, phonon_params.masses)
 
     phonons = YAML.load_file("mesh.yaml")
     for (iband, phonon) in enumerate(phonons["phonon"][1]["band"])

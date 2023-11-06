@@ -1,18 +1,18 @@
 module ElectronPhonon
 
 ###
-using PyCall
+using PythonCall
 
-const ase = PyNULL()
-const ase_io = PyNULL()
-const phonopy = PyNULL()
-const phonopy_structure_atoms = PyNULL()
+const ase = PythonCall.pynew()
+const ase_io = PythonCall.pynew()
+const phonopy = PythonCall.pynew()
+const phonopy_structure_atoms =  PythonCall.pynew()
 
 function __init__()
-    copy!(ase, pyimport("ase"))
-    copy!(ase_io, pyimport("ase.io"))
-    copy!(phonopy, pyimport("phonopy"))
-    copy!(phonopy_structure_atoms, pyimport("phonopy.structure.atoms"))
+    PythonCall.pycopy!(ase, pyimport("ase"))
+    PythonCall.pycopy!(ase_io, pyimport("ase.io"))
+    PythonCall.pycopy!(phonopy, pyimport("phonopy"))
+    PythonCall.pycopy!(phonopy_structure_atoms, pyimport("phonopy.structure.atoms"))
 end
 
 # Write your package code here.
