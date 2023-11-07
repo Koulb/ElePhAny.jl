@@ -7,7 +7,6 @@ mpi_ranks = 27
 # Lattice constant of Silicon
 a = 5.43052  # in Angstrom
 angstrom_to_bohr = 1.88973 # Need to understand why
-mesh = 1
 
 unitcell = Dict(
     :symbols =>  pylist(["Si", "Si"]),
@@ -21,7 +20,7 @@ unitcell = Dict(
 # Set up the calculation parameters as a Python dictionary
 scf_parameters = Dict(
     :format => "espresso-in",
-    :kpts => pytuple((4, 4, 4)),
+    :kpts => pytuple((2, 2, 2)),
     :calculation =>"scf",
     :prefix => "scf",
     :outdir => "./tmp/",
@@ -40,17 +39,21 @@ scf_parameters = Dict(
 
 #Wave-function index
 ik = 1
+iq = 2 
+mesh = 2
 abs_disp = 0.01 
 Ndispalce = 12
 
 ## Electrons calculation
-Ndispalce = create_disp_calc(directory_path, unitcell, scf_parameters, abs_disp, mesh; from_scratch = true)
-run_disp_calc(directory_path*"displacements/", Ndispalce, mpi_ranks)
-save_potential(directory_path*"displacements/", Ndispalce)
-prepare_wave_functions_all(directory_path*"displacements/", ik, Ndispalce)
-# Phonons calculation
-calculate_phonons(directory_path*"displacements/",unitcell, abs_disp, Ndispalce, mesh)
-# Electron-phonon matrix elements
-electron_phonon_qe(directory_path*"displacements/")
-electron_phonon(directory_path*"displacements/", abs_disp, Ndispalce)
-plot_ep_coupling(directory_path*"displacements/")
+#Ndispalce = create_disp_calc(directory_path, unitcell, scf_parameters, abs_disp, mesh; from_scratch = true)
+#run_disp_calc(directory_path*"displacements/", Ndispalce, mpi_ranks)
+#save_potential(directory_path*"displacements/", Ndispalce, mesh)
+#prepare_wave_functions_all(directory_path*"displacements/", ik, iq, mesh, Ndispalce)
+
+# # Phonons calculation
+#calculate_phonons(directory_path*"displacements/",unitcell, abs_disp, Ndispalce, mesh, iq)
+
+# # Electron-phonon matrix elements
+electron_phonon_qe(directory_path*"displacements/", ik, iq)
+# electron_phonon(directory_path*"displacements/", abs_disp, Ndispalce)
+# plot_ep_coupling(directory_path*"displacements/")

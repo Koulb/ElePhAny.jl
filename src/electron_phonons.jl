@@ -1,9 +1,13 @@
 using EzXML, WannierIO, LinearAlgebra, Printf,  YAML, Plots
 
-function electron_phonon_qe(path_to_in::String)
+#WRONG POINTS NEED TO BE IN CARTESIAN// FIND WHERE U DO CONVERGENCE
+function electron_phonon_qe(path_to_in::String, ik::Int, iq::Int)
     dir_name = "scf_0/"
     current_directory = pwd()
     cd(path_to_in*dir_name)
+
+    kpoint = determin_q_point(path_to_in*dir_name,ik)
+    qpoint = determin_q_point(path_to_in*dir_name,iq)
 
     parameters = Dict(
             "inputph" => Dict(
@@ -16,9 +20,9 @@ function electron_phonon_qe(path_to_in::String)
             "qplot"    => ".true.",
             "q_in_band_form" => ".true.",
             "electron_phonon" => "'epw'",
-            "kx" =>  0.0, 
-            "ky" =>  0.0, 
-            "kz" =>  0.0, 
+            "kx" =>  kpoint[1], 
+            "ky" =>  kpoint[2], 
+            "kz" =>  kpoint[3], 
         )
     )
 
@@ -32,7 +36,7 @@ function electron_phonon_qe(path_to_in::String)
             write(f, "/\n")
         end
         write(f,"1\n")
-        write(f,"0.0000 0.0000 0.0000 1 # Gamma\n")
+        write(f,"$(qpoint[1]) $(qpoint[2]) $(qpoint[3]) 1 #\n")
     end
 
     command = `/home/apolyukhin/Soft/sourse/q-e/test-suite/not_epw_comp/ph.x -in ph.in`
@@ -43,7 +47,7 @@ end
 
 function calculate_braket_real(bra::Array{Complex{Float64}, 3}, ket::Array{Complex{Float64}, 3})
     Nxyz = size(ket, 1)^3
-    result = sum(bra .* ket) / Nxyz
+    result = sum(conj(bra) .* ket) / Nxyz
     return result
 end
 
@@ -124,6 +128,8 @@ function parse_ph(file_name, nbands, nfreq)
     return elph_dfpt
 end
 
+
+#For sc case need to modify eigenvetors with right phase + brakets should be in real space
 function electron_phonon(path_to_in::String, abs_disp, Ndisp)
     cd(path_to_in)
     command = `mkdir elph_elements`
