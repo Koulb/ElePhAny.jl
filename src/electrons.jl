@@ -85,23 +85,39 @@ function run_disp_calc(path_to_in::String, Ndispalce::Int, mpi_ranks::Int = 0)
     return true
 end
 
-function read_potential(path_to_file::String)
+###TODO Need to check consistenct for the reading of the potetial
+function read_potential(path_to_file::String;skiprows=0)
     rw = Float64[]
     N1, N2, N3 = 0, 0 ,0
+   
+    start = 1
+
     open(path_to_file) do file
+
         lines = readlines(file)
+
+        #println(path_to_file)
+        for line in lines[2:end]
+            #println(line)
+            if  length(split(line)) == 8
+                break
+            else
+                skiprows +=  1
+            end
+        end
     
-        line = split(lines[2])
+        line = split(lines[1+skiprows])
         N1 = parse(Int, line[1])
         N2 = parse(Int, line[2])
         N3 = parse(Int, line[3])
         Nat = parse(Int, line[7])
-        start = 1
 
-        for line in lines
+        for line in lines[1+skiprows:end]
             split_line = split(line)
             if length(split_line) == 5 && parse(Int,split_line[1]) == Nat
-                start += 1
+                #println(line)
+                #println(start)
+                start += 1 + skiprows
                 break
             else
                 start += 1
@@ -117,6 +133,8 @@ function read_potential(path_to_file::String)
     end
 
     ff = zeros(Float64, N1, N2, N3)
+
+
 
     for i in 1:N1, j in 1:N2, k in 1:N3
         ff[i, j, k] = rw[i + N1 * (j - 1) + N1 * N2 * (k - 1)]

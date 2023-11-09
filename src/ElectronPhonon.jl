@@ -7,12 +7,14 @@ const ase = PythonCall.pynew()
 const ase_io = PythonCall.pynew()
 const phonopy = PythonCall.pynew()
 const phonopy_structure_atoms =  PythonCall.pynew()
+const np =  PythonCall.pynew()
 
 function __init__()
     PythonCall.pycopy!(ase, pyimport("ase"))
     PythonCall.pycopy!(ase_io, pyimport("ase.io"))
     PythonCall.pycopy!(phonopy, pyimport("phonopy"))
     PythonCall.pycopy!(phonopy_structure_atoms, pyimport("phonopy.structure.atoms"))
+    PythonCall.pycopy!(np, pyimport("numpy"))
 end
 
 # Write your package code here.

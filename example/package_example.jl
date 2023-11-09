@@ -54,6 +54,6 @@ Ndispalce = 12
 #calculate_phonons(directory_path*"displacements/",unitcell, abs_disp, Ndispalce, mesh, iq)
 
 # # Electron-phonon matrix elements
-electron_phonon_qe(directory_path*"displacements/", ik, iq)
-# electron_phonon(directory_path*"displacements/", abs_disp, Ndispalce)
+# electron_phonon_qe(directory_path*"displacements/", ik, iq, mesh)
+electron_phonon(directory_path*"displacements/", abs_disp, Ndispalce, ik, iq, mesh)
 # plot_ep_coupling(directory_path*"displacements/")

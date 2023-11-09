@@ -1,4 +1,4 @@
-function determin_q_point(path_to_in, iq; mesh=1)
+function determine_q_point(path_to_in, iq; mesh=1)
     atoms = ase_io.read(path_to_in*"/scf.out")
     kpoints = atoms.calc.kpts
     q_vector = [0,0,0]
@@ -11,6 +11,29 @@ function determin_q_point(path_to_in, iq; mesh=1)
     
     return round.(q_vector;digits=4)
 end
+
+function determine_q_point_cart(path_to_in,ik)
+    file = open(path_to_in*"/scf.out","r")
+    lines = readlines(file)
+    result = 0.0
+
+    count = 1 
+    for (index, line) in enumerate(lines)
+        if occursin("        k(" , line)
+            if ik == count
+                result_str = split(line)[5:7]# 
+                result_str[3] = result_str[3][1:end-2]
+                result = parse.(Float64, result_str)
+                break
+            else
+                count += 1 
+            end
+        end
+    end
+
+    return result 
+end
+
 
 function dislpaced_unitecells(path_to_save, unitcell, abs_disp, mesh)
     unitcell_phonopy = phonopy_structure_atoms.PhonopyAtoms(;symbols=unitcell[:symbols], 
@@ -75,7 +98,7 @@ function calculate_phonons(path_to_in::String,unitcell,abs_disp, Ndispalce, mesh
     #mesh_dict = phonon.get_mesh_dict()
     phonon.save(path_to_in*"phonopy_params.yaml"; settings=Dict(:force_constants => true))
 
-    qpoint = determin_q_point(path_to_in*"scf_0/",iq)
+    qpoint = determine_q_point(path_to_in*"scf_0/",iq)
 
     #Dumb way of using phonopy since api gives diffrent result
     current_directory = pwd()
