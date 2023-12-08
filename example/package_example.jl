@@ -1,8 +1,15 @@
 using ElectronPhonon, PythonCall
 
 # Example usage
-directory_path = "/home/apolyukhin/Development/julia_tests/qe_inputs/"
-mpi_ranks = 27
+directory_path = "/home/apolyukhin/Development/julia_tests/qe_inputs_small/"
+mpi_ranks = 10
+
+#Params
+ik = 1
+iq = 2 
+mesh = 2
+abs_disp = 0.01 
+Ndispalce = 12
 
 # Lattice constant of Silicon
 a = 5.43052  # in Angstrom
@@ -20,7 +27,7 @@ unitcell = Dict(
 # Set up the calculation parameters as a Python dictionary
 scf_parameters = Dict(
     :format => "espresso-in",
-    :kpts => pytuple((2, 2, 2)),
+    :kpts => pytuple((mesh, mesh, mesh)),
     :calculation =>"scf",
     :prefix => "scf",
     :outdir => "./tmp/",
@@ -37,23 +44,18 @@ scf_parameters = Dict(
     :tprnfor => true
 )
 
-#Wave-function index
-ik = 1
-iq = 2 
-mesh = 2
-abs_disp = 0.01 
-Ndispalce = 12
+
 
 ## Electrons calculation
-#Ndispalce = create_disp_calc(directory_path, unitcell, scf_parameters, abs_disp, mesh; from_scratch = true)
-#run_disp_calc(directory_path*"displacements/", Ndispalce, mpi_ranks)
-#save_potential(directory_path*"displacements/", Ndispalce, mesh)
-#prepare_wave_functions_all(directory_path*"displacements/", ik, iq, mesh, Ndispalce)
+Ndispalce = create_disp_calc(directory_path, unitcell, scf_parameters, abs_disp, mesh; from_scratch = true)
+run_disp_calc(directory_path*"displacements/", Ndispalce, mpi_ranks)
+save_potential(directory_path*"displacements/", Ndispalce, mesh)
+prepare_wave_functions_all(directory_path*"displacements/", ik, iq, mesh, Ndispalce)
 
-# # Phonons calculation
-#calculate_phonons(directory_path*"displacements/",unitcell, abs_disp, Ndispalce, mesh, iq)
+## Phonons calculation
+calculate_phonons(directory_path*"displacements/",unitcell, abs_disp, Ndispalce, mesh, iq)
 
-# # Electron-phonon matrix elements
-# electron_phonon_qe(directory_path*"displacements/", ik, iq, mesh)
+# Electron-phonon matrix elements
+electron_phonon_qe(directory_path*"displacements/", ik, iq)
 electron_phonon(directory_path*"displacements/", abs_disp, Ndispalce, ik, iq, mesh)
-# plot_ep_coupling(directory_path*"displacements/")
+plot_ep_coupling(directory_path*"displacements/")

@@ -1,4 +1,24 @@
-using FortranFiles, LinearAlgebra, Base.Threads,ProgressMeter, JLD2
+using FortranFiles, LinearAlgebra, Base.Threads,ProgressMeter, JLD2, FFTW
+
+function wf_from_G_fft(miller::Matrix{Int32}, evc::Vector{ComplexF64}, Nxyz::Integer)
+    reciprocal_space_grid = zeros(ComplexF64, Nxyz, Nxyz, Nxyz)
+    # Determine the shift needed to map Miller indices to grid indices
+    shift = div(Nxyz, 2)
+
+    # Iterate through Miller indices and fill in the known coefficients
+    for idx in 1:size(miller, 2)
+        g_vector = Int.(miller[:, idx])
+        # Map the Miller indices to reciprocal space grid indices
+        i, j, k = ((g_vector .+ shift) .% Nxyz) .+ 1
+        #println(i,' ', j,' ', k)
+        coefficient = evc[idx]
+        reciprocal_space_grid[i, j, k] = coefficient
+    end
+
+    # Perform the inverse FFT to obtain the real-space wave function
+    wave_function = bfft(reciprocal_space_grid)
+    return wave_function
+end
 
 function wf_from_G_opt(miller::Matrix{Int32}, evc::Vector{ComplexF64}, Nxyz::Integer)
     x = range(0, 1-1/Nxyz, Nxyz)
@@ -86,14 +106,15 @@ function prepare_wave_functions(path_to_in::String; ik::Int=1)
     println("Transforming wave fucntions in real space:")
     wfc_list = Dict()
     for (index, evc) in enumerate(evc_list)
-        println("band # $index")
-        wfc = wf_from_G_opt(miller, evc, N)
+        #println("band # $index")
+        wfc = wf_from_G_fft(miller, evc, N)
         wfc_list["wfc$index"] = wfc
 
     end
     println("Data saved in "*path_to_in*"wfc_list_$ik.jld2")
     save(path_to_in*"/wfc_list_$ik.jld2",wfc_list)
-
+    wfc_list = 0 # attempt to free memory
+    GC.gc()
 end
 
 function prepare_wave_functions_opt(path_to_in::String; ik::Int=1)
@@ -176,20 +197,26 @@ end
 
 function prepare_wave_functions_all(path_to_in::String, ik::Int, iq::Int, mesh::Int, Ndisp::Int)
     file_path=path_to_in*"/scf_0/"
-    prepare_wave_functions_opt(file_path;ik=ik)
-    #need to fold in 1st Bz in case of arbitrary
-    #fold(ik,iq)
-    prepare_wave_functions_opt(file_path;ik=iq)
+    #prepare_wave_functions_opt(file_path;ik=ik)
+    prepare_wave_functions(file_path;ik=ik)
+
+
+    #need to fold in 1st Bz in case of arbitrary q
+    k_list = get_kpoint_list(file_path*"scf.out")
+    ikq = fold_kpoint(ik,iq,k_list)
+    #prepare_wave_functions_opt(file_path;ik=ikq)
+    prepare_wave_functions(file_path;ik=ikq)
     #Need to unfold from pc to sc and mulitply wavefunctions by exp(ikr)
     if mesh > 1
         unfold_to_sc(file_path,mesh,ik)
-        unfold_to_sc(file_path,mesh,iq)
+        unfold_to_sc(file_path,mesh,ikq)
     end
 
     for i in 1:2:Ndisp
         file_path=path_to_in*"/group_$i/"
         if mesh > 1
-            prepare_wave_functions_opt(file_path)
+            #prepare_wave_functions_opt(file_path)
+            prepare_wave_functions(file_path,ik=1)
         else
             prepare_wave_functions(file_path,ik=ik)
         end    

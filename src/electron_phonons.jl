@@ -1,5 +1,38 @@
 using EzXML, WannierIO, LinearAlgebra, Printf,  YAML, Plots
 
+
+function get_kpoint_list(path)
+    k_list = []
+    atoms = ase_io.read(path)
+
+    for (index, kpt) in enumerate(atoms.calc.kpts)
+        push!(k_list, round.( pyconvert(Vector,kpt.k), digits=6))
+    end
+    return k_list
+end
+
+function fold_kpoint(ik, iq, k_list)
+    k_point = k_list[ik]
+    q_point = k_list[iq]
+
+    kq_point = k_point + q_point
+    fold_indices = findall(abs.(kq_point) .>= 1)
+
+    for index in fold_indices
+        kq_point[index] -= sign(kq_point[index])
+    end
+    ikq = 1
+
+    for (index, k_point) in enumerate(k_list)
+        if all(isapprox.(kq_point, k_point))
+            ikq = index 
+            break
+        end
+    end
+
+    return ikq
+end
+
 function electron_phonon_qe(path_to_in::String, ik::Int, iq::Int)
     dir_name = "scf_0/"
     current_directory = pwd()
@@ -46,7 +79,13 @@ end
 
 function calculate_braket_real(bra::Array{Complex{Float64}, 3}, ket::Array{Complex{Float64}, 3})
     Nxyz = size(ket, 1)^3
-    result = sum(conj(bra) .* ket) / Nxyz
+    result = zero(Complex{Float64})
+    
+    @inbounds @simd for i in 1:Nxyz
+        result += conj(bra[i]) * ket[i]
+    end
+    
+    result /= Nxyz
     return result
 end
 
@@ -70,9 +109,9 @@ end
 function calculate_braket_matrix(bras, kets)
     result = zeros(Complex{Float64}, length(bras), length(kets))
     
-    for i in 1:length(bras)
-        for j in 1:length(kets)
-            result[i,j] = calculate_braket(bras[i],kets[j])
+    for (i,bra) in enumerate(bras)
+        for (j,ket) in enumerate(kets)
+            result[i,j] = calculate_braket(bra,ket)
         end
     end
 
@@ -111,8 +150,7 @@ function parse_ph(file_name, nbands, nfreq)
             if current_line > 2
                 split_line = split(line)
                 i, j, iph = parse(Int64,split_line[1]), parse(Int64,split_line[2]), parse(Int64,split_line[3])
-                elph_dfpt[i,j,iph]= parse(Float64,split_line[end])/1e3
-                #println(i,' ', j,' ', iph,' ', elph_dfpt[i,j,iph])
+                elph_dfpt[i,j,iph]= parse(Float64,split_line[end])/1e3 # to meV
             end
     
             current_line += 1
@@ -160,18 +198,21 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh)
         println(command)
     catch; end
     Nat::Int = Ndisp//6
-    ik = 1 
 
     ev_to_ry = 1 / 13.6057039763 
     scale = ev_to_ry / abs_disp
 
     path_to_xml="tmp/scf.save/data-file-schema.xml"
     group = "scf_0/"
+
+    k_list = get_kpoint_list(path_to_in*group*"scf.out")
+    ikq = fold_kpoint(ik,iq,k_list)
+
     local ψkᵤ, ψqᵤ, ψᵤ, nbands
     if mesh > 1
         #real space
         ψkᵤ = load(path_to_in*group*"wfc_list_phase_$ik.jld2")#
-        ψqᵤ = load(path_to_in*group*"wfc_list_phase_$iq.jld2")
+        ψqᵤ = load(path_to_in*group*"wfc_list_phase_$ikq.jld2")
 
         #Debug read from python np 
         #temp_path = "/home/apolyukhin/Development/frozen_phonons/elph/example/supercell_disp/"
@@ -186,21 +227,20 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh)
         nbands = length(ψᵤ)
     end
 
-
     ϵkᵤ = WannierIO.read_qe_xml(path_to_in*group*path_to_xml)[:eigenvalues][ik]
-    ϵqᵤ = WannierIO.read_qe_xml(path_to_in*group*path_to_xml)[:eigenvalues][iq]
+    ϵqᵤ = WannierIO.read_qe_xml(path_to_in*group*path_to_xml)[:eigenvalues][ikq]
 
     braket = zeros(Complex{Float64}, nbands, nbands)
     braket_list = []
     braket_list_rotated = []
 
-    #!!!! Need to go only through even or odd dispalcements
     for ind in 1:2:Ndisp
         group   = "group_$ind/"
-        ϵₚ = WannierIO.read_qe_xml(path_to_in*group*path_to_xml)[:eigenvalues][ik]
-        file_path=path_to_in*"/group_$ind/tmp/scf.save/wfc$ik.dat"
+        ϵₚ = WannierIO.read_qe_xml(path_to_in*group*path_to_xml)[:eigenvalues][1]
+        file_path=path_to_in*"/group_$ind/tmp/scf.save/wfc1.dat"
        
         local ψₚ, Uk, Uq 
+        println("Processing group $ind")
 
         if mesh > 1 
             temp_path = "/home/apolyukhin/Development/frozen_phonons/elph/example/supercell_disp/"
@@ -209,12 +249,14 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh)
 
             Uk = calculate_braket_matrix_real(ψₚ, ψkᵤ)
             Uq = calculate_braket_matrix_real(ψₚ, ψqᵤ)
+            ψₚ = 0
+            GC.gc()
         else 
             miller, ψₚ = parse_fortan_bin(file_path)
             Uk = calculate_braket_matrix(ψₚ, ψᵤ)
             Uq = Uq    
         end
-
+        println("Calculating brakets for group $ind")
         for i in 1:nbands
             for j in 1:nbands
                 result = (i==j && ik==iq ? -ϵkᵤ[i] : 0.0)
@@ -233,7 +275,7 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh)
         push!(braket_list, transpose(conj(braket))*scale*mesh^3)
 
     end
-    println("Braket list unrotated")
+    #println("Braket list unrotated")
     #println(braket_list)
 
     phonon_params = phonopy.load("phonopy_params.yaml")

@@ -91,9 +91,7 @@ function read_potential(path_to_file::String;skiprows=0)
     N1, N2, N3 = 0, 0 ,0
    
     start = 1
-
     open(path_to_file) do file
-
         lines = readlines(file)
 
         #println(path_to_file)
@@ -192,7 +190,7 @@ function save_potential(path_to_in::String, Ndispalce, mesh)
         run(pipeline(command, stdout="pp.out", stderr="errs_pp.txt"))
 
         if mesh > 1 &&  dir_name == "scf_0/"
-            Upot_pc, = read_potential(path_to_in*dir_name*"Vks")
+            Upot_pc, = read_potential(path_to_in*dir_name*"Vks",skiprows=1)
             Upot_sc = repeat(Upot_pc, outer=(mesh, mesh, mesh))
             save(path_to_in*dir_name*"Vks.jld2", "Upot_sc", Upot_sc)
         end
