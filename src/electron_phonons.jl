@@ -1,9 +1,17 @@
 using EzXML, WannierIO, LinearAlgebra, Printf,  YAML, Plots
 
 
-function get_kpoint_list(path)
+function get_kpoint_list(path_to_in)
+    file = open(path_to_in*"/kpoints.dat", "r")
+    lines_kpoints = readlines(file)
+    close(file)
+    klist = [parse.(Float64, split(line)[1:end-1]) for line in lines_kpoints[3:end]]  
+    return klist
+end
+
+function get_kpoint_list_old(path_to_in)
     k_list = []
-    atoms = ase_io.read(path)
+    atoms = ase_io.read(path_to_in*"scf.out")
 
     for (index, kpt) in enumerate(atoms.calc.kpts)
         push!(k_list, round.( pyconvert(Vector,kpt.k), digits=6))
@@ -33,13 +41,16 @@ function fold_kpoint(ik, iq, k_list)
     return ikq
 end
 
-function electron_phonon_qe(path_to_in::String, ik::Int, iq::Int)
+function electron_phonon_qe(path_to_in::String, ik::Int, iq::Int, mpi_ranks::Int)
     dir_name = "scf_0/"
     current_directory = pwd()
     cd(path_to_in*dir_name)
 
     kpoint = determine_q_point_cart(path_to_in*dir_name,ik)
     qpoint = determine_q_point_cart(path_to_in*dir_name,iq)
+
+    println("kpoint = ", kpoint)    
+    println("qpoint = ", qpoint)
 
     parameters = Dict(
             "inputph" => Dict(
@@ -71,7 +82,7 @@ function electron_phonon_qe(path_to_in::String, ik::Int, iq::Int)
         write(f,"$(qpoint[1]) $(qpoint[2]) $(qpoint[3]) 1 #\n")
     end
 
-    command = `/home/apolyukhin/Soft/sourse/q-e/test-suite/not_epw_comp/ph.x -in ph.in`
+    command = `mpirun -np $mpi_ranks /home/apolyukhin/Soft/sourse/q-e/test-suite/not_epw_comp/ph.x -in ph.in`
     println(command)
     run(pipeline(command, stdout="ph.out", stderr="errs_ph.txt"))
     cd(current_directory)
@@ -147,7 +158,7 @@ function parse_ph(file_name, nbands, nfreq)
     # Read the file line by line
     for line in eachline(file)
         if found_data
-            if current_line > 2
+            if current_line > 1
                 split_line = split(line)
                 i, j, iph = parse(Int64,split_line[1]), parse(Int64,split_line[2]), parse(Int64,split_line[3])
                 elph_dfpt[i,j,iph]= parse(Float64,split_line[end])/1e3 # to meV
@@ -205,27 +216,35 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh)
     path_to_xml="tmp/scf.save/data-file-schema.xml"
     group = "scf_0/"
 
-    k_list = get_kpoint_list(path_to_in*group*"scf.out")
+    k_list = get_kpoint_list(path_to_in*group)
     ikq = fold_kpoint(ik,iq,k_list)
 
     local ψkᵤ, ψqᵤ, ψᵤ, nbands
-    if mesh > 1
-        #real space
-        ψkᵤ = load(path_to_in*group*"wfc_list_phase_$ik.jld2")#
-        ψqᵤ = load(path_to_in*group*"wfc_list_phase_$ikq.jld2")
+    # if mesh > 1
+    #     #real space
+    #     ψkᵤ = load(path_to_in*group*"wfc_list_phase_$ik.jld2")#
+    #     ψqᵤ = load(path_to_in*group*"wfc_list_phase_$ikq.jld2")
 
-        #Debug read from python np 
-        #temp_path = "/home/apolyukhin/Development/frozen_phonons/elph/example/supercell_disp/"
-        #ψkᵤ = load_wf_u_debug(temp_path*group,ik)
-        #ψqᵤ = load_wf_u_debug(temp_path*group,iq)
-        nbands = length(ψkᵤ)
-    else
-        #reciprocal space
-        ik=1
-        file_path=path_to_in*"/scf_0/tmp/scf.save/wfc$ik.dat"
-        miller, ψᵤ = parse_fortan_bin(file_path)
-        nbands = length(ψᵤ)
-    end
+    #     #Debug read from python np 
+    #     #temp_path = "/home/apolyukhin/Development/frozen_phonons/elph/example/supercell_disp/"
+    #     #ψkᵤ = load_wf_u_debug(temp_path*group,ik)
+    #     #ψqᵤ = load_wf_u_debug(temp_path*group,iq)
+    #     nbands = length(ψkᵤ)
+    # else
+        # #reciprocal space
+        # ik=1
+        # file_path=path_to_in*"/scf_0/tmp/scf.save/wfc$ik.dat"
+        # miller, ψᵤ = parse_fortan_bin(file_path)
+        # nbands = length(ψᵤ)
+    # end
+
+    #reciprocal space
+    ψkᵤ_list = load(path_to_in*"/scf_0/g_list_sc_$ik.jld2")
+    ψkᵤ = [ψkᵤ_list["wfc$iband"] for iband in 1:length(ψkᵤ_list)]
+
+    ψqᵤ_list = load(path_to_in*"/scf_0/g_list_sc_$ikq.jld2")
+    ψqᵤ = [ψqᵤ_list["wfc$iband"] for iband in 1:length(ψqᵤ_list)]
+    nbands = length(ψkᵤ)
 
     ϵkᵤ = WannierIO.read_qe_xml(path_to_in*group*path_to_xml)[:eigenvalues][ik]
     ϵqᵤ = WannierIO.read_qe_xml(path_to_in*group*path_to_xml)[:eigenvalues][ikq]
@@ -242,24 +261,42 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh)
         local ψₚ, Uk, Uq 
         println("Processing group $ind")
 
-        if mesh > 1 
-            temp_path = "/home/apolyukhin/Development/frozen_phonons/elph/example/supercell_disp/"
-            #ψₚ = load_wf_debug(temp_path*group)
-            ψₚ = load(path_to_in*group*"wfc_list_1.jld2")
+        # if mesh > 1 
+        #     temp_path = "/home/apolyukhin/Development/frozen_phonons/elph/example/supercell_disp/"
+        #     #ψₚ = load_wf_debug(temp_path*group)
+        #     ψₚ = load(path_to_in*group*"wfc_list_1.jld2")
 
-            Uk = calculate_braket_matrix_real(ψₚ, ψkᵤ)
-            Uq = calculate_braket_matrix_real(ψₚ, ψqᵤ)
-            ψₚ = 0
-            GC.gc()
-        else 
-            miller, ψₚ = parse_fortan_bin(file_path)
-            Uk = calculate_braket_matrix(ψₚ, ψᵤ)
-            Uq = Uq    
-        end
+        #     Uk = calculate_braket_matrix_real(ψₚ, ψkᵤ)
+        #     Uq = calculate_braket_matrix_real(ψₚ, ψqᵤ)
+        #     ψₚ = 0
+        #     GC.gc()
+        # else 
+        #     miller, ψₚ = parse_fortan_bin(file_path)
+        #     Uk = calculate_braket_matrix(ψₚ, ψᵤ)
+        #     Uq = Uq    
+        # end
+
+        _, ψₚ = parse_fortan_bin(path_to_in*group*"tmp/scf.save/wfc1.dat")
+
+        Uk = calculate_braket_matrix(ψₚ, ψkᵤ)
+        u_trace_check = conj(transpose(Uk))*Uk
+        println("Uk trace check [1, 1] = ", u_trace_check[1,1])
+        println("Uk trace check [2, 2] = ", u_trace_check[2,2])
+        println("Uk trace check [3, 3] = ", u_trace_check[3,3])
+        println("Uk trace check [4, 4] = ", u_trace_check[4,4])
+
+
+        Uq = calculate_braket_matrix(ψₚ, ψqᵤ)
+        u_trace_check = conj(transpose(Uq))*Uq
+        println("Uq trace check [1, 1] = ", u_trace_check[1,1])
+        println("Uq trace check [2, 2] = ", u_trace_check[2,2])
+        println("Uq trace check [3, 3] = ", u_trace_check[3,3])
+        println("Uq trace check [4, 4] = ", u_trace_check[4,4])
+
         println("Calculating brakets for group $ind")
         for i in 1:nbands
             for j in 1:nbands
-                result = (i==j && ik==iq ? -ϵkᵤ[i] : 0.0)
+                result = (i==j && ik==ikq ? -ϵkᵤ[i] : 0.0)#TODO: check this iq or ikq
                 #println(i, ' ', j, ' ', result)
 
                 for k in 1:nbands*mesh^3
@@ -306,7 +343,13 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh)
     εₐᵣᵣ = Array{ComplexF64, 3}(undef, (1, 3*Nat, 3*Nat))
     ωₐᵣᵣ = Array{Float64, 2}(undef, (1, 3*Nat))
     mₐᵣᵣ = pyconvert(Vector, phonon_params.masses)
+    println("ik = $ik, iq = $iq, ikq = $ikq")
+
     qpoint = determine_q_point(path_to_in*"scf_0/",iq)
+    println("kpoint = ", determine_q_point(path_to_in*"scf_0/",ik))
+    println("qpoint = ", qpoint)
+    println("kqpoint = ", determine_q_point(path_to_in*"scf_0/",ikq))
+
     scaled_pos = pyconvert(Matrix, phonon_params.primitive.get_scaled_positions())
     phonon_factor = [exp(2im * π * dot(qpoint, pos)) for pos in eachrow(scaled_pos)]
 
@@ -320,8 +363,12 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh)
         end
         ωₐᵣᵣ[1, iband] = phonon["frequency"]
     end
-     
-    gᵢⱼₘ_ₐᵣᵣ = Array{ComplexF64, 3}(undef, (nbands, nbands, length(ωₐᵣᵣ)))
+
+   #DEBUG WITH QE OUTPUT##
+   ωₐᵣᵣ, εₐᵣᵣ = parse_qe_ph(path_to_in*"scf_0/dyn1")
+   #DEBUG WITH QE OUTPUT##  
+   gᵢⱼₘ_ₐᵣᵣ = Array{ComplexF64, 3}(undef, (nbands, nbands, length(ωₐᵣᵣ)))
+
 
     for i in 1:nbands
         for j in 1:nbands
@@ -337,11 +384,11 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh)
                         for i_cart in 1:3
                             braket = braket_cart[i_cart]
                             temp_iat::Int = 3*(iat - 1) + i_cart
-                            gᵢⱼₘ += disp*ε[temp_iat]*braket[i,j] 
+                            gᵢⱼₘ += disp*conj(ε[temp_iat])*braket[i,j] 
                         end
                     end
-                    gᵢⱼₘ_ₐᵣᵣ[i,j,iph] = gᵢⱼₘ*13.605
-                    data = [iph, ω*0.124/cm1_to_ry, real(gᵢⱼₘ)*13.605, imag(gᵢⱼₘ)*13.605]
+                    gᵢⱼₘ_ₐᵣᵣ[i,j,iph] = gᵢⱼₘ/ev_to_ry
+                    data = [iph, ω*0.124/cm1_to_ry, real(gᵢⱼₘ)/ev_to_ry, imag(gᵢⱼₘ)/ev_to_ry]
                     #@printf("  %5d  %10.6f  %10.6f   %10.6f\n", data...)
                     @printf(io, "  %5d  %10.6f  %10.6f   %10.6f\n", data...)
                 end
@@ -349,6 +396,49 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh)
             end
         end
     end 
+
+    #Acoustic sum rule for poor
+    if ik==ikq && iq == 1;
+        gᵢⱼₘ_ₐᵣᵣ[:,:,1:3] .= 0.0
+    end
+
+    # #iq = 2, 3 
+    # for i in 2:4
+    #     for j in 3:4
+    #         for iph in 5:6
+    #             println("i = ", i, " j = ", j, " iph = ", iph)
+    #             println("ϵkᵤ[i] = $(ϵkᵤ[i]) ", "ϵqᵤ[j] = $(ϵqᵤ[j]) ","ωₐᵣᵣ[1,iph] = $(ωₐᵣᵣ[1,iph])")
+    #             println("|gᵢⱼₘ_ₐᵣᵣ[$i,$j,$iph]|^2 = ", abs(gᵢⱼₘ_ₐᵣᵣ[i,j,iph])^2)
+    #         end
+    #     end
+    # end
+
+    for i in 2:4
+        for j in 3:4
+            for iph in 5:6
+                ω = ωₐᵣᵣ[1,iph] * cm1_to_ry
+                ε = εₐᵣᵣ[1,iph,:]
+                gᵢⱼₘ = 0.0
+                println("i = ", i, " j = ", j, " iph = ", iph)
+                println("ϵkᵤ[i] = $(ϵkᵤ[i]) ", "ϵqᵤ[j] = $(ϵqᵤ[j]) ","ωₐᵣᵣ[1,iph] = $(ωₐᵣᵣ[1,iph])")
+                for iat in 1:Nat
+                    braket_cart = braket_list_rotated[iat]
+                    m = mₐᵣᵣ[iat] * uma_to_ry
+                    disp = (ω > 0.0 ? sqrt(1/(2*m*ω)) : 0.0)#EPW convention for soft modes
+                    for i_cart in 1:3
+                        braket = braket_cart[i_cart]
+                        temp_iat::Int = 3*(iat - 1) + i_cart
+                        println("iat = ", iat, " i_cart = ", i_cart, " temp_iat = ", temp_iat)
+                        println("disp = ", disp, " ε[temp_iat] = ", ε[temp_iat], " braket[i,j] = ", braket[i,j])
+                        gᵢⱼₘ += disp*ε[temp_iat]*braket[i,j] 
+                        println("gᵢⱼₘ = ", gᵢⱼₘ)
+                    end
+                end
+            end
+        end
+    end
+
+
 
     # Symmetrization
     symm_elph = zeros(ComplexF64,(nbands, nbands, length(ωₐᵣᵣ)))#gˢʸᵐᵢⱼₘ_ₐᵣᵣ
@@ -421,12 +511,12 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh)
     elph_dfpt = parse_ph(path_to_in*"scf_0/ph.out", nbands, length(ωₐᵣᵣ))
 
     #saving resulting electron phonon couplings 
-    @printf("      i      j      nu    g_frozen   g_DFPT\n")
+    @printf("      i      j      nu      ϵkᵤ             ϵqᵤ              ωₐᵣᵣ         g_frozen    g_DFPT\n")
     open(path_to_in*"comparison", "w") do io 
     for i in 1:nbands
-        for j in i:nbands
-                for iph in 1:3*Nat
-                    @printf("  %5d  %5d  %5d   %10.6f %10.6f\n", i,j,iph,symm_elph[i, j, iph], elph_dfpt[i, j, iph])
+        for j in 1:nbands
+                for iph in 1:3*Nat#Need to chec
+                    @printf("  %5d  %5d  %5d  %10.6f  %10.6f  %10.6f  %10.6f %10.6f\n", i,j, iph, ϵkᵤ[i], ϵqᵤ[j], ωₐᵣᵣ[1,iph],symm_elph[i, j, iph], elph_dfpt[i, j, iph])
                     @printf(io, "  %5d  %5d  %5d   %10.6f %10.6f\n", i,j,iph,symm_elph[i, j, iph], elph_dfpt[i, j, iph])
                 end
             end
@@ -447,8 +537,8 @@ function plot_ep_coupling(path_to_file::String)
             columns = split(line)
             if length(columns) >= 5
                 # Extract the last two columns and convert them to Float64
-                x_val = parse(Float64, columns[4])
-                y_val = parse(Float64, columns[5])
+                x_val = parse(Float64, columns[5])
+                y_val = parse(Float64, columns[4])
                 push!(x, x_val)
                 push!(y, y_val)
             end
@@ -456,7 +546,7 @@ function plot_ep_coupling(path_to_file::String)
     end
 
     # Create a scatter plot
-    scatter(x, y, xlabel="g_frozen", ylabel="g_DFPT", title="Comparison", color = "red")
+    scatter(x, y, xlabel="g_DFPT", ylabel="g_frozen", title="Comparison", color = "red")
     line = LinRange(0, 1.1*maximum(max.(x,y)), 4)
     plot!(line, line, color = "black", legend = false)
     savefig(path_to_file*"comparison.png")

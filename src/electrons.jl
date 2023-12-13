@@ -1,4 +1,4 @@
-using JLD2
+using JLD2, DelimitedFiles
 
 function create_scf_calc(path_to_scf::String,unitcell, scf_parameters; gamma = false)
     # Create the FCC cell for Silicon
@@ -66,6 +66,59 @@ function run_scf(path_to_in::String, mpi_ranks::Int = 0)
 
     println(command)
     run(pipeline(command, stdout="scf.out", stderr="errs.txt"))
+end
+
+function run_nscf_calc(path_to_in::String, unitcell, scf_parameters, mesh, path_to_kmesh, mpi_ranks)
+    println("Ceating nscf:")
+    cd(path_to_in*"displacements/scf_0/")
+
+    command = `$path_to_kmesh/kmesh.pl $mesh $mesh $mesh`
+    println(command)
+    run(pipeline(command, stdout="kpoints.dat", stderr="kmesherr.txt"))
+    
+    atoms  = pycall(ase.Atoms;unitcell...)
+    scf_parameters[:calculation] = "nscf"
+ 
+    # Write the input file using Quantum ESPRESSO format
+    ase_io.write(path_to_in*"displacements/scf_0/nscf.in",atoms; scf_parameters...)
+
+    # Change the kpoints without ASE (not implemented yet)
+    file = open(path_to_in*"displacements/scf_0/kpoints.dat", "r")
+    lines_kpoints = readlines(file)
+    close(file)
+
+    file = open(path_to_in*"displacements/scf_0/nscf.in", "r")
+    lines_nscf = readlines(file)
+    close(file)
+
+    index_kpoints = 0
+
+    for (index, line) in enumerate(lines_nscf)
+        if occursin("K_POINTS", line)
+            index_kpoints = index
+            break
+        end
+    end
+
+    deleteat!(lines_nscf,index_kpoints+1)
+    splice!(lines_nscf, index_kpoints, lines_kpoints)
+
+    file = open(path_to_in*"displacements/scf_0/nscf.in", "w")
+    writedlm(file, lines_nscf)
+    close(file)
+
+    println("Running nscf:")
+
+    if mpi_ranks > 0
+        command = `mpirun -np $mpi_ranks pw.x -in nscf.in`
+    else
+        command = `pw.x -in nscf.in`
+    end
+
+    println(command)
+    run(pipeline(command, stdout="scf.out", stderr="nerrs.txt"))
+
+    return true
 end
 
 function run_disp_calc(path_to_in::String, Ndispalce::Int, mpi_ranks::Int = 0)

@@ -148,16 +148,8 @@ function unfold_to_sc(path_to_in::String, mesh::Int, ik::Int)
     fft_line = readline(potential_file)
     Nxyz = parse(Int64, split(fft_line)[1]) * mesh
 
-    ##change to determin_q_point
-    atoms = ase_io.read(path_to_in*"scf.out")
-    kpoints = atoms.calc.kpts
-    q_vector = [0,0,0]
-
-    for (index, kpoint) in enumerate(kpoints)
-        if index == ik
-            q_vector = pyconvert(Vector{Float64},kpoint.k .* mesh)
-        end
-    end
+    q_vector = determine_q_point(path_to_in,ik).* mesh
+    println("q_vector = $q_vector")
 
     x = range(0, 1-1/Nxyz, Nxyz)
     y = range(0, 1-1/Nxyz, Nxyz)
@@ -200,9 +192,8 @@ function prepare_wave_functions_all(path_to_in::String, ik::Int, iq::Int, mesh::
     #prepare_wave_functions_opt(file_path;ik=ik)
     prepare_wave_functions(file_path;ik=ik)
 
-
     #need to fold in 1st Bz in case of arbitrary q
-    k_list = get_kpoint_list(file_path*"scf.out")
+    k_list = get_kpoint_list(file_path)
     ikq = fold_kpoint(ik,iq,k_list)
     #prepare_wave_functions_opt(file_path;ik=ikq)
     prepare_wave_functions(file_path;ik=ikq)
@@ -212,6 +203,7 @@ function prepare_wave_functions_all(path_to_in::String, ik::Int, iq::Int, mesh::
         unfold_to_sc(file_path,mesh,ikq)
     end
 
+    # TODO check consistency between convetional, fft and braket.x (Why braket(wf_1,wf_1_fft)=0???)
     for i in 1:2:Ndisp
         file_path=path_to_in*"/group_$i/"
         if mesh > 1
@@ -219,6 +211,54 @@ function prepare_wave_functions_all(path_to_in::String, ik::Int, iq::Int, mesh::
             prepare_wave_functions(file_path,ik=1)
         else
             prepare_wave_functions(file_path,ik=ik)
+        end    
+    end
+
+end
+
+function wave_functions_to_G(path_to_in::String; ik::Int=1)
+    wfc_list = load(path_to_in*"/scf_0/wfc_list_phase_$ik.jld2")
+    Nxyz = size(wfc_list["wfc1"], 1)
+    miller_sc, _ = parse_fortan_bin(path_to_in*"/group_1/tmp/scf.save/wfc1.dat") 
+    Nevc = size(miller_sc, 2)
+    g_list = Dict()
+
+    println("Tranforming wave function to G space:")
+
+    for (key, wfc) in wfc_list
+        evc_sc = zeros(ComplexF64, size(miller_sc, 2))
+        wfc_g = fft(wfc)
+        shift = div(Nxyz, 2)
+        for idx in 1:Nevc
+            g_vector = Int.(miller_sc[:, idx])
+            i, j, k = ((g_vector .+ shift) .% Nxyz) .+ 1
+            evc_sc[idx] = wfc_g[i, j, k]
+        end
+
+        norm = sqrt(1/calculate_braket(evc_sc,evc_sc))
+        evc_sc = evc_sc .* norm
+        g_list[key] = evc_sc
+    end
+
+    println("Data saved in "*path_to_in*"g_list_sc_$ik.jld2")
+    save(path_to_in*"/scf_0/g_list_sc_$ik.jld2", g_list)
+end
+
+function prepare_wave_functions_undisp(path_to_in::String, ik::Int, iq::Int, mesh::Int)
+    file_path=path_to_in*"/scf_0/"
+
+    if mesh > 1
+        #prepare_wave_functions_opt(file_path;ik=ik)
+        prepare_wave_functions(file_path;ik=ik)
+        unfold_to_sc(file_path,mesh,ik)
+        wave_functions_to_G(path_to_in;ik=ik)
+        
+        k_list = get_kpoint_list(file_path)
+        ikq = fold_kpoint(ik,iq,k_list)
+        if ikq != ik
+            prepare_wave_functions(file_path;ik=ikq)
+            unfold_to_sc(file_path,mesh,ikq)
+            wave_functions_to_G(path_to_in;ik=ikq)
         end    
     end
 

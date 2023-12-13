@@ -1,4 +1,4 @@
-function determine_q_point(path_to_in, iq; mesh=1)
+function determine_q_point_old(path_to_in, iq; mesh=1)
     atoms = ase_io.read(path_to_in*"/scf.out")
     kpoints = atoms.calc.kpts
     q_vector = [0,0,0]
@@ -10,6 +10,14 @@ function determine_q_point(path_to_in, iq; mesh=1)
     end
     
     return round.(q_vector;digits=4)
+end
+
+function determine_q_point(path_to_in, iq; mesh=1)
+    file = open(path_to_in*"/kpoints.dat", "r")
+    lines_qpoints = readlines(file)
+    close(file)
+    qpoints = [parse.(Float64, split(line)[1:end-1]) for line in lines_qpoints[3:end]]  
+    return qpoints[iq].*mesh
 end
 
 function determine_q_point_cart(path_to_in,ik)
@@ -117,4 +125,50 @@ function calculate_phonons(path_to_in::String,unitcell,abs_disp, Ndispalce, mesh
     cd(current_directory)
 
     return true 
+end
+
+#Parse phonons eigenvalues and eigenvectors from qe output  
+function parse_qe_ph(path_to_dyn)
+    #Read file and save lines between special line
+    special_line = "**************************************************************************"
+
+    lines = []
+    open(path_to_dyn) do file
+        found_special_line = false
+        for line in eachline(file)
+            if found_special_line
+                if occursin(special_line, line)
+                    break
+                else
+                    push!(lines, line)
+                end
+            elseif occursin(special_line, line)
+                found_special_line = true
+            end
+        end
+    end
+
+    ωₐᵣᵣ_ₚₕ = transpose([parse(Float64,split(lines[i])[end-1]) for i in 1:3:length(lines)]) 
+
+    eigen_list = []
+    for line in lines
+        if !occursin("freq", line)
+            push!(eigen_list, parse.(Float64,split(line)[2:end-1]))
+        end
+    end
+
+    Nat =  round(Int64, length(eigen_list)/length(ωₐᵣᵣ_ₚₕ))
+    εₐᵣᵣ_ₚₕ = Array{ComplexF64, 3}(undef, (1, 3*Nat, 3*Nat))
+
+    for iband in 1:3*Nat
+        temp_iband = 2*iband - 1
+        eigens = vcat(eigen_list[temp_iband], eigen_list[temp_iband+1])
+
+        for iat in 1:3*Nat
+            temp_iat = 2*iat - 1
+            εₐᵣᵣ_ₚₕ[1, iband, iat] = eigens[temp_iat]+1im*eigens[temp_iat+1]
+        end
+    end
+
+    return [ωₐᵣᵣ_ₚₕ, εₐᵣᵣ_ₚₕ]
 end

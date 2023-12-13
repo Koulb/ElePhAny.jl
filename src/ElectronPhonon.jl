@@ -17,11 +17,10 @@ function __init__()
     PythonCall.pycopy!(np, pyimport("numpy"))
 end
 
-# Write your package code here.
-export create_disp_calc, run_disp_calc, save_potential
+export create_disp_calc, run_disp_calc, save_potential, run_nscf_calc
 include("electrons.jl")
 
-export prepare_wave_functions_all
+export prepare_wave_functions_all, prepare_wave_functions_undisp
 include("wave_function.jl")
 
 export calculate_phonons
