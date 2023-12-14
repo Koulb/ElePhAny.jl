@@ -202,12 +202,14 @@ end
 
 #For sc case need to modify eigenvetors with right phase + brakets should be in real space
 function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh)
+    
     cd(path_to_in)
-    command = `mkdir elph_elements`
-    try
-        run(command);
-        println(command)
-    catch; end
+    ## NEED TO RETURN IN THE END
+    # command = `mkdir elph_elements`
+    # try
+    #     run(command);
+    #     println(command)
+    # catch; end
     Nat::Int = Ndisp//6
 
     ev_to_ry = 1 / 13.6057039763 
@@ -259,7 +261,7 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh)
         file_path=path_to_in*"/group_$ind/tmp/scf.save/wfc1.dat"
        
         local ψₚ, Uk, Uq 
-        println("Processing group $ind")
+        #println("Processing group $ind")
 
         # if mesh > 1 
         #     temp_path = "/home/apolyukhin/Development/frozen_phonons/elph/example/supercell_disp/"
@@ -280,20 +282,20 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh)
 
         Uk = calculate_braket_matrix(ψₚ, ψkᵤ)
         u_trace_check = conj(transpose(Uk))*Uk
-        println("Uk trace check [1, 1] = ", u_trace_check[1,1])
-        println("Uk trace check [2, 2] = ", u_trace_check[2,2])
-        println("Uk trace check [3, 3] = ", u_trace_check[3,3])
-        println("Uk trace check [4, 4] = ", u_trace_check[4,4])
+        #println("Uk trace check [1, 1] = ", u_trace_check[1,1])
+        #println("Uk trace check [2, 2] = ", u_trace_check[2,2])
+        #println("Uk trace check [3, 3] = ", u_trace_check[3,3])
+        #println("Uk trace check [4, 4] = ", u_trace_check[4,4])
 
 
         Uq = calculate_braket_matrix(ψₚ, ψqᵤ)
         u_trace_check = conj(transpose(Uq))*Uq
-        println("Uq trace check [1, 1] = ", u_trace_check[1,1])
-        println("Uq trace check [2, 2] = ", u_trace_check[2,2])
-        println("Uq trace check [3, 3] = ", u_trace_check[3,3])
-        println("Uq trace check [4, 4] = ", u_trace_check[4,4])
+        # println("Uq trace check [1, 1] = ", u_trace_check[1,1])
+        # println("Uq trace check [2, 2] = ", u_trace_check[2,2])
+        # println("Uq trace check [3, 3] = ", u_trace_check[3,3])
+        # println("Uq trace check [4, 4] = ", u_trace_check[4,4])
 
-        println("Calculating brakets for group $ind")
+        #println("Calculating brakets for group $ind")
         for i in 1:nbands
             for j in 1:nbands
                 result = (i==j && ik==ikq ? -ϵkᵤ[i] : 0.0)#TODO: check this iq or ikq
@@ -343,17 +345,17 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh)
     εₐᵣᵣ = Array{ComplexF64, 3}(undef, (1, 3*Nat, 3*Nat))
     ωₐᵣᵣ = Array{Float64, 2}(undef, (1, 3*Nat))
     mₐᵣᵣ = pyconvert(Vector, phonon_params.masses)
-    println("ik = $ik, iq = $iq, ikq = $ikq")
+    #println("ik = $ik, iq = $iq, ikq = $ikq")
 
     qpoint = determine_q_point(path_to_in*"scf_0/",iq)
-    println("kpoint = ", determine_q_point(path_to_in*"scf_0/",ik))
-    println("qpoint = ", qpoint)
-    println("kqpoint = ", determine_q_point(path_to_in*"scf_0/",ikq))
+    # println("kpoint = ", determine_q_point(path_to_in*"scf_0/",ik))
+    # println("qpoint = ", qpoint)
+    # println("kqpoint = ", determine_q_point(path_to_in*"scf_0/",ikq))
 
     scaled_pos = pyconvert(Matrix, phonon_params.primitive.get_scaled_positions())
     phonon_factor = [exp(2im * π * dot(qpoint, pos)) for pos in eachrow(scaled_pos)]
 
-    for (iband, phonon) in enumerate(phonons["phonon"][1]["band"])
+    for (iband, phonon) in enumerate(phonons["phonon"][iq]["band"])
         for iat in 1:Nat
             for icart in 1:3
                 temp_iat::Int = icart + 3 *(iat-1)
@@ -413,30 +415,30 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh)
     #     end
     # end
 
-    for i in 2:4
-        for j in 3:4
-            for iph in 5:6
-                ω = ωₐᵣᵣ[1,iph] * cm1_to_ry
-                ε = εₐᵣᵣ[1,iph,:]
-                gᵢⱼₘ = 0.0
-                println("i = ", i, " j = ", j, " iph = ", iph)
-                println("ϵkᵤ[i] = $(ϵkᵤ[i]) ", "ϵqᵤ[j] = $(ϵqᵤ[j]) ","ωₐᵣᵣ[1,iph] = $(ωₐᵣᵣ[1,iph])")
-                for iat in 1:Nat
-                    braket_cart = braket_list_rotated[iat]
-                    m = mₐᵣᵣ[iat] * uma_to_ry
-                    disp = (ω > 0.0 ? sqrt(1/(2*m*ω)) : 0.0)#EPW convention for soft modes
-                    for i_cart in 1:3
-                        braket = braket_cart[i_cart]
-                        temp_iat::Int = 3*(iat - 1) + i_cart
-                        println("iat = ", iat, " i_cart = ", i_cart, " temp_iat = ", temp_iat)
-                        println("disp = ", disp, " ε[temp_iat] = ", ε[temp_iat], " braket[i,j] = ", braket[i,j])
-                        gᵢⱼₘ += disp*ε[temp_iat]*braket[i,j] 
-                        println("gᵢⱼₘ = ", gᵢⱼₘ)
-                    end
-                end
-            end
-        end
-    end
+    # for i in 2:4
+    #     for j in 3:4
+    #         for iph in 5:6
+    #             ω = ωₐᵣᵣ[1,iph] * cm1_to_ry
+    #             ε = εₐᵣᵣ[1,iph,:]
+    #             gᵢⱼₘ = 0.0
+    #             #println("i = ", i, " j = ", j, " iph = ", iph)
+    #             #println("ϵkᵤ[i] = $(ϵkᵤ[i]) ", "ϵqᵤ[j] = $(ϵqᵤ[j]) ","ωₐᵣᵣ[1,iph] = $(ωₐᵣᵣ[1,iph])")
+    #             for iat in 1:Nat
+    #                 braket_cart = braket_list_rotated[iat]
+    #                 m = mₐᵣᵣ[iat] * uma_to_ry
+    #                 disp = (ω > 0.0 ? sqrt(1/(2*m*ω)) : 0.0)#EPW convention for soft modes
+    #                 for i_cart in 1:3
+    #                     braket = braket_cart[i_cart]
+    #                     temp_iat::Int = 3*(iat - 1) + i_cart
+    #                     #println("iat = ", iat, " i_cart = ", i_cart, " temp_iat = ", temp_iat)
+    #                     #println("disp = ", disp, " ε[temp_iat] = ", ε[temp_iat], " braket[i,j] = ", braket[i,j])
+    #                     gᵢⱼₘ += disp*ε[temp_iat]*braket[i,j] 
+    #                     #println("gᵢⱼₘ = ", gᵢⱼₘ)
+    #                 end
+    #             end
+    #         end
+    #     end
+    # end
 
 
 
@@ -512,7 +514,7 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh)
 
     #saving resulting electron phonon couplings 
     @printf("      i      j      nu      ϵkᵤ             ϵqᵤ              ωₐᵣᵣ         g_frozen    g_DFPT\n")
-    open(path_to_in*"comparison", "w") do io 
+    open(path_to_in*"out/comparison_$(ik)_$(iq).txt", "w") do io 
     for i in 1:nbands
         for j in 1:nbands
                 for iph in 1:3*Nat#Need to chec
@@ -523,13 +525,21 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh)
         end
     end 
 
+    #Attempt to free some space 
+    ψkᵤ = 0
+    ψqᵤ = 0
+    ψₚ  = 0
+    Uk  = 0
+    Uq  = 0
+    GC.gc()
+
 end
 
-function plot_ep_coupling(path_to_file::String)
+function plot_ep_coupling(path_to_in::String; ik::Int=0, iq::Int=0)
     # Initialize empty arrays for x and y
     x = Float64[]
     y = Float64[]
-    filename = path_to_file*"comparison"
+    filename = path_to_in*"out/comparison_$(ik)_$(iq).txt"
     # Read data from the file and populate x and y arrays
     open(filename, "r") do file
         for line in eachline(file)
@@ -549,5 +559,5 @@ function plot_ep_coupling(path_to_file::String)
     scatter(x, y, xlabel="g_DFPT", ylabel="g_frozen", title="Comparison", color = "red")
     line = LinRange(0, 1.1*maximum(max.(x,y)), 4)
     plot!(line, line, color = "black", legend = false)
-    savefig(path_to_file*"comparison.png")
+    savefig(path_to_in*"out/comparison_$(ik)_$(iq).png")
 end

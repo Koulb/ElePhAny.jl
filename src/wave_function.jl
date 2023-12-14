@@ -244,6 +244,18 @@ function wave_functions_to_G(path_to_in::String; ik::Int=1)
     save(path_to_in*"/scf_0/g_list_sc_$ik.jld2", g_list)
 end
 
+function prepare_wave_functions_undisp(path_to_in::String, ik::Int, mesh::Int)
+    file_path=path_to_in*"/scf_0/"
+
+    if mesh > 1
+        #prepare_wave_functions_opt(file_path;ik=ik)
+        prepare_wave_functions(file_path;ik=ik)
+        unfold_to_sc(file_path,mesh,ik)
+        wave_functions_to_G(path_to_in;ik=ik)
+    end
+
+end
+
 function prepare_wave_functions_undisp(path_to_in::String, ik::Int, iq::Int, mesh::Int)
     file_path=path_to_in*"/scf_0/"
 
@@ -260,6 +272,15 @@ function prepare_wave_functions_undisp(path_to_in::String, ik::Int, iq::Int, mes
             unfold_to_sc(file_path,mesh,ikq)
             wave_functions_to_G(path_to_in;ik=ikq)
         end    
+    end
+
+end
+
+
+function prepare_wave_functions_undisp(path_to_in::String, mesh::Int)
+    for ik in 1:mesh^3
+        prepare_wave_functions_undisp(path_to_in,ik,mesh)
+        println("ik = $ik/$(mesh^3) is ready")
     end
 
 end

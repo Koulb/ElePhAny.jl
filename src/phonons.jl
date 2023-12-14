@@ -67,7 +67,7 @@ function dislpaced_unitecells(path_to_save, unitcell, abs_disp, mesh)
     return supercells
 end
 
-function calculate_phonons(path_to_in::String,unitcell,abs_disp, Ndispalce, mesh, iq)
+function calculate_phonons(path_to_in::String,unitcell,abs_disp, Ndispalce, mesh; iq=0)
     # Get a number of displacements
     files = readdir(path_to_in; join=true)
     number_atoms = length(unitcell[:symbols])*mesh^3
@@ -106,15 +106,27 @@ function calculate_phonons(path_to_in::String,unitcell,abs_disp, Ndispalce, mesh
     #mesh_dict = phonon.get_mesh_dict()
     phonon.save(path_to_in*"phonopy_params.yaml"; settings=Dict(:force_constants => true))
 
-    qpoint = determine_q_point(path_to_in*"scf_0/",iq)
 
     #Dumb way of using phonopy since api gives diffrent result
     current_directory = pwd()
     cd(path_to_in)
     command = `phonopy -c phonopy_params.yaml --dim="$mesh $mesh $mesh" --eigvecs --factor $factor -p mesh.conf`
     file_name = "mesh.conf"
-    #content = "MESH = $mesh $mesh $mesh\nGAMMA_CENTER = .TRUE."
-    content = "QPOINTS = $(qpoint[1]) $(qpoint[2]) $(qpoint[3])"
+
+    content = ""
+    if iq == 0
+        # content = "MESH = $mesh $mesh $mesh\nGAMMA_CENTER = .TRUE."
+        qpoint = determine_q_point(path_to_in*"scf_0/",1)
+        content = "QPOINTS = $(qpoint[1]) $(qpoint[2]) $(qpoint[3])"
+        for iq in 2:mesh^3
+            qpoint = determine_q_point(path_to_in*"scf_0/",iq)
+            content = content*" $(qpoint[1]) $(qpoint[2]) $(qpoint[3])"
+        end
+    else
+        qpoint = determine_q_point(path_to_in*"scf_0/",iq)
+        content = "QPOINTS = $(qpoint[1]) $(qpoint[2]) $(qpoint[3])"
+    end
+    
     file = open(path_to_in*file_name, "w")
     write(file, content)
     close(file)
