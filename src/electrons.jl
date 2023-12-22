@@ -30,7 +30,7 @@ function create_disp_calc(path_to_in::String, unitcell, scf_parameters, abs_disp
     cd(path_to_in)
     println("Creating folders in $path_to_in:")
 
-    command = `mkdir scf_0`        
+    command = `mkdir scf_0 epw out elph_elements`        
     try
         run(command);
         println(command)

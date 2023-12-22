@@ -126,6 +126,8 @@ function calculate_phonons(path_to_in::String,unitcell,abs_disp, Ndispalce, mesh
         qpoint = determine_q_point(path_to_in*"scf_0/",iq)
         content = "QPOINTS = $(qpoint[1]) $(qpoint[2]) $(qpoint[3])"
     end
+
+    content = content*" \nWRITEDM = .TRUE."
     
     file = open(path_to_in*file_name, "w")
     write(file, content)

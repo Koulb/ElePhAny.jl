@@ -1,15 +1,15 @@
-using ElectronPhonon, PythonCall
+using ElectronPhonon, PythonCall, ProgressMeter
 
 # Example usage
-directory_path = "/home/apolyukhin/Development/julia_tests/qe_inputs_ibrav/"#
+directory_path = "/home/apolyukhin/Development/julia_tests/qe_inputs_small_02/"#
 path_to_kmesh = "/home/apolyukhin/Soft/sourse/q-e/W90/utility/"
 mpi_ranks = 10
 
 #Params
-ik = 18
-iq = 54
-mesh = 4 #important to change !
-abs_disp = 0.01 
+#ik = 18
+#iq = 54
+mesh = 2 #important to change !
+abs_disp = 0.02
 Ndispalce = 12
 
 # Lattice constant of Silicon
@@ -46,32 +46,37 @@ scf_parameters = Dict(
     :tprnfor => true
 )
 
-# Electrons calculation
-# Ndispalce = create_disp_calc(directory_path, unitcell, scf_parameters, abs_disp, mesh; from_scratch = true)
-# run_disp_calc(directory_path*"displacements/", Ndispalce, mpi_ranks)
-# run_nscf_calc(directory_path, unitcell, scf_parameters, mesh, path_to_kmesh, mpi_ranks)
-# save_potential(directory_path*"displacements/", Ndispalce, mesh)
+# #Electrons calculation
+#Ndispalce = create_disp_calc(directory_path, unitcell, scf_parameters, abs_disp, mesh; from_scratch = true)
+#run_disp_calc(directory_path*"displacements/", Ndispalce, mpi_ranks)
+#run_nscf_calc(directory_path, unitcell, scf_parameters, mesh, path_to_kmesh, mpi_ranks)
+#save_potential(directory_path*"displacements/", Ndispalce, mesh)
 
-# prepare_wave_functions_undisp(directory_path*"displacements/", mesh)
+#prepare_wave_functions_undisp(directory_path*"displacements/", mesh)
 ### prepare_wave_functions_undisp(directory_path*"displacements/", ik, iq, mesh)
 ### prepare_wave_functions_all(directory_path*"displacements/", ik, iq, mesh, Ndispalce)
 
 ## Phonons calculation
-#calculate_phonons(directory_path*"displacements/",unitcell, abs_disp, Ndispalce, mesh)
+calculate_phonons(directory_path*"displacements/",unitcell, abs_disp, Ndispalce, mesh)
 
 # Electron-phonon matrix elements
 #electron_phonon_qe(directory_path*"displacements/", ik, iq, mpi_ranks)
 #electron_phonon(directory_path*"displacements/", abs_disp, Ndispalce, ik, iq, mesh)
 #plot_ep_coupling(directory_path*"displacements/")
 
-## TEST for an array of points 
-ik_list = [1,2,3]
-iq_list = [i for i in 1:mesh^3]
+# # Electron-phonon matrix elements
+# ## TEST for an array of points 
+ik_list = [1,2]#[i for i in 1:mesh^3]
+iq_list = [1]#[i for i in 1:mesh^3]
 
+progress = Progress(length(ik_list)*length(iq_list), dt=5.0)
+
+println("Calculating electron-phonon matrix elements for $(length(ik_list)*length(iq_list)) points:")
 for ik in ik_list
     for iq in iq_list
         electron_phonon_qe(directory_path*"displacements/", ik, iq, mpi_ranks)
-        electron_phonon(directory_path*"displacements/", abs_disp, Ndispalce, ik, iq, mesh)
+        electron_phonon(directory_path*"displacements/", abs_disp, Ndispalce, ik, iq, mesh)# ;save_epw = true
         plot_ep_coupling(directory_path*"displacements/"; ik, iq)
+        next!(progress)
     end
 end

@@ -1,4 +1,4 @@
-using FortranFiles, LinearAlgebra, Base.Threads,ProgressMeter, JLD2, FFTW
+using FortranFiles, LinearAlgebra, Base.Threads, ProgressMeter, JLD2, FFTW
 
 function wf_from_G_fft(miller::Matrix{Int32}, evc::Vector{ComplexF64}, Nxyz::Integer)
     reciprocal_space_grid = zeros(ComplexF64, Nxyz, Nxyz, Nxyz)

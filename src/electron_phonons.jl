@@ -1,5 +1,4 @@
-using EzXML, WannierIO, LinearAlgebra, Printf,  YAML, Plots
-
+using EzXML, WannierIO, LinearAlgebra, Printf,  YAML, Plots, Base.Threads
 
 function get_kpoint_list(path_to_in)
     file = open(path_to_in*"/kpoints.dat", "r")
@@ -113,16 +112,22 @@ function calculate_braket_matrix_real(bras, kets)
 end
 
 function calculate_braket(bra::Array{Complex{Float64}}, ket::Array{Complex{Float64}})
-    result = sum(conj(bra) .* ket)
+    Nevc = length(bra)
+    result = zero(Complex{Float64})
+
+    @inbounds @simd for i in 1:Nevc
+        result += conj(bra[i]) * ket[i]
+    end
+
     return result
 end
 
 function calculate_braket_matrix(bras, kets)
     result = zeros(Complex{Float64}, length(bras), length(kets))
     
-    for (i,bra) in enumerate(bras)
-        for (j,ket) in enumerate(kets)
-            result[i,j] = calculate_braket(bra,ket)
+    @threads for i in eachindex(bras)
+        for j in eachindex(kets)
+            result[i,j] = calculate_braket(bras[i],kets[j])
         end
     end
 
@@ -201,7 +206,7 @@ function load_wf_u_debug(path_to_in::String, ik)
 end
 
 #For sc case need to modify eigenvetors with right phase + brakets should be in real space
-function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh)
+function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh; save_epw::Bool=false)
     
     cd(path_to_in)
     ## NEED TO RETURN IN THE END
@@ -333,197 +338,214 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh)
         push!(braket_list_rotated, U_inv* braket_temp) #transpose(U_inv) * braket_temp
     end
 
-    #println("Braket list rotated")
-    #println(braket_list_rotated)
-
-    ## Multiplication by phonon eigenvector and phonon frequency
-    ## Compute electron-phonon vertex in normal coordinate basis
-    uma_to_ry = 911.44476959
-    cm1_to_ry = 9.11259564445e-06
-    phonons = YAML.load_file("qpoints.yaml")
-
-    εₐᵣᵣ = Array{ComplexF64, 3}(undef, (1, 3*Nat, 3*Nat))
-    ωₐᵣᵣ = Array{Float64, 2}(undef, (1, 3*Nat))
-    mₐᵣᵣ = pyconvert(Vector, phonon_params.masses)
-    #println("ik = $ik, iq = $iq, ikq = $ikq")
-
-    qpoint = determine_q_point(path_to_in*"scf_0/",iq)
-    # println("kpoint = ", determine_q_point(path_to_in*"scf_0/",ik))
-    # println("qpoint = ", qpoint)
-    # println("kqpoint = ", determine_q_point(path_to_in*"scf_0/",ikq))
-
-    scaled_pos = pyconvert(Matrix, phonon_params.primitive.get_scaled_positions())
-    phonon_factor = [exp(2im * π * dot(qpoint, pos)) for pos in eachrow(scaled_pos)]
-
-    for (iband, phonon) in enumerate(phonons["phonon"][iq]["band"])
-        for iat in 1:Nat
-            for icart in 1:3
-                temp_iat::Int = icart + 3 *(iat-1)
-                eig_temp = phonon["eigenvector"][iat][icart][1] + 1im*phonon["eigenvector"][iat][icart][2]
-                εₐᵣᵣ[1, iband, temp_iat] = phonon_factor[iat]*eig_temp
-            end
-        end
-        ωₐᵣᵣ[1, iband] = phonon["frequency"]
-    end
-
-   #DEBUG WITH QE OUTPUT##
-   ωₐᵣᵣ, εₐᵣᵣ = parse_qe_ph(path_to_in*"scf_0/dyn1")
-   #DEBUG WITH QE OUTPUT##  
-   gᵢⱼₘ_ₐᵣᵣ = Array{ComplexF64, 3}(undef, (nbands, nbands, length(ωₐᵣᵣ)))
-
-
-    for i in 1:nbands
-        for j in 1:nbands
-            open(path_to_in*"elph_elements/ep_$(i)_$(j)", "w") do io  
-                for iph in 1:3*Nat
-                    ω = ωₐᵣᵣ[1,iph] * cm1_to_ry
-                    ε = εₐᵣᵣ[1,iph,:]
-                    gᵢⱼₘ = 0.0
-                    for iat in 1:Nat
-                        braket_cart = braket_list_rotated[iat]
-                        m = mₐᵣᵣ[iat] * uma_to_ry
-                        disp = (ω > 0.0 ? sqrt(1/(2*m*ω)) : 0.0)#EPW convention for soft modes
-                        for i_cart in 1:3
-                            braket = braket_cart[i_cart]
-                            temp_iat::Int = 3*(iat - 1) + i_cart
-                            gᵢⱼₘ += disp*conj(ε[temp_iat])*braket[i,j] 
+    if save_epw
+        #save braket_list_rotated in the file
+        open(path_to_in*"epw/braket_list_rotated_$(ik)_$(iq)", "w") do io
+            for iat in 1:Nat
+                for i in 1:3
+                    for j in 1:nbands
+                        for k in 1:nbands
+                            data = [iat, i, j, k, real(braket_list_rotated[iat][i][j,k]), imag(braket_list_rotated[iat][i][j,k])]
+                            @printf(io, "  %5d  %5d  %5d  %5d  %16.12f  %16.12f\n", data...)
                         end
                     end
-                    gᵢⱼₘ_ₐᵣᵣ[i,j,iph] = gᵢⱼₘ/ev_to_ry
-                    data = [iph, ω*0.124/cm1_to_ry, real(gᵢⱼₘ)/ev_to_ry, imag(gᵢⱼₘ)/ev_to_ry]
-                    #@printf("  %5d  %10.6f  %10.6f   %10.6f\n", data...)
-                    @printf(io, "  %5d  %10.6f  %10.6f   %10.6f\n", data...)
                 end
-                #@printf("____________________________________________\n")
             end
         end
-    end 
+    else
+        #println("Braket list rotated")
+        #println(braket_list_rotated)
 
-    #Acoustic sum rule for poor
-    if ik==ikq && iq == 1;
-        gᵢⱼₘ_ₐᵣᵣ[:,:,1:3] .= 0.0
-    end
+        ## Multiplication by phonon eigenvector and phonon frequency
+        ## Compute electron-phonon vertex in normal coordinate basis
+        uma_to_ry = 911.44476959
+        cm1_to_ry = 9.11259564445e-06
+        phonons = YAML.load_file("qpoints.yaml")
 
-    # #iq = 2, 3 
-    # for i in 2:4
-    #     for j in 3:4
-    #         for iph in 5:6
-    #             println("i = ", i, " j = ", j, " iph = ", iph)
-    #             println("ϵkᵤ[i] = $(ϵkᵤ[i]) ", "ϵqᵤ[j] = $(ϵqᵤ[j]) ","ωₐᵣᵣ[1,iph] = $(ωₐᵣᵣ[1,iph])")
-    #             println("|gᵢⱼₘ_ₐᵣᵣ[$i,$j,$iph]|^2 = ", abs(gᵢⱼₘ_ₐᵣᵣ[i,j,iph])^2)
-    #         end
-    #     end
-    # end
+        εₐᵣᵣ = Array{ComplexF64, 3}(undef, (1, 3*Nat, 3*Nat))
+        ωₐᵣᵣ = Array{Float64, 2}(undef, (1, 3*Nat))
+        mₐᵣᵣ = pyconvert(Vector, phonon_params.masses)
+        #println("ik = $ik, iq = $iq, ikq = $ikq")
 
-    # for i in 2:4
-    #     for j in 3:4
-    #         for iph in 5:6
-    #             ω = ωₐᵣᵣ[1,iph] * cm1_to_ry
-    #             ε = εₐᵣᵣ[1,iph,:]
-    #             gᵢⱼₘ = 0.0
-    #             #println("i = ", i, " j = ", j, " iph = ", iph)
-    #             #println("ϵkᵤ[i] = $(ϵkᵤ[i]) ", "ϵqᵤ[j] = $(ϵqᵤ[j]) ","ωₐᵣᵣ[1,iph] = $(ωₐᵣᵣ[1,iph])")
-    #             for iat in 1:Nat
-    #                 braket_cart = braket_list_rotated[iat]
-    #                 m = mₐᵣᵣ[iat] * uma_to_ry
-    #                 disp = (ω > 0.0 ? sqrt(1/(2*m*ω)) : 0.0)#EPW convention for soft modes
-    #                 for i_cart in 1:3
-    #                     braket = braket_cart[i_cart]
-    #                     temp_iat::Int = 3*(iat - 1) + i_cart
-    #                     #println("iat = ", iat, " i_cart = ", i_cart, " temp_iat = ", temp_iat)
-    #                     #println("disp = ", disp, " ε[temp_iat] = ", ε[temp_iat], " braket[i,j] = ", braket[i,j])
-    #                     gᵢⱼₘ += disp*ε[temp_iat]*braket[i,j] 
-    #                     #println("gᵢⱼₘ = ", gᵢⱼₘ)
-    #                 end
-    #             end
-    #         end
-    #     end
-    # end
+        qpoint = determine_q_point(path_to_in*"scf_0/",iq)
+        # println("kpoint = ", determine_q_point(path_to_in*"scf_0/",ik))
+        # println("qpoint = ", qpoint)
+        # println("kqpoint = ", determine_q_point(path_to_in*"scf_0/",ikq))
+
+        scaled_pos = pyconvert(Matrix, phonon_params.primitive.get_scaled_positions())
+        phonon_factor = [exp(2im * π * dot(qpoint, pos)) for pos in eachrow(scaled_pos)]
+
+        for (iband, phonon) in enumerate(phonons["phonon"][iq]["band"])
+            for iat in 1:Nat
+                for icart in 1:3
+                    temp_iat::Int = icart + 3 *(iat-1)
+                    eig_temp = phonon["eigenvector"][iat][icart][1] + 1im*phonon["eigenvector"][iat][icart][2]
+                    εₐᵣᵣ[1, iband, temp_iat] = phonon_factor[iat]*eig_temp
+                end
+            end
+            ωₐᵣᵣ[1, iband] = phonon["frequency"]
+        end
+
+        #DEBUG WITH QE OUTPUT##
+        ωₐᵣᵣ, εₐᵣᵣ = parse_qe_ph(path_to_in*"scf_0/dyn1")
+        #DEBUG WITH QE OUTPUT##  
+        gᵢⱼₘ_ₐᵣᵣ = Array{ComplexF64, 3}(undef, (nbands, nbands, length(ωₐᵣᵣ)))
 
 
-
-    # Symmetrization
-    symm_elph = zeros(ComplexF64,(nbands, nbands, length(ωₐᵣᵣ)))#gˢʸᵐᵢⱼₘ_ₐᵣᵣ
-    elph = deepcopy(gᵢⱼₘ_ₐᵣᵣ)
-
-    thr = 1e-3
-    # symm through phonons
-    for iph1 in 1:length(ωₐᵣᵣ)
-        ω₁ = ωₐᵣᵣ[iph1]
-        for ie in 1:nbands
-            for je in 1:nbands
-                n = 0
-                g² = 0.0
-                for iph2 in 1:length(ωₐᵣᵣ)
-                    ω₂ = ωₐᵣᵣ[iph2]
-                    if abs(ω₁ - ω₂) < thr
-                        n += 1
-                        g² += conj(elph[ie,je,iph2]) * elph[ie,je,iph2]
+        for i in 1:nbands
+            for j in 1:nbands
+                open(path_to_in*"elph_elements/ep_$(i)_$(j)", "w") do io  
+                    for iph in 1:3*Nat
+                        ω = ωₐᵣᵣ[1,iph] * cm1_to_ry
+                        ε = εₐᵣᵣ[1,iph,:]
+                        gᵢⱼₘ = 0.0
+                        for iat in 1:Nat
+                            braket_cart = braket_list_rotated[iat]
+                            m = mₐᵣᵣ[iat] * uma_to_ry
+                            disp = (ω > 0.0 ? sqrt(1/(2*m*ω)) : 0.0)#EPW convention for soft modes
+                            for i_cart in 1:3
+                                braket = braket_cart[i_cart]
+                                temp_iat::Int = 3*(iat - 1) + i_cart
+                                gᵢⱼₘ += disp*conj(ε[temp_iat])*braket[i,j] 
+                            end
+                        end
+                        gᵢⱼₘ_ₐᵣᵣ[i,j,iph] = gᵢⱼₘ/ev_to_ry
+                        data = [iph, ω*0.124/cm1_to_ry, real(gᵢⱼₘ)/ev_to_ry, imag(gᵢⱼₘ)/ev_to_ry]
+                        #@printf("  %5d  %10.6f  %10.6f   %10.6f\n", data...)
+                        @printf(io, "  %5d  %10.6f  %10.6f   %10.6f\n", data...)
                     end
+                    #@printf("____________________________________________\n")
                 end
-                g² /= n
-                symm_elph[ie, je, iph1] = real(sqrt(g²))
             end
-        end
-    end
-    elph = deepcopy(symm_elph)
+        end 
 
-    # symm through k electrons
-    for iph1 in 1:length(ωₐᵣᵣ)
-        for je in 1:nbands
+        #Acoustic sum rule for poor
+        if ik==ikq && iq == 1;
+            gᵢⱼₘ_ₐᵣᵣ[:,:,1:3] .= 0.0
+        end
+
+        # #iq = 2, 3 
+        # for i in 2:4
+        #     for j in 3:4
+        #         for iph in 5:6
+        #             println("i = ", i, " j = ", j, " iph = ", iph)
+        #             println("ϵkᵤ[i] = $(ϵkᵤ[i]) ", "ϵqᵤ[j] = $(ϵqᵤ[j]) ","ωₐᵣᵣ[1,iph] = $(ωₐᵣᵣ[1,iph])")
+        #             println("|gᵢⱼₘ_ₐᵣᵣ[$i,$j,$iph]|^2 = ", abs(gᵢⱼₘ_ₐᵣᵣ[i,j,iph])^2)
+        #         end
+        #     end
+        # end
+
+        # for i in 2:4
+        #     for j in 3:4
+        #         for iph in 5:6
+        #             ω = ωₐᵣᵣ[1,iph] * cm1_to_ry
+        #             ε = εₐᵣᵣ[1,iph,:]
+        #             gᵢⱼₘ = 0.0
+        #             #println("i = ", i, " j = ", j, " iph = ", iph)
+        #             #println("ϵkᵤ[i] = $(ϵkᵤ[i]) ", "ϵqᵤ[j] = $(ϵqᵤ[j]) ","ωₐᵣᵣ[1,iph] = $(ωₐᵣᵣ[1,iph])")
+        #             for iat in 1:Nat
+        #                 braket_cart = braket_list_rotated[iat]
+        #                 m = mₐᵣᵣ[iat] * uma_to_ry
+        #                 disp = (ω > 0.0 ? sqrt(1/(2*m*ω)) : 0.0)#EPW convention for soft modes
+        #                 for i_cart in 1:3
+        #                     braket = braket_cart[i_cart]
+        #                     temp_iat::Int = 3*(iat - 1) + i_cart
+        #                     #println("iat = ", iat, " i_cart = ", i_cart, " temp_iat = ", temp_iat)
+        #                     #println("disp = ", disp, " ε[temp_iat] = ", ε[temp_iat], " braket[i,j] = ", braket[i,j])
+        #                     gᵢⱼₘ += disp*ε[temp_iat]*braket[i,j] 
+        #                     #println("gᵢⱼₘ = ", gᵢⱼₘ)
+        #                 end
+        #             end
+        #         end
+        #     end
+        # end
+
+
+        # Symmetrization
+        symm_elph = zeros(ComplexF64,(nbands, nbands, length(ωₐᵣᵣ)))#gˢʸᵐᵢⱼₘ_ₐᵣᵣ
+        elph = deepcopy(gᵢⱼₘ_ₐᵣᵣ)
+
+        thr = 1e-3
+        # symm through phonons
+        for iph1 in 1:length(ωₐᵣᵣ)
+            ω₁ = ωₐᵣᵣ[iph1]
             for ie in 1:nbands
-                n = 0
-                g² = 0.0
-                ε₁ = ϵkᵤ[ie]
-                for ie2 in 1:nbands
-                    ε₂ = ϵkᵤ[ie2]
-                    if abs(ε₁ - ε₂) < thr
-                        n += 1
-                        g² += conj(elph[ie2, je, iph1]) * elph[ie2, je, iph1]
+                for je in 1:nbands
+                    n = 0
+                    g² = 0.0
+                    for iph2 in 1:length(ωₐᵣᵣ)
+                        ω₂ = ωₐᵣᵣ[iph2]
+                        if abs(ω₁ - ω₂) < thr
+                            n += 1
+                            g² += conj(elph[ie,je,iph2]) * elph[ie,je,iph2]
+                        end
                     end
+                    g² /= n
+                    symm_elph[ie, je, iph1] = real(sqrt(g²))
                 end
-                g² /= n
-                symm_elph[ie, je, iph1] = real(sqrt(g²))
             end
         end
-    end
-    elph = deepcopy(symm_elph)
+        elph = deepcopy(symm_elph)
 
-    #symm through k+q electrons
-    for iph1 in 1:length(ωₐᵣᵣ)
-        for ie in 1:nbands
+        # symm through k electrons
+        for iph1 in 1:length(ωₐᵣᵣ)
             for je in 1:nbands
-                n = 0
-                g² = 0.0
-                ε₁ = ϵqᵤ[je]
-                for je2 in 1:nbands
-                    ε₂ = ϵqᵤ[je2]
-                    if abs(ε₁ - ε₂) < thr
-                        n += 1
-                        g² += conj(elph[ie, je2, iph1]) * elph[ie, je2, iph1]
+                for ie in 1:nbands
+                    n = 0
+                    g² = 0.0
+                    ε₁ = ϵkᵤ[ie]
+                    for ie2 in 1:nbands
+                        ε₂ = ϵkᵤ[ie2]
+                        if abs(ε₁ - ε₂) < thr
+                            n += 1
+                            g² += conj(elph[ie2, je, iph1]) * elph[ie2, je, iph1]
+                        end
+                    end
+                    g² /= n
+                    symm_elph[ie, je, iph1] = real(sqrt(g²))
+                end
+            end
+        end
+        elph = deepcopy(symm_elph)
+
+        #symm through k+q electrons
+        for iph1 in 1:length(ωₐᵣᵣ)
+            for ie in 1:nbands
+                for je in 1:nbands
+                    n = 0
+                    g² = 0.0
+                    ε₁ = ϵqᵤ[je]
+                    for je2 in 1:nbands
+                        ε₂ = ϵqᵤ[je2]
+                        if abs(ε₁ - ε₂) < thr
+                            n += 1
+                            g² += conj(elph[ie, je2, iph1]) * elph[ie, je2, iph1]
+                        end
+                    end
+                    g² /= n
+                    symm_elph[ie, je, iph1] = real(sqrt(g²))
+                end
+            end
+        end
+
+    
+
+        #read dfpt data 
+        elph_dfpt = parse_ph(path_to_in*"scf_0/ph.out", nbands, length(ωₐᵣᵣ))
+
+        #saving resulting electron phonon couplings 
+        @printf("      i      j      nu      ϵkᵤ             ϵqᵤ              ωₐᵣᵣ         g_frozen    g_DFPT\n")
+        open(path_to_in*"out/comparison_$(ik)_$(iq).txt", "w") do io 
+        for i in 1:nbands
+            for j in 1:nbands
+                    for iph in 1:3*Nat#Need to chec
+                        @printf("  %5d  %5d  %5d  %10.6f  %10.6f  %10.6f  %10.6f %10.6f\n", i,j, iph, ϵkᵤ[i], ϵqᵤ[j], ωₐᵣᵣ[1,iph],symm_elph[i, j, iph], elph_dfpt[i, j, iph])
+                        @printf(io, "  %5d  %5d  %5d   %10.6f %10.6f\n", i,j,iph,symm_elph[i, j, iph], elph_dfpt[i, j, iph])
                     end
                 end
-                g² /= n
-                symm_elph[ie, je, iph1] = real(sqrt(g²))
             end
-        end
+        end 
     end
-
-    #read dfpt data 
-    elph_dfpt = parse_ph(path_to_in*"scf_0/ph.out", nbands, length(ωₐᵣᵣ))
-
-    #saving resulting electron phonon couplings 
-    @printf("      i      j      nu      ϵkᵤ             ϵqᵤ              ωₐᵣᵣ         g_frozen    g_DFPT\n")
-    open(path_to_in*"out/comparison_$(ik)_$(iq).txt", "w") do io 
-    for i in 1:nbands
-        for j in 1:nbands
-                for iph in 1:3*Nat#Need to chec
-                    @printf("  %5d  %5d  %5d  %10.6f  %10.6f  %10.6f  %10.6f %10.6f\n", i,j, iph, ϵkᵤ[i], ϵqᵤ[j], ωₐᵣᵣ[1,iph],symm_elph[i, j, iph], elph_dfpt[i, j, iph])
-                    @printf(io, "  %5d  %5d  %5d   %10.6f %10.6f\n", i,j,iph,symm_elph[i, j, iph], elph_dfpt[i, j, iph])
-                end
-            end
-        end
-    end 
 
     #Attempt to free some space 
     ψkᵤ = 0
