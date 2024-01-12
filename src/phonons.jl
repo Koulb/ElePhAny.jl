@@ -1,3 +1,5 @@
+using BlockArrays, LinearAlgebra
+
 function determine_q_point_old(path_to_in, iq; mesh=1)
     atoms = ase_io.read(path_to_in*"/scf.out")
     kpoints = atoms.calc.kpts
@@ -41,7 +43,6 @@ function determine_q_point_cart(path_to_in,ik)
 
     return result 
 end
-
 
 function dislpaced_unitecells(path_to_save, unitcell, abs_disp, mesh)
     unitcell_phonopy = phonopy_structure_atoms.PhonopyAtoms(;symbols=unitcell[:symbols], 
@@ -106,7 +107,6 @@ function calculate_phonons(path_to_in::String,unitcell,abs_disp, Ndispalce, mesh
     #mesh_dict = phonon.get_mesh_dict()
     phonon.save(path_to_in*"phonopy_params.yaml"; settings=Dict(:force_constants => true))
 
-
     #Dumb way of using phonopy since api gives diffrent result
     current_directory = pwd()
     cd(path_to_in)
@@ -137,6 +137,49 @@ function calculate_phonons(path_to_in::String,unitcell,abs_disp, Ndispalce, mesh
     run(pipeline(command,stdout = devnull), wait = false)
 
     cd(current_directory)
+
+    #saving the dynamic matrix 
+    path_to_dyn = path_to_in*"dyn_mat"
+    command = `mkdir $path_to_dyn`
+    try
+        run(command);
+        println(command)
+    catch; end
+
+    phonons = YAML.load_file(path_to_in*"qpoints.yaml")
+    phonon_params = phonopy.load(path_to_in*"phonopy_params.yaml")
+
+    scaled_pos = pyconvert(Matrix, phonon_params.primitive.get_scaled_positions())
+
+    nat = size(scaled_pos)[1]
+    phase_block = [[3,3] for _ in 1:nat]
+    phase_matrix = BlockArray{ComplexF64}(undef_blocks, phase_block...)
+
+
+    for iq in 1:mesh^3
+        dyn_mat = reduce(hcat,phonons["phonon"][iq]["dynamical_matrix"])'# hcat(...)
+        dyn_mat = dyn_mat[:,1:2:end] + 1im*dyn_mat[:,2:2:end]
+       
+        qpoint = determine_q_point(path_to_in*"scf_0/",iq)
+        
+        phonon_factor = [exp(2im * π * dot(qpoint, pos)) for pos in eachrow(scaled_pos)]
+        for ipos in 1:nat
+            for jpos in 1:nat
+                phonon_block = fill(phonon_factor[ipos]*conj(phonon_factor[jpos]),3,3)
+                setblock!(phase_matrix, phonon_block, ipos, jpos)
+            end
+        end
+
+        dyn_mat = Array(phase_matrix).*dyn_mat
+        dyn_max_final = zeros(Float64, 3*nat, 2*3*nat)
+        for i in 1:3*nat
+            dyn_max_final[:,2*i-1] = real(dyn_mat[:,i])
+            dyn_max_final[:,2*i] = imag(dyn_mat[:,i])
+        end
+
+        # writedlm(path_to_dyn*"/dyn_mat$iq", dyn_max_final)
+        writedlm(path_to_dyn*"/dyn_mat$iq", dyn_mat)
+    end
 
     return true 
 end
