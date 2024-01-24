@@ -387,7 +387,7 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh; save
         end
 
         #DEBUG WITH QE OUTPUT##
-        ωₐᵣᵣ, εₐᵣᵣ = parse_qe_ph(path_to_in*"scf_0/dyn1")
+        #ωₐᵣᵣ, εₐᵣᵣ = parse_qe_ph(path_to_in*"scf_0/dyn1")
         #DEBUG WITH QE OUTPUT##  
         gᵢⱼₘ_ₐᵣᵣ = Array{ComplexF64, 3}(undef, (nbands, nbands, length(ωₐᵣᵣ)))
 
@@ -412,7 +412,7 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh; save
                         gᵢⱼₘ_ₐᵣᵣ[i,j,iph] = gᵢⱼₘ/ev_to_ry
                         data = [iph, ω*0.124/cm1_to_ry, real(gᵢⱼₘ)/ev_to_ry, imag(gᵢⱼₘ)/ev_to_ry]
                         #@printf("  %5d  %10.6f  %10.6f   %10.6f\n", data...)
-                        @printf(io, "  %5d  %10.6f  %10.6f   %10.6f\n", data...)
+                        @printf(io, "  %5d  %10.6f  %10.10f   %10.10f\n", data...)
                     end
                     #@printf("____________________________________________\n")
                 end
@@ -532,15 +532,16 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh; save
 
         #read dfpt data 
         elph_dfpt = parse_ph(path_to_in*"scf_0/ph.out", nbands, length(ωₐᵣᵣ))
+        ωₐᵣᵣ_DFPT, _ = parse_qe_ph(path_to_in*"scf_0/dyn1")
 
         #saving resulting electron phonon couplings 
-        @printf("      i      j      nu      ϵkᵤ             ϵqᵤ              ωₐᵣᵣ         g_frozen    g_DFPT\n")
+        @printf("      i      j      nu      ϵkᵤ        ϵqᵤ        ωₐᵣᵣ_frozen      ωₐᵣᵣ_DFPT       g_frozen    g_DFPT\n")
         open(path_to_in*"out/comparison_$(ik)_$(iq).txt", "w") do io 
         for i in 1:nbands
             for j in 1:nbands
                     for iph in 1:3*Nat#Need to chec
-                        @printf("  %5d  %5d  %5d  %10.6f  %10.6f  %10.6f  %10.6f %10.6f\n", i,j, iph, ϵkᵤ[i], ϵqᵤ[j], ωₐᵣᵣ[1,iph],symm_elph[i, j, iph], elph_dfpt[i, j, iph])
-                        @printf(io, "  %5d  %5d  %5d   %10.6f %10.6f\n", i,j,iph,symm_elph[i, j, iph], elph_dfpt[i, j, iph])
+                        @printf("  %5d  %5d  %5d  %10.6f  %10.6f  %12.6f  %12.6f  %10.10f %10.10f\n", i,j, iph, ϵkᵤ[i], ϵqᵤ[j], ωₐᵣᵣ[1,iph], ωₐᵣᵣ_DFPT[1,iph], symm_elph[i, j, iph], elph_dfpt[i, j, iph])
+                        @printf(io, "  %5d  %5d  %5d  %10.6f  %10.6f  %12.6f  %12.6f  %10.10f %10.10f\n", i,j, iph, ϵkᵤ[i], ϵqᵤ[j], ωₐᵣᵣ[1,iph], ωₐᵣᵣ_DFPT[1,iph], symm_elph[i, j, iph], elph_dfpt[i, j, iph])
                     end
                 end
             end

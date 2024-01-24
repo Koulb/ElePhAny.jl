@@ -145,6 +145,8 @@ function calculate_phonons(path_to_in::String,unitcell,abs_disp, Ndispalce, mesh
         run(command);
         println(command)
     catch; end
+    
+    sleep(3)
 
     phonons = YAML.load_file(path_to_in*"qpoints.yaml")
     phonon_params = phonopy.load(path_to_in*"phonopy_params.yaml")
