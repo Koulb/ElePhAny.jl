@@ -156,18 +156,21 @@ function calculate_phonons(path_to_in::String,unitcell,abs_disp, Ndispalce, mesh
     nat = size(scaled_pos)[1]
     phase_block = [[3,3] for _ in 1:nat]
     phase_matrix = BlockArray{ComplexF64}(undef_blocks, phase_block...)
+    masses = pyconvert(Vector{Float64},phonon.masses)
 
 
     for iq in 1:mesh^3
-        dyn_mat = reduce(hcat,phonons["phonon"][iq]["dynamical_matrix"])'# hcat(...)
-        dyn_mat = dyn_mat[:,1:2:end] + 1im*dyn_mat[:,2:2:end]
+        # dyn_mat = reduce(hcat,phonons["phonon"][iq]["dynamical_matrix"])'# hcat(...)
+        # dyn_mat = dyn_mat[:,1:2:end] + 1im*dyn_mat[:,2:2:end]
        
         qpoint = determine_q_point(path_to_in*"scf_0/",iq)
-        
+        dyn_mat =  pyconvert(Matrix{ComplexF64},phonon_params.get_dynamical_matrix_at_q(qpoint))
+       
         phonon_factor = [exp(2im * π * dot(qpoint, pos)) for pos in eachrow(scaled_pos)]
         for ipos in 1:nat
             for jpos in 1:nat
-                phonon_block = fill(phonon_factor[ipos]*conj(phonon_factor[jpos]),3,3)
+                # Need to check whit non-heteroatomic systems masses factor
+                phonon_block = fill(sqrt(masses[ipos]*masses[jpos])*phonon_factor[ipos]*conj(phonon_factor[jpos]),3,3)
                 setblock!(phase_matrix, phonon_block, ipos, jpos)
             end
         end
@@ -179,8 +182,8 @@ function calculate_phonons(path_to_in::String,unitcell,abs_disp, Ndispalce, mesh
             dyn_max_final[:,2*i] = imag(dyn_mat[:,i])
         end
 
-        # writedlm(path_to_dyn*"/dyn_mat$iq", dyn_max_final)
-        writedlm(path_to_dyn*"/dyn_mat$iq", dyn_mat)
+        writedlm(path_to_dyn*"/dyn_mat$iq", dyn_max_final)
+        #writedlm(path_to_dyn*"/dyn_mat$iq", dyn_mat)
     end
 
     return true 
