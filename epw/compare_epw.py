@@ -1,0 +1,97 @@
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.colors as colors
+
+
+#Comparing results
+#### Electron-phonons
+path_to_data = '/scratch/apolyukhin/scripts/q-e/new_ewp_tests/si_test_2/'
+check = '------------------------------------------------------------------------------'
+
+#EPW
+data_epw1 = []
+phononns_epw1 = []
+with open(path_to_data+'epw1.out', 'r') as f:
+    lines = f.readlines()
+    for index, line in enumerate(lines):
+        if check in line:
+            start_index = index + 1
+            for index, line2 in enumerate(lines[start_index:]):
+                if check in line2:
+                    break 
+                elif (len(line2.split()) == 7)and 'iq' not in line2 and 'ik' not in line2 and 'ibnd' not in line2:
+                    #print(line2)
+                    frequency = float(line2.split()[5])
+                    phononns_epw1.append(frequency)
+                    if abs(frequency) > 1e-4 :
+                        # print(frequency,float(line2.split()[6]))
+                        data_epw1.append(float(line2.split()[6]))  
+                         
+
+data_epw2 = []
+phononns_epw2 = []
+with open(path_to_data+'epw2.out', 'r') as f:
+    lines = f.readlines()
+    for index, line in enumerate(lines):
+        if check in line:
+            start_index = index + 1
+            for index, line2 in enumerate(lines[start_index:]):
+                if check in line2:
+                    break 
+                elif (len(line2.split()) == 7)and 'iq' not in line2 and 'ik' not in line2 and 'ibnd' not in line2:
+                    #print(line2)
+                    frequency = float(line2.split()[5])
+                    phononns_epw2.append(frequency)
+                    if abs(frequency) > 1e-4 :
+                        data_epw2.append(float(line2.split()[6]))         
+
+array_epw2 = np.array(data_epw2)
+array_epw1 = np.array(data_epw1)
+
+fig, axes = plt.subplots(2, 1)
+
+axes[0].plot(array_epw2 - array_epw1, '-', c='blue')
+for iq in range(0, 9):
+    val_iq = iq * 8 * 6 * 4 * 4
+    axes[0].axvline(val_iq, color='red')
+
+# axes[0].set_xlabel('Reduced index I:{i,j,m,ik,iq}')
+ylabel1=r'g$^{EPW}$ - g$^{EPW}_{Frozen}$, meV'
+ylabel2=r'|g$^{EPW}$ - g$^{EPW}_{Frozen}|$, meV'
+axes[0].set_ylabel(ylabel1)
+axes[0].set_xlim([0-10, len(array_epw1)+10])
+axes[0].plot(-1,0, color = 'red', label = 'iq = [1..8]')
+
+axes[0].legend()
+
+axes[1].plot(np.sort(np.abs(array_epw2 - array_epw1)), '-', c='blue')
+
+axes[1].set_xlabel('Reduced index I:{i,j,m,ik,iq}')
+axes[1].set_ylabel(ylabel2)
+axes[1].set_xlim([0-10, len(array_epw1)+10])
+axes[1].set_title('Sorted by absolute value')
+
+threshold_colors = ['red', 'yellow', 'green']
+threshold_array = [1.0, 0.5, 0.1]
+for threshold_ind, threshold in enumerate(threshold_array):
+    ind = np.abs(array_epw2 - array_epw1) < threshold
+    threshold_number = np.sum(ind) / len(array_epw1)
+    label_1 = r'Number of |δg| < {:3.2} meV: {:4.4} %'.format(threshold, threshold_number * 100)
+    rect = plt.Rectangle((0, 0), threshold_number * len(array_epw2), threshold, facecolor=threshold_colors[threshold_ind], alpha=0.4, label=label_1)
+    axes[1].add_patch(rect)
+axes[1].legend(loc='upper left')
+axes[1].set_yscale('log')
+
+plt.savefig('epw_frozen_comp.pdf')
+plt.show()
+
+print('Number of ep which differ {:3.2} is {:3.3} %'.format(threshold, threshold_number * 100))
+
+array_phononns_epw1 = np.array(phononns_epw1)
+array_phononns_epw2 = np.array(phononns_epw2)
+plt.plot((array_phononns_epw1-array_phononns_epw2)*8065.73/1e3)
+
+plt.ylabel(r'$\omega^{DFPT} - \omega^{Frozen}$, cm$^{-1}$')
+plt.xlabel('Reduced index I:{i,j,m,ik,iq}')
+plt.show()
+        
