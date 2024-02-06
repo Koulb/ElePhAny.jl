@@ -206,7 +206,7 @@ function load_wf_u_debug(path_to_in::String, ik)
 end
 
 #For sc case need to modify eigenvetors with right phase + brakets should be in real space
-function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh; save_epw::Bool=false)
+function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh; save_epw::Bool=false, path_to_kcw="",kcw_chanel="")
     
     cd(path_to_in)
     ## NEED TO RETURN IN THE END
@@ -252,9 +252,27 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh; save
     ψqᵤ_list = load(path_to_in*"/scf_0/g_list_sc_$ikq.jld2")
     ψqᵤ = [ψqᵤ_list["wfc$iband"] for iband in 1:length(ψqᵤ_list)]
     nbands = length(ψkᵤ)
+    
+    if path_to_kcw != ""
+        nbands = nbands ÷ 2
+    end
 
     ϵkᵤ = WannierIO.read_qe_xml(path_to_in*group*path_to_xml)[:eigenvalues][ik]
     ϵqᵤ = WannierIO.read_qe_xml(path_to_in*group*path_to_xml)[:eigenvalues][ikq]
+
+    if path_to_kcw != ""
+        path_to_xml_kcw = "/unperturbed/TMP/kc_kcw.save/data-file-schema.xml"
+        # ϵkᵤ = WannierIO.read_qe_xml(path_to_kcw*path_to_xml_kcw)[:eigenvalues][ik]
+        # ϵqᵤ = WannierIO.read_qe_xml(path_to_kcw*path_to_xml_kcw)[:eigenvalues][ikq]
+        if kcw_chanel == "up"
+            ϵkᵤ = WannierIO.read_qe_xml(path_to_kcw*path_to_xml_kcw)[:eigenvalues_up][ik]
+            ϵqᵤ = WannierIO.read_qe_xml(path_to_kcw*path_to_xml_kcw)[:eigenvalues_up][ikq]
+        elseif kcw_chanel == "dw"
+            ϵkᵤ = WannierIO.read_qe_xml(path_to_kcw*path_to_xml_kcw)[:eigenvalues_dn][ik]
+            ϵqᵤ = WannierIO.read_qe_xml(path_to_kcw*path_to_xml_kcw)[:eigenvalues_dn][ikq]
+        end
+
+    end
 
     braket = zeros(Complex{Float64}, nbands, nbands)
     braket_list = []
@@ -263,7 +281,26 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh; save
     for ind in 1:2:Ndisp
         group   = "group_$ind/"
         ϵₚ = WannierIO.read_qe_xml(path_to_in*group*path_to_xml)[:eigenvalues][1]
+        # check = deepcopy(ϵₚ)
+        # println(ϵₚ)
+
+        if path_to_kcw != ""
+            ind_pert = (ind-1)÷2 + 1
+            path_to_xml_kcw = "/perturbed$ind_pert/TMP/kc_kcw.save/data-file-schema.xml"
+           
+            if kcw_chanel == "up"
+                ϵₚ = WannierIO.read_qe_xml(path_to_kcw*path_to_xml_kcw)[:eigenvalues_up][1]
+                # println(ϵₚ)
+            elseif kcw_chanel == "dw"
+                ϵₚ = WannierIO.read_qe_xml(path_to_kcw*path_to_xml_kcw)[:eigenvalues_dn][1]
+            end
+        end
+        # println(ϵₚ[1:32]-check)
+        # exit(3)
+
         file_path=path_to_in*"/group_$ind/tmp/scf.save/wfc1.dat"
+
+
        
         local ψₚ, Uk, Uq 
         #println("Processing group $ind")
@@ -285,6 +322,13 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh; save
 
         _, ψₚ = parse_fortan_bin(path_to_in*group*"tmp/scf.save/wfc1.dat")
 
+        if path_to_kcw != ""
+            ind_pert = (ind-1)÷2 + 1
+            path_to_wfc= "/perturbed$ind_pert/TMP/kc_kcw.save/"
+            _, ψₚ = parse_fortan_bin(path_to_kcw*path_to_wfc*"wfc$(kcw_chanel)1.dat")
+        end
+
+
         Uk = calculate_braket_matrix(ψₚ, ψkᵤ)
         u_trace_check = conj(transpose(Uk))*Uk
         #println("Uk trace check [1, 1] = ", u_trace_check[1,1])
@@ -295,31 +339,33 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh; save
 
         Uq = calculate_braket_matrix(ψₚ, ψqᵤ)
         u_trace_check = conj(transpose(Uq))*Uq
-        # println("Uq trace check [1, 1] = ", u_trace_check[1,1])
-        # println("Uq trace check [2, 2] = ", u_trace_check[2,2])
-        # println("Uq trace check [3, 3] = ", u_trace_check[3,3])
-        # println("Uq trace check [4, 4] = ", u_trace_check[4,4])
+        #println("Uq trace check [1, 1] = ", u_trace_check[1,1])
+        #println("Uq trace check [2, 2] = ", u_trace_check[2,2])
+        #println("Uq trace check [3, 3] = ", u_trace_check[3,3])
+        #println("Uq trace check [4, 4] = ", u_trace_check[4,4])
+        # exit()
 
         #println("Calculating brakets for group $ind")
         for i in 1:nbands
             for j in 1:nbands
                 result = (i==j && ik==ikq ? -ϵkᵤ[i] : 0.0)#TODO: check this iq or ikq
-                #println(i, ' ', j, ' ', result)
+            #    println(i, ' ', j, ' ', result)
 
                 for k in 1:nbands*mesh^3
                     result += Uk[k,j]* conj(Uq[k,i]) * ϵₚ[k]
-                    #println(k, ' ',ϵₚ[k], ' ',Uk[k,j]* conj(Uq[k,i]), ' ', result)
+                    println(k, ' ',ϵₚ[k], ' ',Uk[k,j]* conj(Uq[k,i]), ' ', result)
                 end
                 
                 braket[i,j] = result
             end
-            #println("_____________________________________________________________")
-            #exit(3)
+            # println("_____________________________________________________________")
+            #
         end
         push!(braket_list, transpose(conj(braket))*scale*mesh^3)
 
     end
-    #println("Braket list unrotated")
+    println("Braket list unrotated")
+    println(scale*mesh^3)
     #println(braket_list)
 
     phonon_params = phonopy.load("phonopy_params.yaml")
@@ -531,8 +577,15 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh; save
     
 
         #read dfpt data 
-        elph_dfpt = parse_ph(path_to_in*"scf_0/ph.out", nbands, length(ωₐᵣᵣ))
-        ωₐᵣᵣ_DFPT, _ = parse_qe_ph(path_to_in*"scf_0/dyn1")
+        elph_dfpt = zeros(ComplexF64, size(symm_elph))
+        ωₐᵣᵣ_DFPT = zeros(Float64, size(ωₐᵣᵣ))
+       
+        try
+            elph_dfpt = parse_ph(path_to_in*"scf_0/ph.out", nbands, length(ωₐᵣᵣ))
+            ωₐᵣᵣ_DFPT, _ = parse_qe_ph(path_to_in*"scf_0/dyn1")   
+        catch
+        end
+
 
         #saving resulting electron phonon couplings 
         @printf("      i      j      nu      ϵkᵤ        ϵqᵤ        ωₐᵣᵣ_frozen      ωₐᵣᵣ_DFPT       g_frozen    g_DFPT\n")
@@ -570,8 +623,8 @@ function plot_ep_coupling(path_to_in::String; ik::Int=0, iq::Int=0)
             columns = split(line)
             if length(columns) >= 5
                 # Extract the last two columns and convert them to Float64
-                x_val = parse(Float64, columns[5])
-                y_val = parse(Float64, columns[4])
+                x_val = parse(Float64, columns[end])
+                y_val = parse(Float64, columns[end-1])
                 push!(x, x_val)
                 push!(y, y_val)
             end

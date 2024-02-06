@@ -93,8 +93,13 @@ function parse_fortan_bin(file_path::String)
     return miller, evc_list
 end
 
-function prepare_wave_functions(path_to_in::String; ik::Int=1)
+function prepare_wave_functions(path_to_in::String; ik::Int=1,path_to_kcw="",kcw_chanel="")
     file_path = path_to_in*"/tmp/scf.save/wfc$ik.dat"
+
+    if kcw_chanel != ""
+        file_path = path_to_kcw*"/unperturbed/TMP/kc_kcw.save/wfc$(kcw_chanel)$(ik).dat"
+        println("Wave functions from $file_path")
+    end
     miller, evc_list = parse_fortan_bin(file_path)
 
     #Determine the fft grid
@@ -244,12 +249,12 @@ function wave_functions_to_G(path_to_in::String; ik::Int=1)
     save(path_to_in*"/scf_0/g_list_sc_$ik.jld2", g_list)
 end
 
-function prepare_wave_functions_undisp(path_to_in::String, ik::Int, mesh::Int)
+function prepare_wave_functions_undisp(path_to_in::String, ik::Int, mesh::Int;path_to_kcw=path_to_kcw,kcw_chanel=kcw_chanel)
     file_path=path_to_in*"/scf_0/"
 
     if mesh > 1
         #prepare_wave_functions_opt(file_path;ik=ik)
-        prepare_wave_functions(file_path;ik=ik)
+        prepare_wave_functions(file_path;ik=ik,path_to_kcw=path_to_kcw,kcw_chanel=kcw_chanel)
         unfold_to_sc(file_path,mesh,ik)
         wave_functions_to_G(path_to_in;ik=ik)
     end
@@ -277,12 +282,11 @@ function prepare_wave_functions_undisp(path_to_in::String, ik::Int, iq::Int, mes
 end
 
 
-function prepare_wave_functions_undisp(path_to_in::String, mesh::Int)
+function prepare_wave_functions_undisp(path_to_in::String, mesh::Int;path_to_kcw="",kcw_chanel="")
     for ik in 1:mesh^3
-        prepare_wave_functions_undisp(path_to_in,ik,mesh)
+        prepare_wave_functions_undisp(path_to_in,ik,mesh;path_to_kcw=path_to_kcw,kcw_chanel=kcw_chanel)
         println("ik = $ik/$(mesh^3) is ready")
     end
-
 end
 
 
