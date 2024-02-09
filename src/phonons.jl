@@ -97,7 +97,10 @@ function calculate_phonons(path_to_in::String,unitcell,abs_disp, Ndispalce, mesh
                              calculator="qe",
                              factor=PwscfToTHz*33.35641)#from internal units to Thz and then to cm-1
     
-    phonon.generate_displacements(distance=abs_disp)
+    phonon.generate_displacements(distance=abs_disp)#, is_plusminus="false"
+
+    
+    # phonon.set_forces(Py(forces[1:2:end,:,:]).to_numpy())
     phonon.set_forces(Py(forces).to_numpy())
     phonon.produce_force_constants()
     # phonon.symmetrize_force_constants_by_space_group()

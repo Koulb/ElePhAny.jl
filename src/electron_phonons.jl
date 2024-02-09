@@ -331,18 +331,15 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh; save
 
         Uk = calculate_braket_matrix(ψₚ, ψkᵤ)
         u_trace_check = conj(transpose(Uk))*Uk
-        #println("Uk trace check [1, 1] = ", u_trace_check[1,1])
-        #println("Uk trace check [2, 2] = ", u_trace_check[2,2])
-        #println("Uk trace check [3, 3] = ", u_trace_check[3,3])
-        #println("Uk trace check [4, 4] = ", u_trace_check[4,4])
-
+        for i in 1:nbands
+            println("Uk trace check [$i, $i] = ", u_trace_check[$i,$i])
+        end
 
         Uq = calculate_braket_matrix(ψₚ, ψqᵤ)
         u_trace_check = conj(transpose(Uq))*Uq
-        #println("Uq trace check [1, 1] = ", u_trace_check[1,1])
-        #println("Uq trace check [2, 2] = ", u_trace_check[2,2])
-        #println("Uq trace check [3, 3] = ", u_trace_check[3,3])
-        #println("Uq trace check [4, 4] = ", u_trace_check[4,4])
+        for i in 1:nbands
+            println("Uq trace check [$i, $i] = ", u_trace_check[$i,$i])
+        end
         # exit()
 
         #println("Calculating brakets for group $ind")
@@ -353,7 +350,7 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh; save
 
                 for k in 1:nbands*mesh^3
                     result += Uk[k,j]* conj(Uq[k,i]) * ϵₚ[k]
-                    println(k, ' ',ϵₚ[k], ' ',Uk[k,j]* conj(Uq[k,i]), ' ', result)
+                    #println(k, ' ',ϵₚ[k], ' ',Uk[k,j]* conj(Uq[k,i]), ' ', result)
                 end
                 
                 braket[i,j] = result
@@ -364,9 +361,9 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh; save
         push!(braket_list, transpose(conj(braket))*scale*mesh^3)
 
     end
-    println("Braket list unrotated")
-    println(scale*mesh^3)
-    #println(braket_list)
+    # println("Braket list unrotated")
+    # println(scale*mesh^3)
+    # println(braket_list)
 
     phonon_params = phonopy.load("phonopy_params.yaml")
     displacements = phonon_params.displacements[pyslice(0,Ndisp,2)]
@@ -453,6 +450,8 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh; save
                                 braket = braket_cart[i_cart]
                                 temp_iat::Int = 3*(iat - 1) + i_cart
                                 gᵢⱼₘ += disp*conj(ε[temp_iat])*braket[i,j] 
+                                #println(i,' ',j,' ',iph,' ',disp, ' ',  ω,' ',ε[temp_iat],' ',braket[i,j], ' ',gᵢⱼₘ)
+
                             end
                         end
                         gᵢⱼₘ_ₐᵣᵣ[i,j,iph] = gᵢⱼₘ/ev_to_ry
@@ -511,7 +510,7 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh; save
         symm_elph = zeros(ComplexF64,(nbands, nbands, length(ωₐᵣᵣ)))#gˢʸᵐᵢⱼₘ_ₐᵣᵣ
         elph = deepcopy(gᵢⱼₘ_ₐᵣᵣ)
 
-        thr = 1e-3
+        thr = 1e-2
         # symm through phonons
         for iph1 in 1:length(ωₐᵣᵣ)
             ω₁ = ωₐᵣᵣ[iph1]

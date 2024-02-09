@@ -4,7 +4,7 @@ using ElectronPhonon, PythonCall, ProgressMeter
 # list_of_disp = ["0005", "001", "0025", "005", "01", "025", "05"]
 # abs_disp = parse(Float64, "0."*abs_disp_str)
 
-path_to_calc = "/scratch/apolyukhin/julia_tests/qe_inputs/"
+path_to_calc = "/scratch/apolyukhin/julia_tests/qe_inputs_small_empty/"
 abs_disp = 0.001
 
 println("Displacement: $abs_disp")
@@ -50,7 +50,8 @@ scf_parameters = Dict(
     :verbosity => "high",
     :tstress => false,
     :ibrav => 2,
-    :tprnfor => true#,
+    :tprnfor => true,
+    :nbnd => 10,
     #:nosym=> false,
     #:input_dft => "HSE"
 )
@@ -58,7 +59,7 @@ scf_parameters = Dict(
 #For the supercell nq1=nq2=nq3=1 to be consitnent ?
 
 
-# # ## Electrons calculation
+# Electrons calculation
 Ndispalce = create_disp_calc(directory_path, unitcell, scf_parameters, abs_disp, mesh; from_scratch = true)
 run_disp_calc(directory_path*"displacements/", Ndispalce, mpi_ranks)
 run_nscf_calc(directory_path, unitcell, scf_parameters, mesh, path_to_kmesh, mpi_ranks)
@@ -67,12 +68,12 @@ save_potential(directory_path*"displacements/", Ndispalce, mesh)
 
 prepare_wave_functions_undisp(directory_path*"displacements/", mesh)#; path_to_kcw=path_to_kcw,kcw_chanel=kcw_chanel
 
-### Phonons calculation
+## Phonons calculation
 calculate_phonons(directory_path*"displacements/",unitcell, abs_disp, Ndispalce, mesh)
 
 ## Electron-phonon matrix elements
-ik_list = [i for i in 1:mesh^3]#[1,2]##[1]#[1,8]##[1]
-iq_list = [i for i in 1:mesh^3]#[1,2]##[1]#[1,6,8]#
+ik_list = [1]#[i for i in 1:mesh^3]#[1,2]##[1]#[1,8]#  #
+iq_list = [4]#[i for i in 1:mesh^3]#[1,2]##[1]#[1,6,8] #
 
 progress = Progress(length(ik_list)*length(iq_list), dt=5.0)
 
@@ -80,7 +81,7 @@ println("Calculating electron-phonon matrix elements for $(length(ik_list)*lengt
 for ik in ik_list
     for iq in iq_list
         electron_phonon_qe(directory_path*"displacements/", ik, iq, mpi_ranks)
-        electron_phonon(directory_path*"displacements/", abs_disp, Ndispalce, ik, iq, mesh)#;save_epw = true# path_to_kcw=path_to_kcw,kcw_chanel=kcw_chanel,
+        electron_phonon(directory_path*"displacements/", abs_disp, Ndispalce, ik, iq, mesh)##;save_epw = true, #path_to_kcw=path_to_kcw,kcw_chanel=kcw_chanel
         plot_ep_coupling(directory_path*"displacements/"; ik, iq)
         next!(progress)
     end

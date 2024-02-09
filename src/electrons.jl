@@ -1,13 +1,8 @@
 using JLD2, DelimitedFiles
 
-function create_scf_calc(path_to_scf::String,unitcell, scf_parameters; gamma = false)
+function create_scf_calc(path_to_scf::String,unitcell, scf_parameters)
     # Create the FCC cell for Silicon
     atoms  = pycall(ase.Atoms;unitcell...)
-
-    #check if supercell
-    if gamma
-        scf_parameters[:kpts]= pytuple((1, 1, 1))
-    end
         
     # Write the input file using Quantum ESPRESSO format
     ase_io.write(path_to_scf*"scf.in",atoms; scf_parameters...)
@@ -47,7 +42,12 @@ function create_disp_calc(path_to_in::String, unitcell, scf_parameters, abs_disp
             run(command);
             println(command)
         catch; end
-        create_scf_calc(path_to_in*dir_name,unitcells_disp[i_disp], scf_parameters, gamma=true)
+
+        nscf_parameters       = deepcopy(scf_parameters)
+        nscf_parameters[:nbnd]= nscf_parameters[:nbnd]*mesh^3#+2*mesh^3 #need to understand how I provide aditional states to keep the projectability satisfied
+        nscf_parameters[:kpts]= pytuple((1, 1, 1))
+
+        create_scf_calc(path_to_in*dir_name,unitcells_disp[i_disp], nscf_parameters)
     end
 
     return Ndispalce
