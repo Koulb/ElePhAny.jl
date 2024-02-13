@@ -332,13 +332,13 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh; save
         Uk = calculate_braket_matrix(ψₚ, ψkᵤ)
         u_trace_check = conj(transpose(Uk))*Uk
         for i in 1:nbands
-            println("Uk trace check [$i, $i] = ", u_trace_check[$i,$i])
+            println("Uk trace check [$i, $i] = ", u_trace_check[i,i])
         end
 
         Uq = calculate_braket_matrix(ψₚ, ψqᵤ)
         u_trace_check = conj(transpose(Uq))*Uq
         for i in 1:nbands
-            println("Uq trace check [$i, $i] = ", u_trace_check[$i,$i])
+            println("Uq trace check [$i, $i] = ", u_trace_check[i,i])
         end
         # exit()
 
