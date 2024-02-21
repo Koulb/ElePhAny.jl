@@ -44,6 +44,17 @@ function determine_q_point_cart(path_to_in,ik)
     return result 
 end
 
+# functon for reading forces from xml 
+function read_forces_xml(path_to_xml::String)
+    doc = readxml(path_to_xml)
+    output = findfirst("/qes:espresso/output", root(doc))
+    forces_raw = findfirst("forces", output)
+    forces_list = 2 * parse.(Float64, split(forces_raw.content)) # factor 2 is to go from eV to Hartree ?
+    
+    forces_matrix = reshape(forces_list, (3, length(forces_list) ÷ 3))'
+    return forces_matrix
+end
+
 function dislpaced_unitecells(path_to_save, unitcell, abs_disp, mesh)
     unitcell_phonopy = phonopy_structure_atoms.PhonopyAtoms(;symbols=unitcell[:symbols], 
                                                              cell=pylist(pyconvert(Array,unitcell[:cell])./pyconvert(Float64,ase.units.Bohr)),#Should be in Bohr, hence conversion
@@ -81,8 +92,16 @@ function calculate_phonons(path_to_in::String,unitcell,abs_disp, Ndispalce, mesh
     
     for i_disp in 1:Ndispalce
         dir_name = "group_"*string(i_disp)*"/"
-        atom = ase.io.read(path_to_in*dir_name * "/scf.out")
-        forces[i_disp,:,:] = pyconvert(Matrix{Float64},atom.get_forces())*(Bohr/Rydberg)
+        #atom = ase.io.read(path_to_in*dir_name * "/scf.out")
+        # forces[i_disp,:,:] = pyconvert(Matrix{Float64},atom.get_forces())*(Bohr/Rydberg)
+        
+        force = read_forces_xml(path_to_in*dir_name*"/tmp/scf.save/data-file-schema.xml")
+        forces[i_disp,:,:] = force
+        
+        # println("Forces scaled: ", forces[i_disp,:,:])
+        # println(size(forces[i_disp,:,:]))
+        # println("Forces: ", atom.get_forces())
+        # exit(3)
     end
 
     #This conversions Julia to Python are getting me worried 
@@ -131,6 +150,7 @@ function calculate_phonons(path_to_in::String,unitcell,abs_disp, Ndispalce, mesh
     end
 
     content = content*" \nWRITEDM = .TRUE."
+    content = content*" \nFC_SYMMETRY = .TRUE."
     
     file = open(path_to_in*file_name, "w")
     write(file, content)
@@ -160,7 +180,7 @@ function calculate_phonons(path_to_in::String,unitcell,abs_disp, Ndispalce, mesh
     phase_block = [[3,3] for _ in 1:nat]
     phase_matrix = BlockArray{ComplexF64}(undef_blocks, phase_block...)
     masses = pyconvert(Vector{Float64},phonon.masses)
-
+    #phonon_params.symmetrize_force_constants()
 
     for iq in 1:mesh^3
         # dyn_mat = reduce(hcat,phonons["phonon"][iq]["dynamical_matrix"])'# hcat(...)
