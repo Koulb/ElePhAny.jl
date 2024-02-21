@@ -72,7 +72,7 @@ function run_nscf_calc(path_to_in::String, unitcell, scf_parameters, mesh, path_
     println("Ceating nscf:")
     cd(path_to_in*"displacements/scf_0/")
 
-    command = `$path_to_kmesh/kmesh.pl $mesh $mesh $mesh`
+    command = `$path_to_kmesh/W90/utility/kmesh.pl $mesh $mesh $mesh`
     println(command)
     run(pipeline(command, stdout="kpoints.dat", stderr="kmesherr.txt"))
     

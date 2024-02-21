@@ -40,7 +40,7 @@ function fold_kpoint(ik, iq, k_list)
     return ikq
 end
 
-function electron_phonon_qe(path_to_in::String, ik::Int, iq::Int, mpi_ranks::Int)
+function electron_phonon_qe(path_to_in::String, ik::Int, iq::Int, mpi_ranks::Int, path_to_qe::String)
     dir_name = "scf_0/"
     current_directory = pwd()
     cd(path_to_in*dir_name)
@@ -81,7 +81,8 @@ function electron_phonon_qe(path_to_in::String, ik::Int, iq::Int, mpi_ranks::Int
         write(f,"$(qpoint[1]) $(qpoint[2]) $(qpoint[3]) 1 #\n")
     end
 
-    command = `mpirun -np $mpi_ranks /home/apolyukhin/Soft/sourse/q-e/test-suite/not_epw_comp/ph.x -in ph.in`
+    path_to_ph = path_to_qe*"test-suite/not_epw_comp/ph.x"
+    command = `mpirun -np $mpi_ranks $path_to_ph -in ph.in`
     println(command)
     run(pipeline(command, stdout="ph.out", stderr="errs_ph.txt"))
     cd(current_directory)
@@ -281,6 +282,9 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh; save
     for ind in 1:2:Ndisp
         group   = "group_$ind/"
         ϵₚ = WannierIO.read_qe_xml(path_to_in*group*path_to_xml)[:eigenvalues][1]
+        group_m   = "group_$(ind+1)/"
+        ϵₚₘ = WannierIO.read_qe_xml(path_to_in*group_m*path_to_xml)[:eigenvalues][1]
+       
         # check = deepcopy(ϵₚ)
         # println(ϵₚ)
 
@@ -295,13 +299,13 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh; save
                 ϵₚ = WannierIO.read_qe_xml(path_to_kcw*path_to_xml_kcw)[:eigenvalues_dn][1]
             end
         end
+
         # println(ϵₚ[1:32]-check)
         # exit(3)
 
         file_path=path_to_in*"/group_$ind/tmp/scf.save/wfc1.dat"
 
 
-       
         local ψₚ, Uk, Uq 
         #println("Processing group $ind")
 
@@ -346,17 +350,32 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh; save
         for i in 1:nbands
             for j in 1:nbands
                 result = (i==j && ik==ikq ? -ϵkᵤ[i] : 0.0)#TODO: check this iq or ikq
-            #    println(i, ' ', j, ' ', result)
+                # println(i, ' ', j, ' ', result)
 
                 for k in 1:nbands*mesh^3
-                    result += Uk[k,j]* conj(Uq[k,i]) * ϵₚ[k]
-                    #println(k, ' ',ϵₚ[k], ' ',Uk[k,j]* conj(Uq[k,i]), ' ', result)
+                    # if real(Uk[k,j]* conj(Uq[k,i])) ≈ 1.0
+                    if isapprox(real(Uk[k,j]* conj(Uq[k,i])), 1.0, atol=1e-6) 
+                        println(Uk[k,j]* conj(Uq[k,i]))
+                        println(i, ' ', j)
+                        # # result += ϵₚ[k]
+                        # result = (ϵₚ[k] - ϵₚₘ[k])/2.0
+                        # #Need to investigate even small displacements
+                        println("ϵkᵤ = ", ϵkᵤ)
+                        println("ϵₚ[k] = ", ϵₚ[k])
+                        println("ϵkᵤ - ϵₚ[k] = ", (ϵₚ[k]-ϵkᵤ[i]))
+                       # println("ϵₚ[k] - ϵₚₘ[k] /2 = ", result)
+                        
+                        result += Uk[k,j]* conj(Uq[k,i]) * ϵₚ[k]
+                    else
+                        result += Uk[k,j]* conj(Uq[k,i]) * ϵₚ[k]
+                    end
+                    # println(k, ' ',ϵₚ[k], ' ',Uk[k,j]* conj(Uq[k,i]), ' ', result)
                 end
                 
                 braket[i,j] = result
             end
             # println("_____________________________________________________________")
-            #
+            # exit(3)
         end
         push!(braket_list, transpose(conj(braket))*scale*mesh^3)
 
@@ -376,7 +395,11 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh; save
             push!(U,row/norm(row))
         end   
         U_inv =  vcat(U'...)^-1
+        # println("U_inv =")
+        # println(U_inv)
         braket_temp = braket_list[temp_iat:temp_iat+2]
+        # println(braket_temp)
+        # println( U_inv* braket_temp)
        
         push!(braket_list_rotated, U_inv* braket_temp) #transpose(U_inv) * braket_temp
     end
@@ -396,8 +419,8 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh; save
             end
         end
     else
-        #println("Braket list rotated")
-        #println(braket_list_rotated)
+        # println("Braket list rotated")
+        # println(braket_list_rotated)
 
         ## Multiplication by phonon eigenvector and phonon frequency
         ## Compute electron-phonon vertex in normal coordinate basis
@@ -408,7 +431,7 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh; save
         εₐᵣᵣ = Array{ComplexF64, 3}(undef, (1, 3*Nat, 3*Nat))
         ωₐᵣᵣ = Array{Float64, 2}(undef, (1, 3*Nat))
         mₐᵣᵣ = pyconvert(Vector, phonon_params.masses)
-        #println("ik = $ik, iq = $iq, ikq = $ikq")
+        # println("ik = $ik, iq = $iq, ikq = $ikq")
 
         qpoint = determine_q_point(path_to_in*"scf_0/",iq)
         # println("kpoint = ", determine_q_point(path_to_in*"scf_0/",ik))
@@ -423,7 +446,7 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh; save
                 for icart in 1:3
                     temp_iat::Int = icart + 3 *(iat-1)
                     eig_temp = phonon["eigenvector"][iat][icart][1] + 1im*phonon["eigenvector"][iat][icart][2]
-                    εₐᵣᵣ[1, iband, temp_iat] = phonon_factor[iat]*eig_temp
+                    εₐᵣᵣ[1, iband, temp_iat] = phonon_factor[iat] * eig_temp
                 end
             end
             ωₐᵣᵣ[1, iband] = phonon["frequency"]
@@ -450,7 +473,12 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh; save
                                 braket = braket_cart[i_cart]
                                 temp_iat::Int = 3*(iat - 1) + i_cart
                                 gᵢⱼₘ += disp*conj(ε[temp_iat])*braket[i,j] 
-                                #println(i,' ',j,' ',iph,' ',disp, ' ',  ω,' ',ε[temp_iat],' ',braket[i,j], ' ',gᵢⱼₘ)
+                                
+                                # if i == 1 && j == 1
+                                #     println(i,' ',j, ' ', braket[i,j], ' ', disp, ' ', conj(ε[temp_iat]))
+                                # end
+                                
+                                # println(i,' ',j,' ',iph,' ',disp, ' ',  ω,' ',ε[temp_iat],' ',braket[i,j], ' ',gᵢⱼₘ)
 
                             end
                         end
