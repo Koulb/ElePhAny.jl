@@ -16,7 +16,7 @@ function wf_from_G_fft(miller::Matrix{Int32}, evc::Vector{ComplexF64}, Nxyz::Int
     end
 
     # Perform the inverse FFT to obtain the real-space wave function
-    wave_function = bfft(reciprocal_space_grid)
+    wave_function = bfft(ifftshift(reciprocal_space_grid))
     return wave_function
 end
 
@@ -232,7 +232,7 @@ function wave_functions_to_G(path_to_in::String; ik::Int=1)
 
     for (key, wfc) in wfc_list
         evc_sc = zeros(ComplexF64, size(miller_sc, 2))
-        wfc_g = fft(wfc)
+        wfc_g = fftshift(fft(wfc))
         shift = div(Nxyz, 2)
         for idx in 1:Nevc
             g_vector = Int.(miller_sc[:, idx])
