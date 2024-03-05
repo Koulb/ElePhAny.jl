@@ -48,8 +48,8 @@ function electron_phonon_qe(path_to_in::String, ik::Int, iq::Int, mpi_ranks::Int
     kpoint = determine_q_point_cart(path_to_in*dir_name,ik)
     qpoint = determine_q_point_cart(path_to_in*dir_name,iq)
 
-    println("kpoint = ", kpoint)    
-    println("qpoint = ", qpoint)
+    # println("kpoint = ", kpoint)    
+    # println("qpoint = ", qpoint)
 
     parameters = Dict(
             "inputph" => Dict(
@@ -83,7 +83,7 @@ function electron_phonon_qe(path_to_in::String, ik::Int, iq::Int, mpi_ranks::Int
 
     path_to_ph = path_to_qe*"test-suite/not_epw_comp/ph.x"
     command = `mpirun -np $mpi_ranks $path_to_ph -in ph.in`
-    println(command)
+    #println(command)
     run(pipeline(command, stdout="ph.out", stderr="errs_ph.txt"))
     cd(current_directory)
 end
@@ -289,14 +289,18 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh; save
         # println(ϵₚ)
 
         if path_to_kcw != ""
-            ind_pert = (ind-1)÷2 + 1
-            path_to_xml_kcw = "/perturbed$ind_pert/TMP/kc_kcw.save/data-file-schema.xml"
+            # ind_pert = (ind-1)÷2 + 1
+            path_to_xml_kcw = "/perturbed$ind/TMP/kc_kcw.save/data-file-schema.xml"
+            path_to_xml_kcw_m = "/perturbed$(ind+1)/TMP/kc_kcw.save/data-file-schema.xml"
+
            
             if kcw_chanel == "up"
-                ϵₚ = WannierIO.read_qe_xml(path_to_kcw*path_to_xml_kcw)[:eigenvalues_up][1]
+                ϵₚ  = WannierIO.read_qe_xml(path_to_kcw*path_to_xml_kcw)[:eigenvalues_up][1]
+                ϵₚₘ = WannierIO.read_qe_xml(path_to_kcw*path_to_xml_kcw_m)[:eigenvalues_up][1]
                 # println(ϵₚ)
             elseif kcw_chanel == "dw"
                 ϵₚ = WannierIO.read_qe_xml(path_to_kcw*path_to_xml_kcw)[:eigenvalues_dn][1]
+                ϵₚₘ = WannierIO.read_qe_xml(path_to_kcw*path_to_xml_kcw_m)[:eigenvalues_dn][1]
             end
         end
 
@@ -307,6 +311,7 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh; save
 
 
         local ψₚ, Uk, Uq 
+        local ψₚₘ, Ukₘ, Uqₘ 
         #println("Processing group $ind")
 
         # if mesh > 1 
@@ -325,54 +330,69 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh; save
         # end
 
         _, ψₚ = parse_fortan_bin(path_to_in*group*"tmp/scf.save/wfc1.dat")
+        _, ψₚₘ = parse_fortan_bin(path_to_in*group_m*"tmp/scf.save/wfc1.dat")
+
 
         if path_to_kcw != ""
-            ind_pert = (ind-1)÷2 + 1
-            path_to_wfc= "/perturbed$ind_pert/TMP/kc_kcw.save/"
-            _, ψₚ = parse_fortan_bin(path_to_kcw*path_to_wfc*"wfc$(kcw_chanel)1.dat")
+            # ind_pert = (ind-1)÷2 + 1
+            path_to_wfc   = "/perturbed$ind/TMP/kc_kcw.save/"
+            path_to_wfc_m = "/perturbed$(ind+1)/TMP/kc_kcw.save/"
+            _, ψₚ  = parse_fortan_bin(path_to_kcw*path_to_wfc*"wfc$(kcw_chanel)1.dat")
+            _, ψₚₘ = parse_fortan_bin(path_to_kcw*path_to_wfc_m*"wfc$(kcw_chanel)1.dat")
         end
 
 
         Uk = calculate_braket_matrix(ψₚ, ψkᵤ)
+        Ukₘ = calculate_braket_matrix(ψₚₘ, ψkᵤ)
         u_trace_check = conj(transpose(Uk))*Uk
+        u_m_trace_check = conj(transpose(Ukₘ))*Ukₘ
+
         for i in 1:nbands
             println("Uk trace check [$i, $i] = ", u_trace_check[i,i])
+            println("Uk_m trace check [$i, $i] = ", u_m_trace_check[i,i])
         end
 
         Uq = calculate_braket_matrix(ψₚ, ψqᵤ)
+        Uqₘ = calculate_braket_matrix(ψₚₘ, ψqᵤ)
         u_trace_check = conj(transpose(Uq))*Uq
+        u_m_trace_check = conj(transpose(Uqₘ))*Uqₘ
+
         for i in 1:nbands
             println("Uq trace check [$i, $i] = ", u_trace_check[i,i])
+            println("Uq_m trace check [$i, $i] = ", u_m_trace_check[i,i])
         end
-        # exit()
 
         #println("Calculating brakets for group $ind")
         for i in 1:nbands
             for j in 1:nbands
-                result = (i==j && ik==ikq ? -ϵkᵤ[i] : 0.0)#TODO: check this iq or ikq
+                result = 0.0#(i==j && ik==ikq ? -ϵkᵤ[i] : 0.0)#0.0##TODO: check this iq or ikq
                 # println(i, ' ', j, ' ', result)
 
                 for k in 1:nbands*mesh^3
+                    result += Uk[k,j]* conj(Uq[k,i]) * ϵₚ[k]
+                    result -= Ukₘ[k,j]* conj(Uqₘ[k,i]) * ϵₚₘ[k]
                     # if real(Uk[k,j]* conj(Uq[k,i])) ≈ 1.0
-                    if isapprox(real(Uk[k,j]* conj(Uq[k,i])), 1.0, atol=1e-6) 
-                        println(Uk[k,j]* conj(Uq[k,i]))
-                        println(i, ' ', j)
-                        # # result += ϵₚ[k]
-                        # result = (ϵₚ[k] - ϵₚₘ[k])/2.0
-                        # #Need to investigate even small displacements
-                        println("ϵkᵤ = ", ϵkᵤ)
-                        println("ϵₚ[k] = ", ϵₚ[k])
-                        println("ϵkᵤ - ϵₚ[k] = ", (ϵₚ[k]-ϵkᵤ[i]))
-                       # println("ϵₚ[k] - ϵₚₘ[k] /2 = ", result)
+                    # if isapprox(real(Uk[k,j]* conj(Uq[k,i])), 1.0, atol=1e-6) 
+                    #     println(Uk[k,j]* conj(Uq[k,i]))
+                    #     println(i, ' ', j)
+                    #     # # result += ϵₚ[k]
+                    #     # result = (ϵₚ[k] - ϵₚₘ[k])/2.0
+                    #     # #Need to investigate even small displacements
+                    #     println("ϵkᵤ = ", ϵkᵤ)
+                    #     println("ϵₚ[k] = ", ϵₚ[k])
+                    #     println("ϵkᵤ - ϵₚ[k] = ", (ϵₚ[k]-ϵkᵤ[i]))
+                    #     println("ϵkᵤ - U^2*ϵₚ[k] = ", (Uk[k,j]* conj(Uq[k,i]) * ϵₚ[k]-ϵkᵤ[i]))
+
+                    #    # println("ϵₚ[k] - ϵₚₘ[k] /2 = ", result)
                         
-                        result += Uk[k,j]* conj(Uq[k,i]) * ϵₚ[k]
-                    else
-                        result += Uk[k,j]* conj(Uq[k,i]) * ϵₚ[k]
-                    end
+                    #     result += Uk[k,j]* conj(Uq[k,i]) * ϵₚ[k]
+                    # else
+                    #     result += Uk[k,j]* conj(Uq[k,i]) * ϵₚ[k]
+                    # end
                     # println(k, ' ',ϵₚ[k], ' ',Uk[k,j]* conj(Uq[k,i]), ' ', result)
                 end
                 
-                braket[i,j] = result
+                braket[i,j] = result/2.0
             end
             # println("_____________________________________________________________")
             # exit(3)
@@ -474,12 +494,10 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh; save
                                 temp_iat::Int = 3*(iat - 1) + i_cart
                                 gᵢⱼₘ += disp*conj(ε[temp_iat])*braket[i,j] 
                                 
-                                # if i == 1 && j == 1
-                                #     println(i,' ',j, ' ', braket[i,j], ' ', disp, ' ', conj(ε[temp_iat]))
-                                # end
+                                if i == 1 && j == 1
+                                    println(i,' ',j,' ',iph,' ',disp, ' ',  ω,' ', m,' ',ε[temp_iat],' ',braket[i,j], ' ',gᵢⱼₘ)
+                                end
                                 
-                                # println(i,' ',j,' ',iph,' ',disp, ' ',  ω,' ',ε[temp_iat],' ',braket[i,j], ' ',gᵢⱼₘ)
-
                             end
                         end
                         gᵢⱼₘ_ₐᵣᵣ[i,j,iph] = gᵢⱼₘ/ev_to_ry
@@ -493,9 +511,9 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh; save
         end 
 
         #Acoustic sum rule for poor
-        if ik==ikq && iq == 1;
-            gᵢⱼₘ_ₐᵣᵣ[:,:,1:3] .= 0.0
-        end
+        # if ik==ikq && iq == 1;
+        #     gᵢⱼₘ_ₐᵣᵣ[:,:,1:3] .= 0.0
+        # end
 
         # #iq = 2, 3 
         # for i in 2:4
@@ -615,13 +633,13 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh; save
 
 
         #saving resulting electron phonon couplings 
-        @printf("      i      j      nu      ϵkᵤ        ϵqᵤ        ωₐᵣᵣ_frozen      ωₐᵣᵣ_DFPT       g_frozen    g_DFPT\n")
+       # @printf("      i      j      nu      ϵkᵤ        ϵqᵤ        ωₐᵣᵣ_frozen      ωₐᵣᵣ_DFPT       g_frozen    g_DFPT\n")
         open(path_to_in*"out/comparison_$(ik)_$(iq).txt", "w") do io 
         for i in 1:nbands
             for j in 1:nbands
                     for iph in 1:3*Nat#Need to chec
-                        @printf("  %5d  %5d  %5d  %10.6f  %10.6f  %12.6f  %12.6f  %10.10f %10.10f\n", i,j, iph, ϵkᵤ[i], ϵqᵤ[j], ωₐᵣᵣ[1,iph], ωₐᵣᵣ_DFPT[1,iph], symm_elph[i, j, iph], elph_dfpt[i, j, iph])
-                        @printf(io, "  %5d  %5d  %5d  %10.6f  %10.6f  %12.6f  %12.6f  %10.10f %10.10f\n", i,j, iph, ϵkᵤ[i], ϵqᵤ[j], ωₐᵣᵣ[1,iph], ωₐᵣᵣ_DFPT[1,iph], symm_elph[i, j, iph], elph_dfpt[i, j, iph])
+                       # @printf("  %5d  %5d  %5d  %10.6f  %10.6f  %12.6f  %12.6f  %12.12f %12.12f\n", i,j, iph, ϵkᵤ[i], ϵqᵤ[j], ωₐᵣᵣ[1,iph], ωₐᵣᵣ_DFPT[1,iph], symm_elph[i, j, iph], elph_dfpt[i, j, iph])
+                        @printf(io, "  %5d  %5d  %5d  %10.6f  %10.6f  %12.6f  %12.6f  %12.12f %12.12f\n", i,j, iph, ϵkᵤ[i], ϵqᵤ[j], ωₐᵣᵣ[1,iph], ωₐᵣᵣ_DFPT[1,iph], symm_elph[i, j, iph], elph_dfpt[i, j, iph])
                     end
                 end
             end
@@ -634,6 +652,9 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh; save
     ψₚ  = 0
     Uk  = 0
     Uq  = 0
+    ψₚₘ  = 0
+    Ukₘ  = 0
+    Uqₘ  = 0
     GC.gc()
 
 end
