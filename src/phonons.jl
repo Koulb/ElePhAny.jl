@@ -150,7 +150,7 @@ function calculate_phonons(path_to_in::String,unitcell,abs_disp, Ndispalce, mesh
     end
 
     content = content*" \nWRITEDM = .TRUE."
-    content = content*" \nFC_SYMMETRY = .TRUE."
+    #content = content*" \nFC_SYMMETRY = .TRUE."
     
     file = open(path_to_in*file_name, "w")
     write(file, content)
