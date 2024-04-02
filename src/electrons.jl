@@ -251,3 +251,65 @@ function save_potential(path_to_in::String, Ndispalce, mesh)
     end
 
 end
+
+function get_kpoint_list(path_to_in)
+    file = open(path_to_in*"/kpoints.dat", "r")
+    lines_kpoints = readlines(file)
+    close(file)
+    klist = [parse.(Float64, split(line)[1:end-1]) for line in lines_kpoints[3:end]]  
+    return klist
+end
+
+function get_kpoint_list_old(path_to_in)
+    k_list = []
+    atoms = ase_io.read(path_to_in*"scf.out")
+
+    for (index, kpt) in enumerate(atoms.calc.kpts)
+        push!(k_list, round.( pyconvert(Vector,kpt.k), digits=6))
+    end
+    return k_list
+end
+
+function fold_kpoint(ik, iq, k_list)
+    k_point = k_list[ik]
+    q_point = k_list[iq]
+
+    kq_point = k_point + q_point
+    fold_indices = findall(abs.(kq_point) .>= 1)
+
+    for index in fold_indices
+        kq_point[index] -= sign(kq_point[index])
+    end
+    ikq = 1
+
+    for (index, k_point) in enumerate(k_list)
+        if all(isapprox.(kq_point, k_point))
+            ikq = index 
+            break
+        end
+    end
+
+    return ikq
+end
+
+function prepare_eigenvalues(path_to_in::String, Ndisplace::Int, mesh::Int) 
+    path_to_xml="tmp/scf.save/data-file-schema.xml"
+    group = "scf_0/"
+    ϵₚ_list  = [] 
+    ϵₚₘ_list = [] 
+
+    k_list = get_kpoint_list(path_to_in*group)
+    ϵkᵤ_list = WannierIO.read_qe_xml(path_to_in*group*path_to_xml)[:eigenvalues]
+
+    for ind in 1:2:Ndisplace
+        group = "group_$ind/"
+        group_m = "group_$(ind+1)/"
+        ϵₚ = WannierIO.read_qe_xml(path_to_in*group*path_to_xml)[:eigenvalues][1]
+        ϵₚₘ = WannierIO.read_qe_xml(path_to_in*group_m*path_to_xml)[:eigenvalues][1]
+
+        push!(ϵₚ_list,ϵₚ)
+        push!(ϵₚₘ_list,ϵₚₘ)
+    end
+
+    return ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list
+end

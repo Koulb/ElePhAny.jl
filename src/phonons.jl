@@ -257,3 +257,25 @@ function parse_qe_ph(path_to_dyn)
 
     return [ωₐᵣᵣ_ₚₕ, εₐᵣᵣ_ₚₕ]
 end
+
+function prepare_phonons(path_to_in::String, Ndisp::Int)
+    phonon_params = phonopy.load(path_to_in*"phonopy_params.yaml")
+    displacements = phonon_params.displacements[pyslice(0,Ndisp,2)]
+    Nat = Int(size(pyconvert(Vector,phonon_params.masses))[1])
+    M_phonon = []
+
+    for iat in 1:Nat
+        U = []
+        temp_iat::Int = 1 + 3 *(iat-1)
+        for row_py in displacements[pyslice(temp_iat-1,temp_iat+2)]
+            row = pyconvert(Vector,row_py)[2:end]
+            push!(U,row/norm(row))
+        end   
+        U_inv =  vcat(U'...)^-1
+        push!(M_phonon, U_inv)
+    end
+
+    writedlm(path_to_in*"/scf_0/M_phonon.txt", M_phonon)  
+    
+    return M_phonon
+end

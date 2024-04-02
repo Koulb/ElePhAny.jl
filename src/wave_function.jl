@@ -289,6 +289,39 @@ function prepare_wave_functions_undisp(path_to_in::String, mesh::Int;path_to_kcw
     end
 end
 
+function prepare_u_matrixes(path_to_in::String, Ndisplace::Int, mesh::Int)
+    U_list = []
+    V_list = []
+
+    for ind in 1:2:Ndisplace
+        group   = "group_$ind/"
+        group_m   = "group_$(ind+1)/"
+        _, ψₚ = parse_fortan_bin(path_to_in*group*"tmp/scf.save/wfc1.dat")
+        _, ψₚₘ = parse_fortan_bin(path_to_in*group_m*"tmp/scf.save/wfc1.dat")
+        nbnds = Int(size(ψₚ)[1]/mesh^3)
+        
+        Uₖᵢⱼ = zeros(ComplexF64, mesh^3, nbnds*mesh^3, nbnds)
+        Vₖᵢⱼ = zeros(ComplexF64, mesh^3, nbnds*mesh^3, nbnds)
+
+        for ik in 1:mesh^3
+            ψkᵤ_list = load(path_to_in*"/scf_0/g_list_sc_$ik.jld2")
+            ψkᵤ = [ψkᵤ_list["wfc$iband"] for iband in 1:length(ψkᵤ_list)]
+
+            Uₖᵢⱼ[ik, :, :] = calculate_braket_matrix(ψₚ, ψkᵤ)
+            Vₖᵢⱼ[ik, :, :] = calculate_braket_matrix(ψₚₘ, ψkᵤ)
+        end
+
+        push!(U_list, Uₖᵢⱼ)
+        push!(V_list, Vₖᵢⱼ)
+    end
+
+    # Save U_list to a text file
+    writedlm(path_to_in*"/scf_0/U_list.txt", U_list)  
+    writedlm(path_to_in*"/scf_0/V_list.txt", V_list)    
+
+    return U_list, V_list
+end
+
 
 #TEST
 #path_to_in = "/home/apolyukhin/Development/julia_tests/qe_inputs/displacements/"

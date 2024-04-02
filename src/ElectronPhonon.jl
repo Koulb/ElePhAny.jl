@@ -17,13 +17,13 @@ function __init__()
     PythonCall.pycopy!(np, pyimport("numpy"))
 end
 
-export create_disp_calc, run_disp_calc, save_potential, run_nscf_calc
+export create_disp_calc, run_disp_calc, save_potential, run_nscf_calc, prepare_eigenvalues
 include("electrons.jl")
 
-export prepare_wave_functions_all, prepare_wave_functions_undisp
+export prepare_wave_functions_all, prepare_wave_functions_undisp, prepare_u_matrixes
 include("wave_function.jl")
 
-export calculate_phonons
+export calculate_phonons, prepare_phonons
 include("phonons.jl")
 
 export electron_phonon, electron_phonon_qe, plot_ep_coupling, get_kpoint_list, fold_kpoint
