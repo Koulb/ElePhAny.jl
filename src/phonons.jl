@@ -57,7 +57,7 @@ end
 
 function dislpaced_unitecells(path_to_save, unitcell, abs_disp, mesh)
     unitcell_phonopy = phonopy_structure_atoms.PhonopyAtoms(;symbols=unitcell[:symbols], 
-                                                             cell=pylist(pyconvert(Array,unitcell[:cell])./pyconvert(Float64,ase.units.Bohr)),#Should be in Bohr, hence conversion
+                                                             cell=pylist(pyconvert(Array,unitcell[:cell])./bohr_to_ang),#Should be in Bohr, hence conversion
                                                              scaled_positions=unitcell[:scaled_positions],
                                                              masses=unitcell[:masses])
 
@@ -69,7 +69,7 @@ function dislpaced_unitecells(path_to_save, unitcell, abs_disp, mesh)
     for supercell_data in supercells_data
         supercell = Dict(
             :symbols => supercell_data.get_chemical_symbols(),
-            :cell => supercell_data.get_cell()*ase.units.Bohr, #Back to angstroms for ase
+            :cell => supercell_data.get_cell()*bohr_to_ang, #Back to angstroms for ase
             :scaled_positions => supercell_data.get_scaled_positions(),
             :masses => supercell_data.get_masses())
         push!(supercells, supercell)    
@@ -84,11 +84,6 @@ function calculate_phonons(path_to_in::String,unitcell,abs_disp, Ndispalce, mesh
     files = readdir(path_to_in; join=true)
     number_atoms = length(unitcell[:symbols])*mesh^3
     forces = Array{Float64}(undef, Ndispalce, number_atoms, 3)
-    Bohr = pyconvert(Float64,ase.units.Bohr)
-    Rydberg = pyconvert(Float64,ase.units.Rydberg)
-    PwscfToTHz = pyconvert(Float64,phonopy.units.PwscfToTHz)
-    factor = PwscfToTHz*33.35641
-
     
     for i_disp in 1:Ndispalce
         dir_name = "group_"*string(i_disp)*"/"
@@ -105,7 +100,7 @@ function calculate_phonons(path_to_in::String,unitcell,abs_disp, Ndispalce, mesh
     end
 
     #This conversions Julia to Python are getting me worried 
-    unitcell[:cell] = pylist(pyconvert(Array,unitcell[:cell])./Bohr)#Should be in Bohr, hence conversion
+    unitcell[:cell] = pylist(pyconvert(Array,unitcell[:cell])./bohr_to_ang)#Should be in Bohr, hence conversion
     unitcell_phonopy = phonopy_structure_atoms.PhonopyAtoms(;symbols=unitcell[:symbols], 
                                                              cell=unitcell[:cell], 
                                                              scaled_positions=pylist(unitcell[:scaled_positions]))
@@ -114,7 +109,7 @@ function calculate_phonons(path_to_in::String,unitcell,abs_disp, Ndispalce, mesh
                              is_symmetry=false, 
                              supercell_matrix=pylist([[mesh, 0, 0], [0, mesh, 0], [0, 0, mesh]]),
                              calculator="qe",
-                             factor=PwscfToTHz*33.35641)#from internal units to Thz and then to cm-1
+                             factor=pwscf_to_cm1)#from internal units to Thz and then to cm-1
     
     phonon.generate_displacements(distance=abs_disp)#, is_plusminus="false"
 
@@ -132,7 +127,7 @@ function calculate_phonons(path_to_in::String,unitcell,abs_disp, Ndispalce, mesh
     #Dumb way of using phonopy since api gives diffrent result
     current_directory = pwd()
     cd(path_to_in)
-    command = `phonopy -c phonopy_params.yaml --dim="$mesh $mesh $mesh" --eigvecs --factor $factor -p mesh.conf`
+    command = `phonopy -c phonopy_params.yaml --dim="$mesh $mesh $mesh" --eigvecs --factor $pwscf_to_cm1 -p mesh.conf`
     file_name = "mesh.conf"
 
     content = ""

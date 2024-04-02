@@ -295,7 +295,6 @@ function prepare_u_matrixes(path_to_in::String, Ndisplace::Int, mesh::Int)
 
     println("Preparing u matrixes:")
     for ind in 1:2:Ndisplace
-        println("group_$ind")
         group   = "group_$ind/"
         group_m   = "group_$(ind+1)/"
         _, ψₚ = parse_fortan_bin(path_to_in*group*"tmp/scf.save/wfc1.dat")
@@ -315,6 +314,7 @@ function prepare_u_matrixes(path_to_in::String, Ndisplace::Int, mesh::Int)
 
         push!(U_list, Uₖᵢⱼ)
         push!(V_list, Vₖᵢⱼ)
+        println("group_$ind is ready")
     end
 
     # Save U_list to a text file
