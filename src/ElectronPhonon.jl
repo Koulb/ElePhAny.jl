@@ -17,6 +17,9 @@ function __init__()
     PythonCall.pycopy!(np, pyimport("numpy"))
 end
 
+export uma_to_ry, cm1_to_ry ,cm1_to_Thz
+include("const.jl")
+
 export create_disp_calc, run_disp_calc, save_potential, run_nscf_calc, prepare_eigenvalues
 include("electrons.jl")
 

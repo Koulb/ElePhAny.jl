@@ -258,11 +258,13 @@ function parse_qe_ph(path_to_dyn)
     return [ωₐᵣᵣ_ₚₕ, εₐᵣᵣ_ₚₕ]
 end
 
-function prepare_phonons(path_to_in::String, Ndisp::Int)
+function prepare_phonons(path_to_in::String, Ndisp::Int, mesh::Int)
     phonon_params = phonopy.load(path_to_in*"phonopy_params.yaml")
     displacements = phonon_params.displacements[pyslice(0,Ndisp,2)]
     Nat = Int(size(pyconvert(Vector,phonon_params.masses))[1])
-    M_phonon = []
+    M_phonon  = []
+    ωₐᵣᵣ_ₗᵢₛₜ = []
+    εₐᵣᵣ_ₗᵢₛₜ = []
 
     for iat in 1:Nat
         U = []
@@ -275,7 +277,34 @@ function prepare_phonons(path_to_in::String, Ndisp::Int)
         push!(M_phonon, U_inv)
     end
 
+    phonons = YAML.load_file(path_to_in*"qpoints.yaml")
+    mₐᵣᵣ = pyconvert(Vector, phonon_params.masses)
+    
+    for iq in 1:mesh^3
+        εₐᵣᵣ = Array{ComplexF64, 3}(undef, (1, 3*Nat, 3*Nat))
+        ωₐᵣᵣ = Array{Float64, 2}(undef, (1, 3*Nat))
+    
+        qpoint = determine_q_point(path_to_in*"scf_0/",iq)
+    
+        scaled_pos = pyconvert(Matrix, phonon_params.primitive.get_scaled_positions())
+        phonon_factor = [exp(2im * π * dot(qpoint, pos)) for pos in eachrow(scaled_pos)]
+    
+        for (iband, phonon) in enumerate(phonons["phonon"][iq]["band"])
+            for iat in 1:Nat
+                for icart in 1:3
+                    temp_iat::Int = icart + 3 *(iat-1)
+                    eig_temp = phonon["eigenvector"][iat][icart][1] + 1im*phonon["eigenvector"][iat][icart][2]
+                    εₐᵣᵣ[1, iband, temp_iat] = phonon_factor[iat] * eig_temp
+                end
+            end
+            ωₐᵣᵣ[1, iband] = phonon["frequency"]
+        end
+
+        push!(ωₐᵣᵣ_ₗᵢₛₜ, ωₐᵣᵣ)
+        push!(εₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ)
+    end
+
     writedlm(path_to_in*"/scf_0/M_phonon.txt", M_phonon)  
     
-    return M_phonon
+    return M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ
 end

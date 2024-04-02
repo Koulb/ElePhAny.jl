@@ -80,13 +80,13 @@ scf_parameters = Dict(
 #save_potential(directory_path*"displacements/", Ndispalce, mesh)
 
 
-#prepare_wave_functions_undisp(directory_path*"displacements/", mesh;)# path_to_kcw=path_to_kcw,kcw_chanel=kcw_chanel
+prepare_wave_functions_undisp(directory_path*"displacements/", mesh;)# path_to_kcw=path_to_kcw,kcw_chanel=kcw_chanel
 U_list, V_list = prepare_u_matrixes(directory_path*"displacements/", Ndispalce, mesh)
 ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list = prepare_eigenvalues(directory_path*"displacements/", Ndispalce, mesh)
 
-# ### Phonons calculation
-# # calculate_phonons(directory_path*"displacements/",unitcell, abs_disp, Ndispalce, mesh)
-M_phonon = prepare_phonons(directory_path*"displacements/",Ndispalce)
+### Phonons calculation
+calculate_phonons(directory_path*"displacements/",unitcell, abs_disp, Ndispalce, mesh)
+M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ = prepare_phonons(directory_path*"displacements/",Ndispalce, mesh)
 
 # # ## Electron-phonon matrix elements
 ik_list = [i for i in 1:mesh^3] ##[1,2]##[1]#[1,8]   ##
@@ -98,9 +98,10 @@ println("Calculating electron-phonon matrix elements for $(length(ik_list)*lengt
 for ik in ik_list #@threads
     for iq in iq_list
         #electron_phonon_qe(directory_path*"displacements/", ik, iq, mpi_ranks, path_to_qe)
-        electron_phonon(directory_path*"displacements/", abs_disp, Ndispalce, ik, iq, mesh, ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list, U_list, V_list, M_phonon;)## path_to_kcw=path_to_kcw,kcw_chanel=kcw_chanel #, #; save_epw= true
+        electron_phonon(directory_path*"displacements/", abs_disp, Ndispalce, ik, iq, mesh, ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list,
+                         U_list, V_list, M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ; save_epw= true)## path_to_kcw=path_to_kcw,kcw_chanel=kcw_chanel #, #
 
-        plot_ep_coupling(directory_path*"displacements/"; ik, iq)
+        #plot_ep_coupling(directory_path*"displacements/"; ik, iq)
         next!(progress)
     end
 end
