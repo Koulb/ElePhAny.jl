@@ -81,6 +81,7 @@ scf_parameters = Dict(
 prepare_wave_functions_undisp(directory_path*"displacements/", mesh;)# path_to_kcw=path_to_kcw,kcw_chanel=kcw_chanel
 U_list, V_list = prepare_u_matrixes(directory_path*"displacements/", Ndispalce, mesh)
 ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list = prepare_eigenvalues(directory_path*"displacements/", Ndispalce, mesh)
+electrons = create_electrons(directory_path*"displacements/", Ndispalce, mesh)
 
 ### Phonons calculation
 calculate_phonons(directory_path*"displacements/",unitcell, abs_disp, Ndispalce, mesh)

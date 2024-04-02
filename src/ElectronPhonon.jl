@@ -17,10 +17,13 @@ function __init__()
     PythonCall.pycopy!(np, pyimport("numpy"))
 end
 
+export Electrons
+include("model.jl")
+
 export uma_to_ry, cm1_to_ry ,cm1_to_Thz
 include("const.jl")
 
-export create_disp_calc, run_disp_calc, save_potential, run_nscf_calc, prepare_eigenvalues
+export create_disp_calc, run_disp_calc, save_potential, run_nscf_calc, prepare_eigenvalues, create_electrons
 include("electrons.jl")
 
 export prepare_wave_functions_all, prepare_wave_functions_undisp, prepare_u_matrixes
@@ -31,5 +34,6 @@ include("phonons.jl")
 
 export electron_phonon, electron_phonon_qe, plot_ep_coupling, get_kpoint_list, fold_kpoint
 include("electron_phonons.jl")
+
 
 end
