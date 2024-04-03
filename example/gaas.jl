@@ -101,7 +101,7 @@ for ik in ik_list #@threads
         electron_phonon(directory_path*"displacements/", abs_disp, Ndispalce, ik, iq, mesh, ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list,
                          U_list, V_list, M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ; save_epw= true)## path_to_kcw=path_to_kcw,kcw_chanel=kcw_chanel #, #
 
-        #plot_ep_coupling(directory_path*"displacements/"; ik, iq)
+        #plot_ep_coupling(directory_path*"displacements/", ik, iq)
         next!(progress)
     end
 end

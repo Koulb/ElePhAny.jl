@@ -2,14 +2,14 @@ using EzXML, WannierIO, LinearAlgebra, Printf,  YAML, Plots, Base.Threads
 
 
 function run_model(model)
-# Electrons calculation
-Ndispalce = create_disp_calc(model.directory_path, model.unitcell, model.scf_parameters, model.abs_disp, model.mesh; from_scratch = true)
-run_disp_calc(model.directory_path*"displacements/", model.Ndispalce, model.mpi_ranks)
-run_nscf_calc(model.directory_path, model.unitcell, model.scf_parameters, model.mesh, model.path_to_qe, model.mpi_ranks)
-save_potential(model.directory_path*"displacements/", model.Ndispalce, model.mesh)
+    # Electrons calculation
+    create_disp_calc(model.directory_path, model.unitcell, model.scf_parameters, model.abs_disp, model.mesh; from_scratch = true)
+    run_disp_calc(model.directory_path*"displacements/", model.Ndispalce, model.mpi_ranks)
+    run_nscf_calc(model.directory_path, model.unitcell, model.scf_parameters, model.mesh, model.path_to_qe, model.mpi_ranks)
+    save_potential(model.directory_path*"displacements/", model.Ndispalce, model.mesh)
 
-prepare_wave_functions_undisp(model.directory_path*"displacements/", model.mesh;)# path_to_kcw=path_to_kcw,kcw_chanel=kcw_chanel
-calculate_phonons(model.directory_path*"displacements/",model.unitcell, model.abs_disp, model.Ndispalce, model.mesh)
+    prepare_wave_functions_undisp(model.directory_path*"displacements/", model.mesh;)# path_to_kcw=path_to_kcw,kcw_chanel=kcw_chanel
+    calculate_phonons(model.directory_path*"displacements/",model.unitcell, model.abs_disp, model.Ndispalce, model.mesh)
 
 end
 

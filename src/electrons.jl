@@ -1,7 +1,7 @@
 using JLD2, DelimitedFiles
 
-function create_scf_calc(path_to_scf::String,unitcell, scf_parameters)
-    # Create the FCC cell for Silicon
+function create_scf_calc(path_to_scf::String, unitcell, scf_parameters)
+    # Create the cell
     atoms  = pycall(ase.Atoms;unitcell...)
         
     # Write the input file using Quantum ESPRESSO format
@@ -30,7 +30,16 @@ function create_disp_calc(path_to_in::String, unitcell, scf_parameters, abs_disp
         run(command);
         println(command)
     catch; end
-    create_scf_calc(path_to_in*"scf_0/",unitcell, scf_parameters)
+
+    nscf_parameters       = deepcopy(scf_parameters)
+    #Case of hybrids
+    if haskey(scf_parameters, :nqx1)
+        nscf_parameters[:nqx1] = mesh
+        nscf_parameters[:nqx2] = mesh
+        nscf_parameters[:nqx3] = mesh
+    end
+
+    create_scf_calc(path_to_in*"scf_0/",unitcell, nscf_parameters)
 
     unitcells_disp = dislpaced_unitecells(path_to_in, unitcell, abs_disp, mesh)
     Ndispalce = size(unitcells_disp)[1]
