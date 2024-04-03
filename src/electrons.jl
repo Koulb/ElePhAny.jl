@@ -315,12 +315,15 @@ function prepare_eigenvalues(path_to_in::String, Ndisplace::Int, mesh::Int)
 end
 
 function create_electrons(path_to_in::String, Ndisplace::Int, mesh::Int)
+    U_list, V_list = prepare_u_matrixes(path_to_in, Ndisplace, mesh)
+    ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list = prepare_eigenvalues(path_to_in, Ndisplace, mesh)
 
-# prepare_wave_functions_undisp(path_to_in, mesh;)
-U_list, V_list = prepare_u_matrixes(path_to_in, Ndisplace, mesh)
-ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list = prepare_eigenvalues(path_to_in, Ndisplace, mesh)
+    return Electrons(U_list, V_list, ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list)
+end
 
-
-return Electrons(U_list, V_list, ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list)
-
+function create_electrons(model::ModelQE)
+    U_list, V_list = prepare_u_matrixes(model.directory_path*"displacements/", model.Ndispalce, model.mesh)
+    ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list = prepare_eigenvalues(model.directory_path*"displacements/", model.Ndispalce, model.mesh)
+   
+    return Electrons(U_list, V_list, ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list)
 end

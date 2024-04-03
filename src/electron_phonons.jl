@@ -1,6 +1,18 @@
 using EzXML, WannierIO, LinearAlgebra, Printf,  YAML, Plots, Base.Threads
 
 
+function run_model(model)
+# Electrons calculation
+Ndispalce = create_disp_calc(model.directory_path, model.unitcell, model.scf_parameters, model.abs_disp, model.mesh; from_scratch = true)
+run_disp_calc(model.directory_path*"displacements/", model.Ndispalce, model.mpi_ranks)
+run_nscf_calc(model.directory_path, model.unitcell, model.scf_parameters, model.mesh, model.path_to_qe, model.mpi_ranks)
+save_potential(model.directory_path*"displacements/", model.Ndispalce, model.mesh)
+
+prepare_wave_functions_undisp(model.directory_path*"displacements/", model.mesh;)# path_to_kcw=path_to_kcw,kcw_chanel=kcw_chanel
+calculate_phonons(model.directory_path*"displacements/",model.unitcell, model.abs_disp, model.Ndispalce, model.mesh)
+
+end
+
 function electron_phonon_qe(path_to_in::String, ik::Int, iq::Int, mpi_ranks::Int, path_to_qe::String)
     dir_name = "scf_0/"
     current_directory = pwd()
@@ -47,6 +59,10 @@ function electron_phonon_qe(path_to_in::String, ik::Int, iq::Int, mpi_ranks::Int
     #println(command)
     run(pipeline(command, stdout="ph.out", stderr="errs_ph.txt"))
     cd(current_directory)
+end
+
+function electron_phonon_qe(model::ModelQE, ik::Int, iq::Int)
+    electron_phonon_qe(model.directory_path*"displacements/", ik, iq, model.mpi_ranks, model.path_to_qe)
 end
 
 function calculate_braket_real(bra::Array{Complex{Float64}, 3}, ket::Array{Complex{Float64}, 3})
@@ -442,7 +458,7 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh, ϵk�
 
 end
 
-function plot_ep_coupling(path_to_in::String; ik::Int=0, iq::Int=0)
+function plot_ep_coupling(path_to_in::String, ik::Int, iq::Int)
     # Initialize empty arrays for x and y
     x = Float64[]
     y = Float64[]
@@ -467,4 +483,40 @@ function plot_ep_coupling(path_to_in::String; ik::Int=0, iq::Int=0)
     line = LinRange(0, 1.1*maximum(max.(x,y)), 4)
     plot!(line, line, color = "black", legend = false)
     savefig(path_to_in*"out/comparison_$(ik)_$(iq).png")
+end
+
+function plot_ep_coupling(model::ModelQE; ik::Int=0, iq::Int=0)
+    plot_ep_coupling(model.directory_path*"displacements/", ik, iq)
+end
+
+function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh, electrons::AbstractElectrons, phonons::AbstractPhonons; save_epw::Bool=false, path_to_kcw="",kcw_chanel="")
+    ϵkᵤ_list = electrons.ϵkᵤ_list
+    ϵₚ_list = electrons.ϵₚ_list
+    ϵₚₘ_list = electrons.ϵₚₘ_list
+    k_list = electrons.k_list
+    U_list = electrons.U_list
+    V_list = electrons.V_list
+    M_phonon = phonons.M_phonon
+    ωₐᵣᵣ_ₗᵢₛₜ = phonons.ωₐᵣᵣ_ₗᵢₛₜ
+    εₐᵣᵣ_ₗᵢₛₜ = phonons.εₐᵣᵣ_ₗᵢₛₜ
+    mₐᵣᵣ = phonons.mₐᵣᵣ
+
+    electron_phonon(path_to_in, abs_disp, Ndisp, ik, iq, mesh, ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list , U_list, V_list, M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ; save_epw=save_epw, path_to_kcw=path_to_kcw,kcw_chanel=kcw_chanel)
+
+end
+
+function electron_phonon(model::ModelQE, ik, iq, electrons::AbstractElectrons, phonons::AbstractPhonons; save_epw::Bool=false, path_to_kcw="",kcw_chanel="")
+    ϵkᵤ_list = electrons.ϵkᵤ_list
+    ϵₚ_list = electrons.ϵₚ_list
+    ϵₚₘ_list = electrons.ϵₚₘ_list
+    k_list = electrons.k_list
+    U_list = electrons.U_list
+    V_list = electrons.V_list
+    M_phonon = phonons.M_phonon
+    ωₐᵣᵣ_ₗᵢₛₜ = phonons.ωₐᵣᵣ_ₗᵢₛₜ
+    εₐᵣᵣ_ₗᵢₛₜ = phonons.εₐᵣᵣ_ₗᵢₛₜ
+    mₐᵣᵣ = phonons.mₐᵣᵣ
+
+    electron_phonon(model.directory_path*"displacements/", model.abs_disp, model.Ndispalce, ik, iq, model.mesh, ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list , U_list, V_list, M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ; save_epw=save_epw, path_to_kcw=path_to_kcw,kcw_chanel=kcw_chanel)
+
 end
