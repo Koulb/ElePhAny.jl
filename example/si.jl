@@ -54,29 +54,30 @@ scf_parameters = Dict(
     # :nqx3 => 1
 )
 
+
 # So for the HSE we need to do scf with nq1=nq2=nq3=2 and provide the kpoints in the scf.in file (check if nsf is an option)
 # For the supercell nq1=nq2=nq3=1 to be consitnent ?
 
 model = create_model(path_to_calc, abs_disp, directory_path, path_to_qe, mpi_ranks, mesh, Ndispalce, unitcell, scf_parameters)
 run_model(model)
 
-# electrons = create_electrons(model)
+electrons = create_electrons(model)
 
 # ### Phonons calculation
-# phonons = create_phonons(model)
+phonons = create_phonons(model)
 
 # # #### Electron-phonon matrix elements
-# ik_list = [i for i in 1:mesh^3] ##[1,2]##
-# iq_list = [i for i in 1:mesh^3] ##[1,2]##
+ik_list = [i for i in 1:mesh^3] ##[1,2]##
+iq_list = [i for i in 1:mesh^3] ##[1,2]##
 
-# progress = Progress(length(ik_list)*length(iq_list), dt=5.0)
+progress = Progress(length(ik_list)*length(iq_list), dt=5.0)
 
-# println("Calculating electron-phonon matrix elements for $(length(ik_list)*length(iq_list)) points:")
-# for ik in ik_list #@threads
-#     for iq in iq_list
-#         # electron_phonon_qe(model, ik, iq)
-#         electron_phonon(model, ik, iq, electrons, phonons; save_epw = true)
-#         # plot_ep_coupling(model, ik, iq)
-#         next!(progress)
-#     end
-# end
+println("Calculating electron-phonon matrix elements for $(length(ik_list)*length(iq_list)) points:")
+for ik in ik_list #@threads
+    for iq in iq_list
+        # electron_phonon_qe(model, ik, iq)
+        electron_phonon(model, ik, iq, electrons, phonons; save_epw = true)
+        # plot_ep_coupling(model, ik, iq)
+        next!(progress)
+    end
+end

@@ -41,15 +41,26 @@ function create_disp_calc(path_to_in::String, unitcell, scf_parameters, abs_disp
 
     create_scf_calc(path_to_in*"scf_0/",unitcell, nscf_parameters)
 
+    try
+        command = `cp ../run.sh scf_0`
+        run(command);
+        println(command)
+    catch; end
+
     unitcells_disp = dislpaced_unitecells(path_to_in, unitcell, abs_disp, mesh)
     Ndispalce = size(unitcells_disp)[1]
 
     for i_disp in 1:Ndispalce
         dir_name = "group_"*string(i_disp)*"/"
-        command = `mkdir $dir_name`        
+        command = `mkdir $dir_name`   
+        command_cp = `cp ../run.sh $dir_name`
+
         try
             run(command);
             println(command)
+
+            run(command_cp);
+            println(command_cp)
         catch; end
 
         nscf_parameters       = deepcopy(scf_parameters)
@@ -75,6 +86,16 @@ function run_scf(path_to_in::String, mpi_ranks::Int = 0)
 
     println(command)
     run(pipeline(command, stdout="scf.out", stderr="errs.txt"))
+end
+
+function run_scf_cluster(path_to_in::String)
+    # Change to the specified directory
+    cd(path_to_in)
+    
+    command = `sbatch run.sh`
+
+    println(command)
+    run(pipeline(command, stdout="run.out", stderr="errs.txt"))
 end
 
 function run_nscf_calc(path_to_in::String, unitcell, scf_parameters, mesh, path_to_kmesh, mpi_ranks)
@@ -116,16 +137,45 @@ function run_nscf_calc(path_to_in::String, unitcell, scf_parameters, mesh, path_
     writedlm(file, lines_nscf)
     close(file)
 
+    # Try to copy cluster run file
+    path_to_copy = path_to_in*"displacements/scf_0/run_nscf.sh"
+    try
+        command = `cp ./run.sh $path_to_copy`
+        run(command);
+        println(command)
+
+        # Open the run_nscf.sh file and replace "scf.in" with "nscf.in"
+        file = open(path_to_copy, "r")
+        lines = readlines(file)
+        close(file)
+
+        for (index, line) in enumerate(lines)
+            if occursin("scf.in", line)
+                lines[index] = replace(line, "scf.in" => "nscf.in")
+            end
+        end
+
+        file = open(path_to_copy, "w")
+        writedlm(file, lines, quotes=false)
+        close(file)
+        
+    catch; end
+
     println("Running nscf:")
+    if isfile(path_to_copy)
+        command = `sbatch run_nscf.sh`
 
-    if mpi_ranks > 0
-        command = `mpirun -np $mpi_ranks pw.x -in nscf.in`
+        println(command)
+        run(pipeline(command, stdout="run_nscf.out", stderr="nerrs.txt"))
     else
-        command = `pw.x -in nscf.in`
+        if mpi_ranks > 0
+            command = `mpirun -np $mpi_ranks pw.x -in nscf.in`
+        else
+            command = `pw.x -in nscf.in`
+        end
+        println(command)
+        run(pipeline(command, stdout="scf.out", stderr="nerrs.txt"))
     end
-
-    println(command)
-    run(pipeline(command, stdout="scf.out", stderr="nerrs.txt"))
 
     return true
 end
@@ -133,15 +183,22 @@ end
 function run_disp_calc(path_to_in::String, Ndispalce::Int, mpi_ranks::Int = 0)
     # Change to the specified directory
     println("Running scf_0:")
-    run_scf(path_to_in*"scf_0/", mpi_ranks)
-
+    if(isfile(path_to_in*"scf_0/"*"run.sh"))
+        run_scf_cluster(path_to_in*"scf_0/")
+    else
+        run_scf(path_to_in*"scf_0/", mpi_ranks)
+    end
     # Get a number of displacements
     files = readdir(path_to_in; join=true)
 
     for i_disp in 1:Ndispalce
         println("Running displacement # $i_disp:")
         dir_name = "group_"*string(i_disp)*"/"
-        run_scf(path_to_in*dir_name, mpi_ranks)
+        if(isfile(path_to_in*dir_name*"run.sh"))
+            run_scf_cluster(path_to_in*dir_name)
+        else
+            run_scf(path_to_in*dir_name, mpi_ranks)
+        end        
     end
 
     return true

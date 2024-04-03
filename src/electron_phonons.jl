@@ -9,6 +9,7 @@ function run_model(model)
     save_potential(model.directory_path*"displacements/", model.Ndispalce, model.mesh)
 
     prepare_wave_functions_undisp(model.directory_path*"displacements/", model.mesh;)# path_to_kcw=path_to_kcw,kcw_chanel=kcw_chanel
+    # Phonons calculation
     calculate_phonons(model.directory_path*"displacements/",model.unitcell, model.abs_disp, model.Ndispalce, model.mesh)
 
 end
