@@ -260,7 +260,7 @@ function read_potential(path_to_file::String;skiprows=0)
     return ff, N1, N2, N3
 end
 
-function save_potential(path_to_in::String, Ndispalce, mesh)
+function save_potential(path_to_in::String, Ndispalce, mesh, mpi_ranks)
     # Get a number of displacements
     files = readdir(path_to_in; join=true)
 
@@ -274,8 +274,12 @@ function save_potential(path_to_in::String, Ndispalce, mesh)
             "spin_component" => 1,
         )
     )
-
-    command = `pp.x -in pp.in`
+    
+    if mpi_ranks > 0
+        command = `mpirun -np $mpi_ranks pp.x -in pp.in`
+    else
+        command = `pp.x -in pp.in`
+    end
 
     println("Saving potential: ")
 

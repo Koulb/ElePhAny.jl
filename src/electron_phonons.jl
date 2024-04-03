@@ -6,13 +6,46 @@ function run_model(model)
     create_disp_calc(model.directory_path, model.unitcell, model.scf_parameters, model.abs_disp, model.mesh; from_scratch = true)
     run_disp_calc(model.directory_path*"displacements/", model.Ndispalce, model.mpi_ranks)
     run_nscf_calc(model.directory_path, model.unitcell, model.scf_parameters, model.mesh, model.path_to_qe, model.mpi_ranks)
-    save_potential(model.directory_path*"displacements/", model.Ndispalce, model.mesh)
-
+    check_calculations(model.directory_path*"displacements/", model.Ndispalce)
+    
+    save_potential(model.directory_path*"displacements/", model.Ndispalce, model.mesh, model.mpi_ranks)
     prepare_wave_functions_undisp(model.directory_path*"displacements/", model.mesh;)# path_to_kcw=path_to_kcw,kcw_chanel=kcw_chanel
+    
     # Phonons calculation
     calculate_phonons(model.directory_path*"displacements/",model.unitcell, model.abs_disp, model.Ndispalce, model.mesh)
 
 end
+
+function check_calculations(path_to_calc, Ndisp)
+    check = false
+
+    println("Waiting for calculations to finish:")
+    while !check
+        sleep(10)
+        command = `squeue --user=$(ENV["USER"])` # need to understand how to write the proper name
+        run(command)
+
+        try
+            file = open(path_to_calc*"group_$Ndisp/scf.out", "r")
+            lines = readlines(file)
+            close(file)
+            if occursin("JOB DONE.", lines[end-1])
+                check = true
+            end
+    
+            file = open(path_to_calc*"scf_0/scf.out", "r")
+            lines = readlines(file)
+            close(file)
+            if occursin("JOB DONE.", lines[end-1])
+                check = check && true
+            end
+        catch; end
+    end 
+    println("All calculations finished")
+
+    return
+end
+
 
 function electron_phonon_qe(path_to_in::String, ik::Int, iq::Int, mpi_ranks::Int, path_to_qe::String)
     dir_name = "scf_0/"
