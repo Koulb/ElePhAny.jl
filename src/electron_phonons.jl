@@ -1,19 +1,19 @@
 using EzXML, WannierIO, LinearAlgebra, Printf,  YAML, Plots, Base.Threads
 
 
-function run_model(model)
+function run_calculations(model)
     # Electrons calculation
     create_disp_calc(model.directory_path, model.unitcell, model.scf_parameters, model.abs_disp, model.mesh; from_scratch = true)
     run_disp_calc(model.directory_path*"displacements/", model.Ndispalce, model.mpi_ranks)
     run_nscf_calc(model.directory_path, model.unitcell, model.scf_parameters, model.mesh, model.path_to_qe, model.mpi_ranks)
     check_calculations(model.directory_path*"displacements/", model.Ndispalce)
-    
+end
+
+function prepare_model(model)
     save_potential(model.directory_path*"displacements/", model.Ndispalce, model.mesh, model.mpi_ranks)
     prepare_wave_functions_undisp(model.directory_path*"displacements/", model.mesh;)# path_to_kcw=path_to_kcw,kcw_chanel=kcw_chanel
     
-    # Phonons calculation
     calculate_phonons(model.directory_path*"displacements/",model.unitcell, model.abs_disp, model.Ndispalce, model.mesh)
-
 end
 
 function check_calculations(path_to_calc, Ndisp)
@@ -22,8 +22,10 @@ function check_calculations(path_to_calc, Ndisp)
     println("Waiting for calculations to finish:")
     while !check
         sleep(10)
-        command = `squeue --user=$(ENV["USER"])` # need to understand how to write the proper name
-        run(command)
+        try
+            command = `squeue --user=$(ENV["USER"])` # need to understand how to write the proper name
+            run(command)
+        end
 
         try
             file = open(path_to_calc*"group_$Ndisp/scf.out", "r")
@@ -519,7 +521,7 @@ function plot_ep_coupling(path_to_in::String, ik::Int, iq::Int)
     savefig(path_to_in*"out/comparison_$(ik)_$(iq).png")
 end
 
-function plot_ep_coupling(model::ModelQE; ik::Int=0, iq::Int=0)
+function plot_ep_coupling(model::ModelQE, ik::Int=0, iq::Int=0)
     plot_ep_coupling(model.directory_path*"displacements/", ik, iq)
 end
 

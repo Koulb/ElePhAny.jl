@@ -59,7 +59,8 @@ scf_parameters = Dict(
 # For the supercell nq1=nq2=nq3=1 to be consitnent ?
 
 model = create_model(path_to_calc, abs_disp, directory_path, path_to_qe, mpi_ranks, mesh, Ndispalce, unitcell, scf_parameters)
-run_model(model)
+# run_calculations(model)
+# prepare_model(model)
 
 electrons = create_electrons(model)
 
