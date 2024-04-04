@@ -25,7 +25,7 @@ function check_calculations(path_to_calc, Ndisp)
         try
             command = `squeue --user=$(ENV["USER"])` # need to understand how to write the proper name
             run(command)
-        end
+        catch; end
 
         try
             file = open(path_to_calc*"group_$Ndisp/scf.out", "r")
