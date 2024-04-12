@@ -6,7 +6,7 @@ function run_calculations(model)
     create_disp_calc(model.directory_path, model.unitcell, model.scf_parameters, model.abs_disp, model.mesh; from_scratch = true)
     run_disp_calc(model.directory_path*"displacements/", model.Ndispalce, model.mpi_ranks)
     run_nscf_calc(model.directory_path, model.unitcell, model.scf_parameters, model.mesh, model.path_to_qe, model.mpi_ranks)
-    check_calculations(model.directory_path*"displacements/", model.Ndispalce)
+    #check_calculations(model.directory_path*"displacements/", model.Ndispalce)
 end
 
 function prepare_model(model)

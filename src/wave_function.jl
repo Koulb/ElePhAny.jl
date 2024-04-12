@@ -310,6 +310,7 @@ function prepare_u_matrixes(path_to_in::String, Ndisplace::Int, mesh::Int)
 
             Uₖᵢⱼ[ik, :, :] = calculate_braket_matrix(ψₚ, ψkᵤ)
             Vₖᵢⱼ[ik, :, :] = calculate_braket_matrix(ψₚₘ, ψkᵤ)
+	    println("ik = $ik")
         end
 
         push!(U_list, Uₖᵢⱼ)
