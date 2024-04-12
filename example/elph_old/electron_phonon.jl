@@ -1,4 +1,4 @@
-using EzXML, WannierIO, PyCall, LinearAlgebra, Printf,  YAML
+using EzXML, PyCall, LinearAlgebra, Printf,  YAML
 # Call the Python module
 phonopy = pyimport("phonopy")
 
@@ -153,7 +153,7 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp)
 
     #println("ψᵤ unperturbed = ",ψᵤ["wfc1"][1:5])
 
-    ϵᵤ = WannierIO.read_qe_xml(path_to_in*group*path_to_xml)[:eigenvalues][ik]
+    ϵᵤ = read_qe_xml(path_to_in*group*path_to_xml)[:eigenvalues][ik]
     #println("ϵᵤ unperturbed = ",ϵᵤ)
 
     braket = zeros(Complex{Float64}, nbands, nbands)
@@ -163,7 +163,7 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp)
     #!!!! Need to go only through even or odd dispalcements
     for ind in 1:2:Ndisp
         group   = "group_$ind/"
-        ϵₚ = WannierIO.read_qe_xml(path_to_in*group*path_to_xml)[:eigenvalues][ik]
+        ϵₚ = read_qe_xml(path_to_in*group*path_to_xml)[:eigenvalues][ik]
         # ψₚ = load(path_to_in*group*path_to_wf)
         # U = calculate_braket_matrix_real(ψₚ, ψᵤ)
 

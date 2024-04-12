@@ -16,7 +16,7 @@ Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 ProfileVega = "4391764f-db79-4bd7-a4c6-f9062de4300e"
 ProgressMeter = "92933f4c-e287-5a05-a399-4b506db050ca"
 PythonCall = "6099a3de-0909-46bc-b1f4-468b9a2dfc0d"
-WannierIO = "cb1bc77f-5443-4951-af9f-05b616a3e422"
+StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 YAML = "ddb6d928-2868-570f-bddf-ab3f9cf99eb6"
 
 [compat]

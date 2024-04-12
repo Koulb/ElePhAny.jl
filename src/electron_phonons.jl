@@ -1,4 +1,4 @@
-using EzXML, WannierIO, LinearAlgebra, Printf,  YAML, Plots, Base.Threads
+using LinearAlgebra, Printf, YAML, Plots, Base.Threads
 
 
 function run_calculations(model)
@@ -244,11 +244,11 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh, ϵk�
         ϵqᵤ = ϵkᵤ_list[ikq]
         # path_to_xml_kcw = "/unperturbed/TMP/kc_kcw.save/data-file-schema.xml"
         # if kcw_chanel == "up"
-        #     ϵkᵤ = WannierIO.read_qe_xml(path_to_kcw*path_to_xml_kcw)[:eigenvalues_up][ik]
-        #     ϵqᵤ = WannierIO.read_qe_xml(path_to_kcw*path_to_xml_kcw)[:eigenvalues_up][ikq]
+        #     ϵkᵤ = read_qe_xml(path_to_kcw*path_to_xml_kcw)[:eigenvalues_up][ik]
+        #     ϵqᵤ = read_qe_xml(path_to_kcw*path_to_xml_kcw)[:eigenvalues_up][ikq]
         # elseif kcw_chanel == "dw"
-        #     ϵkᵤ = WannierIO.read_qe_xml(path_to_kcw*path_to_xml_kcw)[:eigenvalues_dn][ik]
-        #     ϵqᵤ = WannierIO.read_qe_xml(path_to_kcw*path_to_xml_kcw)[:eigenvalues_dn][ikq]
+        #     ϵkᵤ = read_qe_xml(path_to_kcw*path_to_xml_kcw)[:eigenvalues_dn][ik]
+        #     ϵqᵤ = read_qe_xml(path_to_kcw*path_to_xml_kcw)[:eigenvalues_dn][ikq]
         # end
 
     end
