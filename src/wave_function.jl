@@ -103,10 +103,22 @@ function prepare_wave_functions(path_to_in::String; ik::Int=1,path_to_kcw="",kcw
     miller, evc_list = parse_fortan_bin(file_path)
 
     #Determine the fft grid
-    potential_file = open(path_to_in*"/Vks", "r")
-    dummy_line = readline(potential_file)
-    fft_line = readline(potential_file)
-    N = parse(Int64, split(fft_line)[1])
+    # FFT dimensions:
+    scf_file = open(path_to_in*"/scf.out", "r")
+    fft_line = ""
+    for line in eachline(scf_file)
+        if contains(line, "FFT dimensions:")
+            fft_line = line
+            break
+        end
+    end
+    close(scf_file)
+    N = parse(Int64, split(fft_line)[8][1:end-1])
+
+    # potential_file = open(path_to_in*"/Vks", "r")
+    # dummy_line = readline(potential_file)
+    # fft_line = readline(potential_file)
+    # N = parse(Int64, split(fft_line)[1])
 
     println("Transforming wave fucntions in real space:")
     wfc_list = Dict()
@@ -148,10 +160,22 @@ end
 #check that I read the correct wf for ik = 2 
 function unfold_to_sc(path_to_in::String, mesh::Int, ik::Int)
     #Determine the fft grid
-    potential_file = open(path_to_in*"/Vks", "r")
-    dummy_line = readline(potential_file)
-    fft_line = readline(potential_file)
-    Nxyz = parse(Int64, split(fft_line)[1]) * mesh
+    # FFT dimensions:
+    scf_file = open(path_to_in*"/scf.out", "r")
+    fft_line = ""
+    for line in eachline(scf_file)
+        if contains(line, "FFT dimensions:")
+            fft_line = line
+            break
+        end
+    end
+    close(scf_file)
+    Nxyz = parse(Int64, split(fft_line)[8][1:end-1]) * mesh
+    
+    # potential_file = open(path_to_in*"/Vks", "r")
+    # dummy_line = readline(potential_file)
+    # fft_line = readline(potential_file)
+    # Nxyz = parse(Int64, split(fft_line)[1]) * mesh
 
     q_vector = determine_q_point(path_to_in,ik).* mesh
     println("q_vector = $q_vector")
