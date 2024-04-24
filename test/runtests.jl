@@ -1,6 +1,5 @@
 using ElectronPhonon
 using Test
 
-@testset "ElectronPhonon.jl" begin
-    # Write your tests here.
-end
+include("wave_functions.jl")
+include("electrons.jl")
