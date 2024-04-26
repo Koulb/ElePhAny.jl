@@ -311,7 +311,7 @@ function create_phonons(path_to_in::String, Ndisplace::Int, mesh::Int)
 end
 
 function create_phonons(model::ModelQE)
-    M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ = prepare_phonons(model.directory_path*"displacements/", model.Ndispalce, model.mesh)
+    M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ = prepare_phonons(model.path_to_calc*"displacements/", model.Ndispalce, model.mesh)
 
     return Phonons(M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ)
 end

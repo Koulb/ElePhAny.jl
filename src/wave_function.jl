@@ -93,13 +93,13 @@ function parse_fortan_bin(file_path::String)
     return miller, evc_list
 end
 
-function prepare_wave_functions(path_to_in::String; ik::Int=1,path_to_kcw="",kcw_chanel="")
+function prepare_wave_functions(path_to_in::String; ik::Int=1)
     file_path = path_to_in*"/tmp/scf.save/wfc$ik.dat"
 
-    if kcw_chanel != ""
-        file_path = path_to_kcw*"/unperturbed/TMP/kc_kcw.save/wfc$(kcw_chanel)$(ik).dat"
-        println("Wave functions from $file_path")
-    end
+    # if kcw_chanel != ""
+    #     file_path = path_to_kcw*"/unperturbed/TMP/kc_kcw.save/wfc$(kcw_chanel)$(ik).dat"
+    #     println("Wave functions from $file_path")
+    # end
     miller, evc_list = parse_fortan_bin(file_path)
 
     #Determine the fft grid
@@ -178,7 +178,6 @@ function unfold_to_sc(path_to_in::String, mesh::Int, ik::Int)
     # Nxyz = parse(Int64, split(fft_line)[1]) * mesh
 
     q_vector = determine_q_point(path_to_in,ik).* mesh
-    println("q_vector = $q_vector")
 
     x = range(0, 1-1/Nxyz, Nxyz)
     y = range(0, 1-1/Nxyz, Nxyz)
@@ -248,7 +247,14 @@ end
 function wave_functions_to_G(path_to_in::String; ik::Int=1)
     wfc_list = load(path_to_in*"/scf_0/wfc_list_phase_$ik.jld2")
     Nxyz = size(wfc_list["wfc1"], 1)
-    miller_sc, _ = parse_fortan_bin(path_to_in*"/group_1/tmp/scf.save/wfc1.dat") 
+    
+    local miller_sc
+    try
+        miller_sc, _ = parse_fortan_bin(path_to_in*"/group_1/tmp/scf.save/wfc1.dat") 
+    catch #KCW case 
+        miller_sc, _ = parse_fortan_bin(path_to_in*"/perturbed1/TMP/kc_kcw.save/wfcup1.dat") 
+    end
+
     Nevc = size(miller_sc, 2)
     g_list = Dict()
 
@@ -273,12 +279,12 @@ function wave_functions_to_G(path_to_in::String; ik::Int=1)
     save(path_to_in*"/scf_0/g_list_sc_$ik.jld2", g_list)
 end
 
-function prepare_wave_functions_undisp(path_to_in::String, ik::Int, mesh::Int;path_to_kcw=path_to_kcw,kcw_chanel=kcw_chanel)
+function prepare_wave_functions_undisp(path_to_in::String, ik::Int, mesh::Int)
     file_path=path_to_in*"/scf_0/"
 
     if mesh > 1
         #prepare_wave_functions_opt(file_path;ik=ik)
-        prepare_wave_functions(file_path;ik=ik,path_to_kcw=path_to_kcw,kcw_chanel=kcw_chanel)
+        prepare_wave_functions(file_path;ik=ik)
         unfold_to_sc(file_path,mesh,ik)
         wave_functions_to_G(path_to_in;ik=ik)
     end
@@ -306,9 +312,9 @@ function prepare_wave_functions_undisp(path_to_in::String, ik::Int, iq::Int, mes
 end
 
 
-function prepare_wave_functions_undisp(path_to_in::String, mesh::Int;path_to_kcw="",kcw_chanel="")
+function prepare_wave_functions_undisp(path_to_in::String, mesh::Int)
     for ik in 1:mesh^3
-        prepare_wave_functions_undisp(path_to_in,ik,mesh;path_to_kcw=path_to_kcw,kcw_chanel=kcw_chanel)
+        prepare_wave_functions_undisp(path_to_in,ik,mesh)
         println("ik = $ik/$(mesh^3) is ready")
     end
 end

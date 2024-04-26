@@ -17,7 +17,7 @@ function __init__()
     PythonCall.pycopy!(np, pyimport("numpy"))
 end
 
-export Electrons, Phonons, create_model
+export Electrons, Phonons, create_model, create_model_kcw
 include("model.jl")
 
 export uma_to_ry, cm1_to_ry ,cm1_to_Thz

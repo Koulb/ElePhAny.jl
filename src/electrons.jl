@@ -515,8 +515,8 @@ function create_electrons(path_to_in::String, Ndisplace::Int, mesh::Int)
 end
 
 function create_electrons(model::ModelQE)
-    U_list, V_list = prepare_u_matrixes(model.directory_path*"displacements/", model.Ndispalce, model.mesh)
-    ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list = prepare_eigenvalues(model.directory_path*"displacements/", model.Ndispalce, model.mesh)
+    U_list, V_list = prepare_u_matrixes(model.path_to_calc*"displacements/", model.Ndispalce, model.mesh)
+    ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list = prepare_eigenvalues(model.path_to_calc*"displacements/", model.Ndispalce, model.mesh)
    
     return Electrons(U_list, V_list, ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list)
 end
