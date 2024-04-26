@@ -6,7 +6,6 @@ abstract type AbstractModel end
 struct ModelQE <: AbstractModel
     path_to_calc::String
     abs_disp::Float64
-    directory_path::String
     path_to_qe::String
     mpi_ranks::Int
     mesh::Int
@@ -15,8 +14,24 @@ struct ModelQE <: AbstractModel
     scf_parameters::Dict
 end
 
-function create_model(path_to_calc::String, abs_disp::Float64, directory_path::String, path_to_qe::String, mpi_ranks::Int, mesh::Int, Ndispalce::Int, unitcell::Dict, scf_parameters::Dict)
-    return ModelQE(path_to_calc, abs_disp, directory_path, path_to_qe, mpi_ranks, mesh, Ndispalce, unitcell, scf_parameters)
+struct ModelKCW <: AbstractModel
+    path_to_kcw::String
+    spin_channel::String
+    abs_disp::Float64
+    path_to_qe::String
+    mpi_ranks::Int
+    mesh::Int
+    Ndispalce::Int
+    unitcell::Dict
+    scf_parameters::Dict
+end
+
+function create_model(path_to_calc::String, abs_disp::Float64, path_to_qe::String, mpi_ranks::Int, mesh::Int, Ndispalce::Int, unitcell::Dict, scf_parameters::Dict)
+    return ModelQE(path_to_calc, abs_disp, path_to_qe, mpi_ranks, mesh, Ndispalce, unitcell, scf_parameters)
+end
+
+function create_model_kcw(path_to_kcw::String, spin_channel::String, abs_disp::Float64, path_to_qe::String, mpi_ranks::Int, mesh::Int, Ndispalce::Int, unitcell::Dict, scf_parameters::Dict)
+    return ModelKCW(path_to_kcw, spin_channel, abs_disp, path_to_qe, mpi_ranks, mesh, Ndispalce, unitcell, scf_parameters)
 end
 
 struct Electrons <: AbstractElectrons

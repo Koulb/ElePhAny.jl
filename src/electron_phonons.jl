@@ -3,17 +3,45 @@ using LinearAlgebra, Printf, YAML, Plots, Base.Threads
 
 function run_calculations(model)
     # Electrons calculation
-    create_disp_calc(model.directory_path, model.unitcell, model.scf_parameters, model.abs_disp, model.mesh; from_scratch = true)
-    run_disp_calc(model.directory_path*"displacements/", model.Ndispalce, model.mpi_ranks)
-    run_nscf_calc(model.directory_path, model.unitcell, model.scf_parameters, model.mesh, model.path_to_qe, model.mpi_ranks)
-    #check_calculations(model.directory_path*"displacements/", model.Ndispalce)
+    create_disp_calc(model.path_to_calc, model.unitcell, model.scf_parameters, model.abs_disp, model.mesh; from_scratch = true)
+    run_disp_calc(model.path_to_calc*"displacements/", model.Ndispalce, model.mpi_ranks)
+    run_nscf_calc(model.path_to_calc, model.unitcell, model.scf_parameters, model.mesh, model.path_to_qe, model.mpi_ranks)
 end
 
-function prepare_model(model)
-    # save_potential(model.directory_path*"displacements/", model.Ndispalce, model.mesh, model.mpi_ranks)
-    prepare_wave_functions_undisp(model.directory_path*"displacements/", model.mesh;)# path_to_kcw=path_to_kcw,kcw_chanel=kcw_chanel
+function prepare_model(model::ModelQE)
+    # save_potential(model.path_to_calc*"displacements/", model.Ndispalce, model.mesh, model.mpi_ranks)
+    prepare_wave_functions_undisp(model.path_to_calc*"displacements/", model.mesh;)# path_to_kcw=path_to_kcw,kcw_chanel=kcw_chanel
+    calculate_phonons(model.path_to_calc*"displacements/",model.unitcell, model.abs_disp, model.Ndispalce, model.mesh)
+end
+
+function prepare_model(model::ModelKCW)
+    path_to_scf = model.path_to_kcw * "scf_0"
+    path_to_wfc_out = path_to_scf*"/tmp/scf.save"
     
-    calculate_phonons(model.directory_path*"displacements/",model.unitcell, model.abs_disp, model.Ndispalce, model.mesh)
+    if (!isdir(path_to_scf))
+        command = `mkdir -p $path_to_wfc_out`  
+        run(command);
+        println(command)
+    end
+    
+    for ind in range(1, model.mesh^3)
+        file =  model.path_to_kcw * "unperturbed/TMP/kc_kcw.save/wfc$(model.spin_channel)$(ind).dat"
+        command = `cp $file $path_to_wfc_out/wfc$(ind).dat`  
+        run(command);
+    end
+
+    file =  model.path_to_kcw * "unperturbed/TMP/kc_kcw.save/data-file-schema.xml"
+    command = `cp $file $path_to_wfc_out/`  
+    run(command);
+
+    file =  model.path_to_kcw * "unperturbed/wannier/nscf.pwo"
+    command = `cp $file $path_to_scf/scf.out`  
+    run(command);
+
+    command = `$(model.path_to_qe)/W90/utility/kmesh.pl $(model.mesh) $(model.mesh) $(model.mesh)`
+    run(pipeline(command, stdout="$path_to_scf/kpoints.dat", stderr="$path_to_scf/kmesherr.txt"))
+
+    prepare_wave_functions_undisp(model.path_to_kcw, model.mesh)
 end
 
 function check_calculations(path_to_calc, Ndisp)
@@ -98,7 +126,7 @@ function electron_phonon_qe(path_to_in::String, ik::Int, iq::Int, mpi_ranks::Int
 end
 
 function electron_phonon_qe(model::ModelQE, ik::Int, iq::Int)
-    electron_phonon_qe(model.directory_path*"displacements/", ik, iq, model.mpi_ranks, model.path_to_qe)
+    electron_phonon_qe(model.path_to_calc*"displacements/", ik, iq, model.mpi_ranks, model.path_to_qe)
 end
 
 function calculate_braket_real(bra::Array{Complex{Float64}, 3}, ket::Array{Complex{Float64}, 3})
@@ -522,7 +550,7 @@ function plot_ep_coupling(path_to_in::String, ik::Int, iq::Int)
 end
 
 function plot_ep_coupling(model::ModelQE, ik::Int=0, iq::Int=0)
-    plot_ep_coupling(model.directory_path*"displacements/", ik, iq)
+    plot_ep_coupling(model.path_to_calc*"displacements/", ik, iq)
 end
 
 function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh, electrons::AbstractElectrons, phonons::AbstractPhonons; save_epw::Bool=false, path_to_kcw="",kcw_chanel="")
@@ -553,6 +581,6 @@ function electron_phonon(model::ModelQE, ik, iq, electrons::AbstractElectrons, p
     εₐᵣᵣ_ₗᵢₛₜ = phonons.εₐᵣᵣ_ₗᵢₛₜ
     mₐᵣᵣ = phonons.mₐᵣᵣ
 
-    electron_phonon(model.directory_path*"displacements/", model.abs_disp, model.Ndispalce, ik, iq, model.mesh, ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list , U_list, V_list, M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ; save_epw=save_epw, path_to_kcw=path_to_kcw,kcw_chanel=kcw_chanel)
+    electron_phonon(model.path_to_calc*"displacements/", model.abs_disp, model.Ndispalce, ik, iq, model.mesh, ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list , U_list, V_list, M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ; save_epw=save_epw, path_to_kcw=path_to_kcw,kcw_chanel=kcw_chanel)
 
 end
