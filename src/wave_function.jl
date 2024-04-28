@@ -97,7 +97,7 @@ function prepare_wave_functions(path_to_in::String; ik::Int=1)
     file_path = path_to_in*"/tmp/scf.save/wfc$ik.dat"
 
     # if kcw_chanel != ""
-    #     file_path = path_to_kcw*"/unperturbed/TMP/kc_kcw.save/wfc$(kcw_chanel)$(ik).dat"
+    #     file_path = path_to_calc*"/unperturbed/TMP/kc_kcw.save/wfc$(kcw_chanel)$(ik).dat"
     #     println("Wave functions from $file_path")
     # end
     miller, evc_list = parse_fortan_bin(file_path)

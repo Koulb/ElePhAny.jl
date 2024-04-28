@@ -74,7 +74,12 @@ function read_qe_xml(filename::AbstractString)
     kpoints = Vec3{Float64}[]
 
     n_electrons = parse(Float64, findfirst("nelec", band_structure).content)
-    fermi_energy = parse(Float64, findfirst("fermi_energy", band_structure).content)
+    
+    fermi_energy = 0.0 
+    try
+        fermi_energy = parse(Float64, findfirst("fermi_energy", band_structure).content)
+    catch; end
+
     # Hartree to eV
     fermi_energy *= AUTOEV
 
@@ -194,6 +199,75 @@ function create_disp_calc(path_to_in::String, unitcell, scf_parameters, abs_disp
     end
 
     return Ndispalce
+end
+
+
+function create_disp_calc(model::ModelQE; from_scratch = false)
+    create_disp_calc(model.path_to_calc, model.unitcell, model.scf_parameters, model.abs_disp, model.mesh; from_scratch = from_scratch)
+end
+
+
+function create_disp_calc(model::ModelKCW; from_scratch = false)
+    if (from_scratch && isdir(model.path_to_cals * "displacements"))
+        run(`rm -rf displacements`)
+    end
+
+    path_to_scf = model.path_to_calc * "displacements/scf_0"
+    path_to_wfc_out = path_to_scf*"/tmp/scf.save"
+    
+    if (!isdir(path_to_scf))
+        command = `mkdir -p $path_to_wfc_out`  
+        run(command);
+        println(command)
+    end
+
+    command = `mkdir $(model.path_to_calc)displacements/epw $(model.path_to_calc)displacements/elph_elements`        
+    try
+        run(command);
+        println(command)
+    catch; end
+
+    for ind in range(1, model.mesh^3)
+        file =  model.path_to_calc * "unperturbed/TMP/kc_kcw.save/wfc$(model.spin_channel)$(ind).dat"
+        command = `cp $file $path_to_wfc_out/wfc$(ind).dat`  
+        run(command);
+    end
+
+    file =  model.path_to_calc * "unperturbed/TMP/kc_kcw.save/data-file-schema.xml"
+    command = `cp $file $path_to_wfc_out/`  
+    run(command);
+
+    file =  model.path_to_calc * "unperturbed/wannier/nscf.pwo"
+    command = `cp $file $path_to_scf/scf.out`  
+    run(command);
+
+    command = `$(model.path_to_qe)/W90/utility/kmesh.pl $(model.mesh) $(model.mesh) $(model.mesh)`
+    run(pipeline(command, stdout="$path_to_scf/kpoints.dat", stderr="$path_to_scf/kmesherr.txt"))
+
+    dislpaced_unitecells(model.path_to_calc*"displacements/", model.unitcell, model.abs_disp, model.mesh)
+
+    for i_disp in 1:model.Ndispalce
+        dir_name =  model.path_to_calc * "displacements/group_$(i_disp)/tmp/scf.save"
+        command = `mkdir -p $dir_name`   
+        try
+            run(command);
+            println(command)
+        catch; end
+
+        file =  model.path_to_calc * "perturbed$(i_disp)/TMP/kc_kcw.save/wfc$(model.spin_channel)1.dat"
+        command = `ln -s $(file) $(dir_name)/wfc1.dat`
+        try
+            run(command);
+            println(command)
+        catch; end
+
+        file =  model.path_to_calc * "perturbed$(i_disp)/TMP/kc_kcw.save/data-file-schema.xml"
+        command = `ln -s $(file) $(dir_name)/data-file-schema.xml`
+        try
+            run(command);
+            println(command)
+        catch; end
+    end
 end
 
 function run_scf(path_to_in::String, mpi_ranks::Int = 0)
@@ -485,20 +559,36 @@ function fold_kpoint(ik, iq, k_list)
     return ikq
 end
 
-function prepare_eigenvalues(path_to_in::String, Ndisplace::Int, mesh::Int) 
+function prepare_eigenvalues(path_to_in::String, Ndisplace::Int, mesh::Int; spin_channel="") 
     path_to_xml="tmp/scf.save/data-file-schema.xml"
     group = "scf_0/"
     ϵₚ_list  = [] 
     ϵₚₘ_list = [] 
 
     k_list = get_kpoint_list(path_to_in*group)
-    ϵkᵤ_list = read_qe_xml(path_to_in*group*path_to_xml)[:eigenvalues]
+    
+    if spin_channel == "up"
+        ϵkᵤ_list = read_qe_xml(path_to_in*group*path_to_xml)[:eigenvalues_up]
+    elseif spin_channel == "dw"
+        ϵkᵤ_list = read_qe_xml(path_to_in*group*path_to_xml)[:eigenvalues_dw]
+    else
+        ϵkᵤ_list = read_qe_xml(path_to_in*group*path_to_xml)[:eigenvalues]
+    end
 
     for ind in 1:2:Ndisplace
         group = "group_$ind/"
         group_m = "group_$(ind+1)/"
-        ϵₚ = read_qe_xml(path_to_in*group*path_to_xml)[:eigenvalues][1]
-        ϵₚₘ = read_qe_xml(path_to_in*group_m*path_to_xml)[:eigenvalues][1]
+
+        if spin_channel == "up"
+            ϵₚ = read_qe_xml(path_to_in*group*path_to_xml)[:eigenvalues_up][1]
+            ϵₚₘ = read_qe_xml(path_to_in*group_m*path_to_xml)[:eigenvalues_up][1]
+        elseif spin_channel == "dw"
+            ϵₚ = read_qe_xml(path_to_in*group*path_to_xml)[:eigenvalues_dw][1]
+            ϵₚₘ = read_qe_xml(path_to_in*group_m*path_to_xml)[:eigenvalues_dw][1]
+        else
+            ϵₚ = read_qe_xml(path_to_in*group*path_to_xml)[:eigenvalues][1]
+            ϵₚₘ = read_qe_xml(path_to_in*group_m*path_to_xml)[:eigenvalues][1]
+        end
 
         push!(ϵₚ_list,ϵₚ)
         push!(ϵₚₘ_list,ϵₚₘ)
@@ -514,9 +604,15 @@ function create_electrons(path_to_in::String, Ndisplace::Int, mesh::Int)
     return Electrons(U_list, V_list, ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list)
 end
 
-function create_electrons(model::ModelQE)
+function create_electrons(model::AbstractModel)
+
+    spin_channel = ""
+    if hasproperty(model, :spin_channel) 
+        spin_channel = model.spin_channel
+    end
+
     U_list, V_list = prepare_u_matrixes(model.path_to_calc*"displacements/", model.Ndispalce, model.mesh)
-    ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list = prepare_eigenvalues(model.path_to_calc*"displacements/", model.Ndispalce, model.mesh)
+    ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list = prepare_eigenvalues(model.path_to_calc*"displacements/", model.Ndispalce, model.mesh; spin_channel=spin_channel)
    
     return Electrons(U_list, V_list, ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list)
 end

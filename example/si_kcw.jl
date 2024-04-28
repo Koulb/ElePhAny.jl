@@ -1,7 +1,7 @@
 using ElectronPhonon, PythonCall, ProgressMeter, Base.Threads
 
 # Example usage
-path_to_kcw = "/exports/work/poliukhi/koopmans_scripts/projectability_silicon_new/convergence/0.001/"
+path_to_calc = "/exports/work/poliukhi/koopmans_scripts/projectability_silicon_new_4/convergence/0.001/"
 spin_channel = "up"
 abs_disp = 1e-3  #1e-4 #0.0005
 
@@ -10,7 +10,7 @@ path_to_qe = "/home/poliukhi/soft/q-e/"
 mpi_ranks = 1
 
 #Params
-mesh = 2 #important to change !
+mesh      = 4 #important to change !
 Ndispalce = 12
 
 # Lattice constant of Silicon
@@ -51,26 +51,23 @@ scf_parameters = Dict(
 )
 
 
-model = create_model_kcw(path_to_kcw, spin_channel, abs_disp, path_to_qe, mpi_ranks, mesh, Ndispalce, unitcell, scf_parameters)
+model = create_model_kcw(path_to_calc, spin_channel, abs_disp, path_to_qe, mpi_ranks, mesh, Ndispalce, unitcell, scf_parameters)
+# create_disp_calc(model)
+# prepare_model(model)
 
-prepare_model(model)
-#electrons = create_electrons(model)
+electrons = create_electrons(model)
+phonons   = create_phonons(model)
 
-## Phonons calculation
-# phonons = create_phonons(model)
+###### Electron-phonon matrix elements
+ik_list = [i for i in 1:mesh^3] ##[1,2]##
+iq_list = [i for i in 1:mesh^3] ##[1,2]##
 
-# # # #### Electron-phonon matrix elements
-# ik_list = [i for i in 1:mesh^3] ##[1,2]##
-# iq_list = [i for i in 1:mesh^3] ##[1,2]##
+progress = Progress(length(ik_list)*length(iq_list), dt=5.0)
 
-# progress = Progress(length(ik_list)*length(iq_list), dt=5.0)
-
-# println("Calculating electron-phonon matrix elements for $(length(ik_list)*length(iq_list)) points:")
-# for ik in ik_list #@threads
-#     for iq in iq_list
-#         # electron_phonon_qe(model, ik, iq)
-#         electron_phonon(model, ik, iq, electrons, phonons; save_epw = true)
-#         # plot_ep_coupling(model, ik, iq)
-#         next!(progress)
-#     end
-# end
+println("Calculating electron-phonon matrix elements for $(length(ik_list)*length(iq_list)) points:")
+for ik in ik_list #@threads
+    for iq in iq_list
+        electron_phonon(model, ik, iq, electrons, phonons; save_epw = true)
+        next!(progress)
+    end
+end

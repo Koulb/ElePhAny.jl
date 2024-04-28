@@ -15,7 +15,7 @@ struct ModelQE <: AbstractModel
 end
 
 struct ModelKCW <: AbstractModel
-    path_to_kcw::String
+    path_to_calc::String
     spin_channel::String
     abs_disp::Float64
     path_to_qe::String
@@ -30,8 +30,8 @@ function create_model(path_to_calc::String, abs_disp::Float64, path_to_qe::Strin
     return ModelQE(path_to_calc, abs_disp, path_to_qe, mpi_ranks, mesh, Ndispalce, unitcell, scf_parameters)
 end
 
-function create_model_kcw(path_to_kcw::String, spin_channel::String, abs_disp::Float64, path_to_qe::String, mpi_ranks::Int, mesh::Int, Ndispalce::Int, unitcell::Dict, scf_parameters::Dict)
-    return ModelKCW(path_to_kcw, spin_channel, abs_disp, path_to_qe, mpi_ranks, mesh, Ndispalce, unitcell, scf_parameters)
+function create_model_kcw(path_to_calc::String, spin_channel::String, abs_disp::Float64, path_to_qe::String, mpi_ranks::Int, mesh::Int, Ndispalce::Int, unitcell::Dict, scf_parameters::Dict)
+    return ModelKCW(path_to_calc, spin_channel, abs_disp, path_to_qe, mpi_ranks, mesh, Ndispalce, unitcell, scf_parameters)
 end
 
 struct Electrons <: AbstractElectrons

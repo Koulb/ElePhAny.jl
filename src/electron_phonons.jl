@@ -10,38 +10,12 @@ end
 
 function prepare_model(model::ModelQE)
     # save_potential(model.path_to_calc*"displacements/", model.Ndispalce, model.mesh, model.mpi_ranks)
-    prepare_wave_functions_undisp(model.path_to_calc*"displacements/", model.mesh;)# path_to_kcw=path_to_kcw,kcw_chanel=kcw_chanel
+    prepare_wave_functions_undisp(model.path_to_calc*"displacements/", model.mesh;)# path_to_calc=path_to_calc,kcw_chanel=kcw_chanel
     calculate_phonons(model.path_to_calc*"displacements/",model.unitcell, model.abs_disp, model.Ndispalce, model.mesh)
 end
 
 function prepare_model(model::ModelKCW)
-    path_to_scf = model.path_to_kcw * "scf_0"
-    path_to_wfc_out = path_to_scf*"/tmp/scf.save"
-    
-    if (!isdir(path_to_scf))
-        command = `mkdir -p $path_to_wfc_out`  
-        run(command);
-        println(command)
-    end
-    
-    for ind in range(1, model.mesh^3)
-        file =  model.path_to_kcw * "unperturbed/TMP/kc_kcw.save/wfc$(model.spin_channel)$(ind).dat"
-        command = `cp $file $path_to_wfc_out/wfc$(ind).dat`  
-        run(command);
-    end
-
-    file =  model.path_to_kcw * "unperturbed/TMP/kc_kcw.save/data-file-schema.xml"
-    command = `cp $file $path_to_wfc_out/`  
-    run(command);
-
-    file =  model.path_to_kcw * "unperturbed/wannier/nscf.pwo"
-    command = `cp $file $path_to_scf/scf.out`  
-    run(command);
-
-    command = `$(model.path_to_qe)/W90/utility/kmesh.pl $(model.mesh) $(model.mesh) $(model.mesh)`
-    run(pipeline(command, stdout="$path_to_scf/kpoints.dat", stderr="$path_to_scf/kmesherr.txt"))
-
-    prepare_wave_functions_undisp(model.path_to_kcw, model.mesh)
+    prepare_wave_functions_undisp(model.path_to_calc*"displacements/", model.mesh)
 end
 
 function check_calculations(path_to_calc, Ndisp)
@@ -248,7 +222,7 @@ function load_wf_u_debug(path_to_in::String, ik)
 end
 
 
-function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh, ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list , U_list, V_list, M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ; save_epw::Bool=false, path_to_kcw="",kcw_chanel="")
+function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh, ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list , U_list, V_list, M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ; save_epw::Bool=false)
     cd(path_to_in)
 
     Nat::Int = Ndisp//6
@@ -261,26 +235,6 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh, ϵk�
     ϵqᵤ = ϵkᵤ_list[ikq]
     nbands = length(ϵkᵤ)
 
-    if path_to_kcw != ""
-        nbands = nbands ÷ 2
-    end
-
-    if path_to_kcw != ""
-        ##NEED TO FIX##
-        exit(3)
-        ϵkᵤ = ϵkᵤ_list[ik]
-        ϵqᵤ = ϵkᵤ_list[ikq]
-        # path_to_xml_kcw = "/unperturbed/TMP/kc_kcw.save/data-file-schema.xml"
-        # if kcw_chanel == "up"
-        #     ϵkᵤ = read_qe_xml(path_to_kcw*path_to_xml_kcw)[:eigenvalues_up][ik]
-        #     ϵqᵤ = read_qe_xml(path_to_kcw*path_to_xml_kcw)[:eigenvalues_up][ikq]
-        # elseif kcw_chanel == "dw"
-        #     ϵkᵤ = read_qe_xml(path_to_kcw*path_to_xml_kcw)[:eigenvalues_dn][ik]
-        #     ϵqᵤ = read_qe_xml(path_to_kcw*path_to_xml_kcw)[:eigenvalues_dn][ikq]
-        # end
-
-    end
-
     braket = zeros(Complex{Float64}, nbands, nbands)
     braket_list = []
     braket_list_rotated = []
@@ -290,27 +244,28 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh, ϵk�
         group   = "group_$ind/"
 
         ϵₚ = ϵₚ_list[ind_abs]
-        ϵₚₘ = ϵₚₘ_list[ind_abs]
+        #TODO understand whether symmetry usage is properly justified
+        ϵₚₘ = ϵₚ_list[ind_abs]#ϵₚₘ_list[ind_abs] 
        
         Uk  = U_list[ind_abs][ik,:,:]
         Ukₘ = V_list[ind_abs][ik,:,:]
         u_trace_check = conj(transpose(Uk))*Uk
         u_m_trace_check = conj(transpose(Ukₘ))*Ukₘ
 
-        # for i in 1:nbands
-        #     println("Uk trace check [$i, $i] = ", u_trace_check[i,i])
-        #     println("Uk_m trace check [$i, $i] = ", u_m_trace_check[i,i])
-        # end
+        for i in 1:nbands
+            println("Uk trace check [$i, $i] = ", u_trace_check[i,i])
+            println("Uk_m trace check [$i, $i] = ", u_m_trace_check[i,i])
+        end
 
         Uq  = U_list[ind_abs][ikq,:,:]
         Uqₘ = V_list[ind_abs][ikq,:,:]
         u_trace_check = conj(transpose(Uq))*Uq
         u_m_trace_check = conj(transpose(Uqₘ))*Uqₘ
 
-        # for i in 1:nbands
-        #     println("Uq trace check [$i, $i] = ", u_trace_check[i,i])
-        #     println("Uq_m trace check [$i, $i] = ", u_m_trace_check[i,i])
-        # end
+        for i in 1:nbands
+            println("Uq trace check [$i, $i] = ", u_trace_check[i,i])
+            println("Uq_m trace check [$i, $i] = ", u_m_trace_check[i,i])
+        end
 
         #println("Calculating brakets for group $ind")
         for i in 1:nbands
@@ -553,7 +508,7 @@ function plot_ep_coupling(model::ModelQE, ik::Int=0, iq::Int=0)
     plot_ep_coupling(model.path_to_calc*"displacements/", ik, iq)
 end
 
-function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh, electrons::AbstractElectrons, phonons::AbstractPhonons; save_epw::Bool=false, path_to_kcw="",kcw_chanel="")
+function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh, electrons::AbstractElectrons, phonons::AbstractPhonons; save_epw::Bool=false, path_to_calc="",kcw_chanel="")
     ϵkᵤ_list = electrons.ϵkᵤ_list
     ϵₚ_list = electrons.ϵₚ_list
     ϵₚₘ_list = electrons.ϵₚₘ_list
@@ -565,11 +520,11 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh, elec
     εₐᵣᵣ_ₗᵢₛₜ = phonons.εₐᵣᵣ_ₗᵢₛₜ
     mₐᵣᵣ = phonons.mₐᵣᵣ
 
-    electron_phonon(path_to_in, abs_disp, Ndisp, ik, iq, mesh, ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list , U_list, V_list, M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ; save_epw=save_epw, path_to_kcw=path_to_kcw,kcw_chanel=kcw_chanel)
+    electron_phonon(path_to_in, abs_disp, Ndisp, ik, iq, mesh, ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list , U_list, V_list, M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ; save_epw=save_epw)
 
 end
 
-function electron_phonon(model::ModelQE, ik, iq, electrons::AbstractElectrons, phonons::AbstractPhonons; save_epw::Bool=false, path_to_kcw="",kcw_chanel="")
+function electron_phonon(model::AbstractModel, ik, iq, electrons::AbstractElectrons, phonons::AbstractPhonons; save_epw::Bool=false, path_to_calc="",kcw_chanel="")
     ϵkᵤ_list = electrons.ϵkᵤ_list
     ϵₚ_list = electrons.ϵₚ_list
     ϵₚₘ_list = electrons.ϵₚₘ_list
@@ -581,6 +536,6 @@ function electron_phonon(model::ModelQE, ik, iq, electrons::AbstractElectrons, p
     εₐᵣᵣ_ₗᵢₛₜ = phonons.εₐᵣᵣ_ₗᵢₛₜ
     mₐᵣᵣ = phonons.mₐᵣᵣ
 
-    electron_phonon(model.path_to_calc*"displacements/", model.abs_disp, model.Ndispalce, ik, iq, model.mesh, ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list , U_list, V_list, M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ; save_epw=save_epw, path_to_kcw=path_to_kcw,kcw_chanel=kcw_chanel)
+    electron_phonon(model.path_to_calc*"displacements/", model.abs_disp, model.Ndispalce, ik, iq, model.mesh, ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list , U_list, V_list, M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ; save_epw=save_epw)
 
 end
