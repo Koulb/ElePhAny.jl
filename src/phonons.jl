@@ -260,6 +260,7 @@ function prepare_phonons(path_to_in::String, Ndisp::Int, mesh::Int)
     M_phonon  = []
     ωₐᵣᵣ_ₗᵢₛₜ = []
     εₐᵣᵣ_ₗᵢₛₜ = []
+    mₐᵣᵣ      = []
 
     for iat in 1:Nat
         U = []
@@ -305,7 +306,6 @@ function prepare_phonons(path_to_in::String, Ndisp::Int, mesh::Int)
         dummy_array = Array{Float64}(undef, (1, 1))
         return M_phonon, dummy_array, dummy_array, dummy_array 
     end
-    
     return M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ
 end
 
