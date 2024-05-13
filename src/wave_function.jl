@@ -349,8 +349,11 @@ function prepare_u_matrixes(path_to_in::String, Ndisplace::Int, mesh::Int)
     end
 
     # Save U_list to a text file
-    writedlm(path_to_in*"/scf_0/U_list.txt", U_list)  
-    writedlm(path_to_in*"/scf_0/V_list.txt", V_list)    
+    # writedlm(path_to_in*"/scf_0/U_list.txt", U_list)  
+    # writedlm(path_to_in*"/scf_0/V_list.txt", V_list)    
+
+    save(path_to_in * "scf_0/U_list.jld2", "U_list", U_list)
+    save(path_to_in * "scf_0/V_list.jld2", "V_list", V_list)
 
     return U_list, V_list
 end

@@ -570,7 +570,7 @@ function prepare_eigenvalues(path_to_in::String, Ndisplace::Int, mesh::Int; spin
     if spin_channel == "up"
         ϵkᵤ_list = read_qe_xml(path_to_in*group*path_to_xml)[:eigenvalues_up]
     elseif spin_channel == "dw"
-        ϵkᵤ_list = read_qe_xml(path_to_in*group*path_to_xml)[:eigenvalues_dw]
+        ϵkᵤ_list = read_qe_xml(path_to_in*group*path_to_xml)[:eigenvalues_dn]
     else
         ϵkᵤ_list = read_qe_xml(path_to_in*group*path_to_xml)[:eigenvalues]
     end
@@ -583,8 +583,8 @@ function prepare_eigenvalues(path_to_in::String, Ndisplace::Int, mesh::Int; spin
             ϵₚ = read_qe_xml(path_to_in*group*path_to_xml)[:eigenvalues_up][1]
             ϵₚₘ = read_qe_xml(path_to_in*group_m*path_to_xml)[:eigenvalues_up][1]
         elseif spin_channel == "dw"
-            ϵₚ = read_qe_xml(path_to_in*group*path_to_xml)[:eigenvalues_dw][1]
-            ϵₚₘ = read_qe_xml(path_to_in*group_m*path_to_xml)[:eigenvalues_dw][1]
+            ϵₚ = read_qe_xml(path_to_in*group*path_to_xml)[:eigenvalues_dn][1]
+            ϵₚₘ = read_qe_xml(path_to_in*group_m*path_to_xml)[:eigenvalues_dn][1]
         else
             ϵₚ = read_qe_xml(path_to_in*group*path_to_xml)[:eigenvalues][1]
             ϵₚₘ = read_qe_xml(path_to_in*group_m*path_to_xml)[:eigenvalues][1]
@@ -593,6 +593,12 @@ function prepare_eigenvalues(path_to_in::String, Ndisplace::Int, mesh::Int; spin
         push!(ϵₚ_list,ϵₚ)
         push!(ϵₚₘ_list,ϵₚₘ)
     end
+
+    # Save ϵ to a bin files
+    save(path_to_in * "scf_0/ek_list.jld2", "ek_list", ϵkᵤ_list)
+    save(path_to_in * "scf_0/ep_list.jld2", "ep_list", ϵₚ_list)
+    save(path_to_in * "scf_0/epm_list.jld2", "epm_list", ϵₚₘ_list)
+    save(path_to_in * "scf_0/k_list.jld2", "k_list", k_list)
 
     return ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list
 end

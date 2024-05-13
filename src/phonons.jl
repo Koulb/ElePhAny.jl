@@ -272,7 +272,9 @@ function prepare_phonons(path_to_in::String, Ndisp::Int, mesh::Int)
         U_inv =  vcat(U'...)^-1
         push!(M_phonon, U_inv)
     end
-    writedlm(path_to_in*"/scf_0/M_phonon.txt", M_phonon)  
+    # writedlm(path_to_in*"/scf_0/M_phonon.txt", M_phonon)  
+    save(path_to_in * "scf_0/M_phonon.jld2", "M_phonon", M_phonon)
+
 
     try
         phonons = YAML.load_file(path_to_in*"qpoints.yaml")

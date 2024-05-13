@@ -238,6 +238,7 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh, ϵk�
     braket = zeros(Complex{Float64}, nbands, nbands)
     braket_list = []
     braket_list_rotated = []
+    print("Electron_phonon check:")
 
     for ind in 1:2:Ndisp
         ind_abs = (ind-1)÷2 + 1
@@ -267,11 +268,11 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh, ϵk�
             println("Uq_m trace check [$i, $i] = ", u_m_trace_check[i,i])
         end
 
-        #println("Calculating brakets for group $ind")
+        println("Calculating brakets for group $ind")
         for i in 1:nbands
             for j in 1:nbands
                 result = 0.0#(i==j && ik==ikq ? -ϵkᵤ[i] : 0.0)#0.0##TODO: check this iq or ikq
-                # println(i, ' ', j, ' ', result)
+                println(i, ' ', j, ' ', result)
 
                 for k in 1:nbands*mesh^3
                     result += Uk[k,j]* conj(Uq[k,i]) * ϵₚ[k]
@@ -294,12 +295,14 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh, ϵk�
                     # else
                     #     result += Uk[k,j]* conj(Uq[k,i]) * ϵₚ[k]
                     # end
-                    # println(k, ' ',ϵₚ[k], ' ',Uk[k,j]* conj(Uq[k,i]), ' ', result)
+                    println(k, ' ',ϵₚ[k], ' ',Uk[k,j]* conj(Uq[k,i]), ' ', result)
+                    println(k, ' ',ϵₚₘ[k], ' ',Ukₘ[k,j]* conj(Uqₘ[k,i]), ' ', result)
+               
                 end
                 
                 braket[i,j] = result/2.0
             end
-            # println("_____________________________________________________________")
+            println("_____________________________________________________________")
             # exit(3)
         end
 
@@ -342,7 +345,7 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh, ϵk�
         εₐᵣᵣ = εₐᵣᵣ_ₗᵢₛₜ[iq]
 
         #DEBUG WITH QE OUTPUT##
-        ωₐᵣᵣ, εₐᵣᵣ = parse_qe_ph(path_to_in*"scf_0/dyn1")
+        # ωₐᵣᵣ, εₐᵣᵣ = parse_qe_ph(path_to_in*"scf_0/dyn1")
         #DEBUG WITH QE OUTPUT##  
         gᵢⱼₘ_ₐᵣᵣ = Array{ComplexF64, 3}(undef, (nbands, nbands, length(ωₐᵣᵣ)))
 
