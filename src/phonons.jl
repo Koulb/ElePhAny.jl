@@ -322,3 +322,12 @@ function create_phonons(model::AbstractModel)
 
     return Phonons(M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ)
 end
+
+function load_phonons(model::AbstractModel)
+    M_phonon   = load(model.path_to_calc * "displacements/scf_0/M_phonon.jld2")["M_phonon"]
+    ωₐᵣᵣ_ₗᵢₛₜ  = load(model.path_to_calc * "displacements/scf_0/omega_arr_list.jld2")["omega_arr_list"] 
+    εₐᵣᵣ_ₗᵢₛₜ  = load(model.path_to_calc * "displacements/scf_0/eps_arr_list.jld2")["eps_arr_list"]
+    mₐᵣᵣ       = load(model.path_to_calc * "displacements/scf_0/m_arr.jld2")["m_arr"]
+
+    return Phonons(M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ)
+end

@@ -30,7 +30,7 @@ include("electrons.jl")
 export prepare_wave_functions_all, prepare_wave_functions_undisp, prepare_u_matrixes, create_phonons
 include("wave_function.jl")
 
-export calculate_phonons, prepare_phonons
+export calculate_phonons, prepare_phonons, load_phonons
 include("phonons.jl")
 
 export run_calculations, prepare_model, electron_phonon, electron_phonon_qe, plot_ep_coupling, get_kpoint_list, fold_kpoint
