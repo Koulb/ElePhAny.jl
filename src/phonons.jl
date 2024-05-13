@@ -275,39 +275,38 @@ function prepare_phonons(path_to_in::String, Ndisp::Int, mesh::Int)
     # writedlm(path_to_in*"/scf_0/M_phonon.txt", M_phonon)  
     save(path_to_in * "scf_0/M_phonon.jld2", "M_phonon", M_phonon)
 
+    phonons = YAML.load_file(path_to_in*"qpoints.yaml")
+    mₐᵣᵣ = pyconvert(Vector, phonon_params.masses)
 
-    try
-        phonons = YAML.load_file(path_to_in*"qpoints.yaml")
-        mₐᵣᵣ = pyconvert(Vector, phonon_params.masses)
+    save(path_to_in * "scf_0/m_arr.jld2", "m_arr", mₐᵣᵣ)
 
-        for iq in 1:mesh^3
-            εₐᵣᵣ = Array{ComplexF64, 3}(undef, (1, 3*Nat, 3*Nat))
-            ωₐᵣᵣ = Array{Float64, 2}(undef, (1, 3*Nat))
+    for iq in 1:mesh^3
+        εₐᵣᵣ = Array{ComplexF64, 3}(undef, (1, 3*Nat, 3*Nat))
+        ωₐᵣᵣ = Array{Float64, 2}(undef, (1, 3*Nat))
 
-            qpoint = determine_q_point(path_to_in*"scf_0/",iq)
+        qpoint = determine_q_point(path_to_in*"scf_0/",iq)
 
-            scaled_pos = pyconvert(Matrix, phonon_params.primitive.get_scaled_positions())
-            phonon_factor = [exp(2im * π * dot(qpoint, pos)) for pos in eachrow(scaled_pos)]
+        scaled_pos = pyconvert(Matrix, phonon_params.primitive.get_scaled_positions())
+        phonon_factor = [exp(2im * π * dot(qpoint, pos)) for pos in eachrow(scaled_pos)]
 
-            for (iband, phonon) in enumerate(phonons["phonon"][iq]["band"])
-                for iat in 1:Nat
-                    for icart in 1:3
-                        temp_iat::Int = icart + 3 *(iat-1)
-                        eig_temp = phonon["eigenvector"][iat][icart][1] + 1im*phonon["eigenvector"][iat][icart][2]
-                        εₐᵣᵣ[1, iband, temp_iat] = phonon_factor[iat] * eig_temp
-                    end
+        for (iband, phonon) in enumerate(phonons["phonon"][iq]["band"])
+            for iat in 1:Nat
+                for icart in 1:3
+                    temp_iat::Int = icart + 3 *(iat-1)
+                    eig_temp = phonon["eigenvector"][iat][icart][1] + 1im*phonon["eigenvector"][iat][icart][2]
+                    εₐᵣᵣ[1, iband, temp_iat] = phonon_factor[iat] * eig_temp
                 end
-                ωₐᵣᵣ[1, iband] = phonon["frequency"]
             end
-
-            push!(ωₐᵣᵣ_ₗᵢₛₜ, ωₐᵣᵣ)
-            push!(εₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ)
+            ωₐᵣᵣ[1, iband] = phonon["frequency"]
         end
-    catch
-        #ToDo Need to understatd how to properly return nothing
-        dummy_array = Array{Float64}(undef, (1, 1))
-        return M_phonon, dummy_array, dummy_array, dummy_array 
+
+        push!(ωₐᵣᵣ_ₗᵢₛₜ, ωₐᵣᵣ)
+        push!(εₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ)
     end
+
+    save(path_to_in * "scf_0/omega_arr_list.jld2", "omega_arr_list", ωₐᵣᵣ_ₗᵢₛₜ)
+    save(path_to_in * "scf_0/eps_arr_list.jld2", "eps_arr_list", εₐᵣᵣ_ₗᵢₛₜ)
+
     return M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ
 end
 
