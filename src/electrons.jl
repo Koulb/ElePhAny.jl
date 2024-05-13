@@ -616,3 +616,15 @@ function create_electrons(model::AbstractModel)
    
     return Electrons(U_list, V_list, ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list)
 end
+
+function load_electrons(model::AbstractModel)
+    # Need to move to save/load jld2
+    #U_list   = readdlm(model.path_to_calc * "displacements/scf_0/U_list.txt")
+    #V_list   = readdlm(model.path_to_calc * "displacements/scf_0/V_list.txt")
+    #ϵkᵤ_list = readdlm(model.path_to_calc * "displacements/scf_0/ϵkᵤ_list.txt")
+    #ϵₚ_list  = readdlm(model.path_to_calc * "displacements/scf_0/ϵₚ_list.txt")
+    #ϵₚₘ_list = readdlm(model.path_to_calc * "displacements/scf_0/ϵₚₘ_list.txt")
+    # k_list
+   
+    #return Electrons(U_list, V_list, ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, [1,2])
+end
