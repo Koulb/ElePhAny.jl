@@ -550,7 +550,7 @@ function fold_kpoint(ik, iq, k_list)
     ikq = 1
 
     for (index, k_point) in enumerate(k_list)
-        if all(isapprox.(kq_point, k_point))
+        if all(isapprox.(kq_point, k_point, atol=1e-5))
             ikq = index 
             break
         end
