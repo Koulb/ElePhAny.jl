@@ -238,7 +238,7 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh, ϵk�
     braket = zeros(Complex{Float64}, nbands, nbands)
     braket_list = []
     braket_list_rotated = []
-    print("Electron_phonon check:")
+    # print("Electron_phonon check:")
 
     for ind in 1:2:Ndisp
         ind_abs = (ind-1)÷2 + 1
@@ -254,8 +254,12 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh, ϵk�
         u_m_trace_check = conj(transpose(Ukₘ))*Ukₘ
 
         for i in 1:nbands
-            println("Uk trace check [$i, $i] = ", u_trace_check[i,i])
-            println("Uk_m trace check [$i, $i] = ", u_m_trace_check[i,i])
+          if real(u_trace_check[i,i]) < 0.999999 ||  real(u_m_trace_check[i,i]) < 0.999999
+                println("Uk trace check [$i, $i] = ", u_trace_check[i,i])
+                println("Uk_m trace check [$i, $i] = ", u_m_trace_check[i,i])
+                println("U matrices are not in good shape")
+                exit(3)
+              end
         end
 
         Uq  = U_list[ind_abs][ikq,:,:]
@@ -264,15 +268,19 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh, ϵk�
         u_m_trace_check = conj(transpose(Uqₘ))*Uqₘ
 
         for i in 1:nbands
-            println("Uq trace check [$i, $i] = ", u_trace_check[i,i])
-            println("Uq_m trace check [$i, $i] = ", u_m_trace_check[i,i])
+          if real(u_trace_check[i,i]) < 0.999999 ||  real(u_m_trace_check[i,i]) < 0.999999
+                println("Uq trace check [$i, $i] = ", u_trace_check[i,i])
+                println("Uq_m trace check [$i, $i] = ", u_m_trace_check[i,i])
+                println("U matrices are not in good shape")
+                exit(3)
+              end
         end
 
-        println("Calculating brakets for group $ind")
+        # println("Calculating brakets for group $ind")
         for i in 1:nbands
             for j in 1:nbands
                 result = 0.0#(i==j && ik==ikq ? -ϵkᵤ[i] : 0.0)#0.0##TODO: check this iq or ikq
-                println(i, ' ', j, ' ', result)
+                # println(i, ' ', j, ' ', result)
 
                 for k in 1:nbands*mesh^3
                     result += Uk[k,j]* conj(Uq[k,i]) * ϵₚ[k]
@@ -295,14 +303,14 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh, ϵk�
                     # else
                     #     result += Uk[k,j]* conj(Uq[k,i]) * ϵₚ[k]
                     # end
-                    println(k, ' ',ϵₚ[k], ' ',Uk[k,j]* conj(Uq[k,i]), ' ', result)
-                    println(k, ' ',ϵₚₘ[k], ' ',Ukₘ[k,j]* conj(Uqₘ[k,i]), ' ', result)
+                    # println(k, ' ',ϵₚ[k], ' ',Uk[k,j]* conj(Uq[k,i]), ' ', result)
+                    # println(k, ' ',ϵₚₘ[k], ' ',Ukₘ[k,j]* conj(Uqₘ[k,i]), ' ', result)
                
                 end
                 
                 braket[i,j] = result/2.0
             end
-            println("_____________________________________________________________")
+            # println("_____________________________________________________________")
             # exit(3)
         end
 
@@ -499,12 +507,18 @@ function plot_ep_coupling(path_to_in::String, ik::Int, iq::Int)
             end
         end
     end
+    
 
     # Create a scatter plot
     scatter(x, y, xlabel="g_DFPT", ylabel="g_frozen", title="Comparison", color = "red")
     line = LinRange(0, 1.1*maximum(max.(x,y)), 4)
     plot!(line, line, color = "black", legend = false)
+    xlims!(0, 1.1*maximum(x))
+    ylims!(0, 1.1*maximum(x))
+  
     savefig(path_to_in*"out/comparison_$(ik)_$(iq).png")
+
+    return x, y
 end
 
 function plot_ep_coupling(model::ModelQE, ik::Int=0, iq::Int=0)
