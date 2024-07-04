@@ -306,8 +306,16 @@ function run_nscf_calc(path_to_in::String, unitcell, scf_parameters, mesh, path_
     atoms  = pycall(ase.Atoms;unitcell...)
     scf_parameters[:calculation] = "nscf"
  
+    nscf_parameters       = deepcopy(scf_parameters)
+    #Case of hybrids
+    if haskey(scf_parameters, :nqx1)
+        nscf_parameters[:nqx1] = mesh
+        nscf_parameters[:nqx2] = mesh
+        nscf_parameters[:nqx3] = mesh
+    end
+
     # Write the input file using Quantum ESPRESSO format
-    ase_io.write(path_to_in*"displacements/scf_0/nscf.in",atoms; scf_parameters...)
+    ase_io.write(path_to_in*"displacements/scf_0/nscf.in",atoms; nscf_parameters...)
 
     # Change the kpoints without ASE (not implemented yet)
     file = open(path_to_in*"displacements/scf_0/kpoints.dat", "r")
@@ -379,6 +387,7 @@ end
 
 function run_disp_calc(path_to_in::String, Ndispalce::Int, mpi_ranks::Int = 0)
     # Change to the specified directory
+    #FIXME Only run scf in the DFT case (not Hybrids)   
     println("Running scf_0:")
     if(isfile(path_to_in*"scf_0/"*"run.sh"))
         run_scf_cluster(path_to_in*"scf_0/")
