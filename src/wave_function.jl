@@ -244,6 +244,29 @@ function prepare_wave_functions_all(path_to_in::String, ik::Int, iq::Int, mesh::
 
 end
 
+function wave_function_to_G(miller::Matrix{Int32}, evc_list, Nxyz)
+    Nevc = size(miller, 2)
+    g_list = []
+
+    for wfc in evc_list
+        evc_sc = zeros(ComplexF64, size(miller, 2))
+        wfc_g = fftshift(fft(wfc))
+        shift = div(Nxyz, 2)
+        for idx in 1:Nevc
+            g_vector = Int.(miller[:, idx])
+            i, j, k = ((g_vector .+ shift) .% Nxyz) .+ 1
+            evc_sc[idx] = wfc_g[i, j, k]
+        end
+
+        norm = sqrt(1/calculate_braket(evc_sc,evc_sc))
+        evc_sc = evc_sc .* norm
+        push!(g_list,evc_sc)
+    end
+
+    return g_list
+end
+
+#Need to refactor this
 function wave_functions_to_G(path_to_in::String; ik::Int=1)
     wfc_list = load(path_to_in*"/scf_0/wfc_list_phase_$ik.jld2")
     Nxyz = size(wfc_list["wfc1"], 1)
@@ -311,7 +334,6 @@ function prepare_wave_functions_undisp(path_to_in::String, ik::Int, iq::Int, mes
 
 end
 
-
 function prepare_wave_functions_undisp(path_to_in::String, mesh::Int)
     for ik in 1:mesh^3
         prepare_wave_functions_undisp(path_to_in,ik,mesh)
@@ -358,6 +380,147 @@ function prepare_u_matrixes(path_to_in::String, Ndisplace::Int, mesh::Int)
     return U_list, V_list
 end
 
+# function prepare_u_matrixes(path_to_in::String, Ndisplace::Int, mesh::Int)
+#     U_list = []
+#     V_list = []
+
+#     println("Preparing u matrixes:")
+#     for ind in 1:2:Ndisplace
+#         group   = "group_$ind/"
+#         group_m   = "group_$(ind+1)/"
+#         miller1, ψₚ = parse_fortan_bin(path_to_in*group*"tmp/scf.save/wfc1.dat")
+        
+#         _, ψₚₘ = parse_fortan_bin(path_to_in*group_m*"tmp/scf.save/wfc1.dat")
+#         if ind == 1
+#             #TEST BLOCK WITH ψₚ ROTATED
+#             N_fft = 72
+#             #ψₚ_real = wf_from_G_fft(miller1, ψₚ, N_fft)
+#             ψₚ_real = [wf_from_G_fft(miller1, evc, N_fft) for evc in ψₚ];
+#             tras  = [0,0,0]
+#             rot   = [-1.0 -1.0 -1.0; 0.0 0.0 1.0; 0.0 1.0 0.0]
+#             map1 = rotate_grid(N_fft, N_fft, N_fft, rot, tras)
+#             ψₚₘ_real = [rotate_deriv(N_fft, N_fft, N_fft, map1, wfc) for wfc in ψₚ_real]
+#             ψₚₘ = wave_function_to_G(miller1,ψₚₘ_real, N_fft)#ψₚₘ_real
+#             println("ψₚ rotated")
+#             #TEST BLOCK WITH ψₚ ROTATED
+#         end
+
+#         nbnds = Int(size(ψₚ)[1]/mesh^3)
+        
+#         Uₖᵢⱼ = zeros(ComplexF64, mesh^3, nbnds*mesh^3, nbnds)
+#         Vₖᵢⱼ = zeros(ComplexF64, mesh^3, nbnds*mesh^3, nbnds)
+
+#         for ik in 1:mesh^3
+#             ψkᵤ_list = load(path_to_in*"/scf_0/g_list_sc_$ik.jld2")
+#             ψkᵤ = [ψkᵤ_list["wfc$iband"] for iband in 1:length(ψkᵤ_list)]
+
+#             Uₖᵢⱼ[ik, :, :] = calculate_braket_matrix(ψₚ, ψkᵤ)
+#             Vₖᵢⱼ[ik, :, :] = calculate_braket_matrix(ψₚₘ, ψkᵤ)
+# 	    println("ik = $ik")
+#         end
+
+#         push!(U_list, Uₖᵢⱼ)
+#         push!(V_list, Vₖᵢⱼ)
+#         println("group_$ind is ready")
+#     end
+
+#     # Save U_list to a text file
+#     # writedlm(path_to_in*"/scf_0/U_list.txt", U_list)  
+#     # writedlm(path_to_in*"/scf_0/V_list.txt", V_list)    
+
+#     save(path_to_in * "scf_0/U_list.jld2", "U_list", U_list)
+#     save(path_to_in * "scf_0/V_list.jld2", "V_list", V_list)
+
+#     return U_list, V_list
+# end
+
+function fold_component(x, eps=1e-4)
+    """
+    This routine folds number with given accuracy, so it would be inside the section from 0 to 1 .
+
+        Returns:
+            :x: folded number
+
+    """
+    if x >= 1 - eps
+        while x >= 1 - eps
+            x = x - 1
+        end
+    elseif x < 0 - eps
+        while x < 0 - eps
+            x = x + 1
+        end
+    end
+    return x
+end
+
+function rotate_grid(N1, N2, N3, rot, tras)
+    """
+    This routine change the grid according to given rotation and translation.
+
+        Returns:
+            :mapp (list): list of indexes of transformed grid
+
+    """
+    mapp = []
+    for k in 0:N3-1
+        for j in 0:N2-1
+            for i in 0:N1-1
+                u = [i / N1, j / N2, k / N3]
+                ru = rot * u .+ tras
+                ru[1] = fold_component(ru[1])
+                ru[2] = fold_component(ru[2])
+                ru[3] = fold_component(ru[3])
+
+                i1 = round(Int, ru[1] * N1)
+                i2 = round(Int, ru[2] * N2)
+                i3 = round(Int, ru[3] * N3)
+
+                eps = 1e-5
+                if i1 >= N1 - eps || i2 >= N2 - eps || i3 >= N3 - eps
+                    #println(i1, i2, i3, N1, N2, N3)
+                    # error("Error in folding")
+                end
+
+                ind = i1 + (i2) * N1 + (i3) * N1 * N2 
+                push!(mapp, ind)
+            end
+        end
+    end
+    return mapp
+end
+
+function rotate_deriv(N1, N2, N3, mapp, ff)
+    """
+    This routine rotate the derivative according to the given grid.
+
+        Returns:
+            :ff_rot (np.array): array containing values of the derivative on a new frid
+
+    """
+    ff_rot = zeros(ComplexF64, N1, N2, N3)
+    ind = 1
+    for k in 0:N3-1
+        for j in 0:N2-1
+            for i in 0:N1-1
+                ind1 = mapp[ind]
+                i3 = div(ind1, N2 * N1)
+                ind1 = ind1 % (N1 * N2)
+                i2 = div(ind1, N1)
+                i1 = ind1 % N1
+               # if (i1 + (i2) * N1 + (i3) * N1 * N2) != mapp[ind]
+                    #println("different")
+                    #println(i1, i2, i3, ind, mapp[ind])
+                    # error()
+                #end
+                ind += 1
+
+                ff_rot[i1+1, i2+1, i3+1] = ff[i+1, j+1, k+1]
+            end
+        end
+    end
+    return ff_rot
+end
 
 #TEST
 #path_to_in = "/home/apolyukhin/Development/julia_tests/qe_inputs/displacements/"
