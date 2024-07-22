@@ -345,12 +345,59 @@ function prepare_u_matrixes(path_to_in::String, Ndisplace::Int, mesh::Int)
     U_list = []
     V_list = []
 
+    #TEST BLOCK WITH ψₚ ROTATED
+    
+    trans_arry  = [
+    [0.0, 0.0, 0.0],
+    [0.0, -1.1102230246251565e-16, 0.0],
+    [1.1102230246251565e-16, -1.1102230246251565e-16, 0.0],
+    [0.0, 0.0, 0.0],
+    [0.0, -1.1102230246251565e-16, 1.1102230246251565e-16],
+    [0.0, 0.0, 0.0],
+    [0.75, 0.7499999999999998, 0.7500000000000002],
+    [0.75, 0.7499999999999999, 0.75],
+    [0.75, 0.7499999999999998, 0.7500000000000002],
+    [0.7500000000000002, 0.7499999999999998, 0.75],
+    [0.75, 0.7499999999999999, 0.75],
+    [0.7500000000000002, 0.7499999999999998, 0.75]] ./ 2.0
+
+    rot_array   = [
+    [1.0 0.0 0.0; 0.0 1.0 0.0; 0.0 0.0 1.0],
+    [-1.0 -1.0 -1.0; 0.0 0.0 1.0; 0.0 1.0 0.0],
+    [0.0 0.0 1.0; 1.0 0.0 0.0; 0.0 1.0 0.0],
+    [0.0 1.0 0.0; -1.0 -1.0 -1.0; 0.0 0.0 1.0],
+    [0.0 1.0 0.0; 0.0 0.0 1.0; 1.0 0.0 0.0],
+    [0.0 0.0 1.0; 0.0 1.0 0.0; -1.0 -1.0 -1.0],
+    [1.0 1.0 1.0; 0.0 -1.0 0.0; 0.0 0.0 -1.0],
+    [-1.0 0.0 0.0; 0.0 0.0 -1.0; 0.0 -1.0 0.0],
+    [0.0 0.0 -1.0; 1.0 1.0 1.0; 0.0 -1.0 0.0],
+    [0.0 -1.0 0.0; -1.0 0.0 0.0; 0.0 0.0 -1.0],
+    [0.0 -1.0 0.0; 0.0 0.0 -1.0; 1.0 1.0 1.0],
+    [0.0 0.0 -1.0; 0.0 -1.0 0.0; -1.0 0.0 0.0]]
+    
+    N_fft = 72
+    miller1, ψₚ0 = parse_fortan_bin(path_to_in*"/group_1/tmp/scf.save/wfc1.dat")
+    ψₚ0_real = [wf_from_G_fft(miller1, evc, N_fft) for evc in ψₚ0]
+    ψₚ = ψₚ0
     println("Preparing u matrixes:")
     for ind in 1:2:Ndisplace
-        group   = "group_$ind/"
-        group_m   = "group_$(ind+1)/"
-        _, ψₚ = parse_fortan_bin(path_to_in*group*"tmp/scf.save/wfc1.dat")
-        _, ψₚₘ = parse_fortan_bin(path_to_in*group_m*"tmp/scf.save/wfc1.dat")
+
+        if ind != 1
+            tras  = trans_arry[ind]
+            rot   = rot_array[ind]
+            map1 = rotate_grid(N_fft, N_fft, N_fft, rot, tras)
+            ψₚ_real = [rotate_deriv(N_fft, N_fft, N_fft, map1, wfc) for wfc in ψₚ0_real]
+            ψₚ = wave_function_to_G(miller1,ψₚ_real, N_fft)
+        end
+        
+        tras  = trans_arry[ind+1]
+        rot   = rot_array[ind+1]
+        map1 = rotate_grid(N_fft, N_fft, N_fft, rot, tras)
+        ψₚₘ_real = [rotate_deriv(N_fft, N_fft, N_fft, map1, wfc) for wfc in ψₚ0_real]
+        ψₚₘ = wave_function_to_G(miller1,ψₚₘ_real, N_fft)
+        
+    #TEST BLOCK WITH ψₚ ROTATED
+
         nbnds = Int(size(ψₚ)[1]/mesh^3)
         
         Uₖᵢⱼ = zeros(ComplexF64, mesh^3, nbnds*mesh^3, nbnds)
@@ -434,7 +481,7 @@ end
 #     return U_list, V_list
 # end
 
-function fold_component(x, eps=1e-4)
+function fold_component(x, eps=5e-3)
     """
     This routine folds number with given accuracy, so it would be inside the section from 0 to 1 .
 
