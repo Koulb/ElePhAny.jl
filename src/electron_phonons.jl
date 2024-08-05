@@ -103,53 +103,6 @@ function electron_phonon_qe(model::ModelQE, ik::Int, iq::Int)
     electron_phonon_qe(model.path_to_calc*"displacements/", ik, iq, model.mpi_ranks, model.path_to_qe)
 end
 
-function calculate_braket_real(bra::Array{Complex{Float64}, 3}, ket::Array{Complex{Float64}, 3})
-    Nxyz = size(ket, 1)^3
-    result = zero(Complex{Float64})
-    
-    @inbounds @simd for i in 1:Nxyz
-        result += conj(bra[i]) * ket[i]
-    end
-    
-    result /= Nxyz
-    return result
-end
-
-function calculate_braket_matrix_real(bras, kets)
-    result = zeros(Complex{Float64}, length(bras), length(kets))
-    
-    for i in 1:length(bras)
-        for j in 1:length(kets)
-            result[i,j] = calculate_braket_real(bras["wfc$i"],kets["wfc$j"])
-        end
-    end
-
-    return result
-end
-
-function calculate_braket(bra::Array{Complex{Float64}}, ket::Array{Complex{Float64}})
-    Nevc = length(bra)
-    result = zero(Complex{Float64})
-
-    @inbounds @simd for i in 1:Nevc
-        result += conj(bra[i]) * ket[i]
-    end
-
-    return result
-end
-
-function calculate_braket_matrix(bras, kets)
-    result = zeros(Complex{Float64}, length(bras), length(kets))
-    
-    @threads for i in eachindex(bras)
-        for j in eachindex(kets)
-            result[i,j] = calculate_braket(bras[i],kets[j])
-        end
-    end
-
-    return result
-end
-
 function find_degenerate(energies, thr=1e-3)
     ineq_ener = [energies[1]]
     eq_states = [[1]]
