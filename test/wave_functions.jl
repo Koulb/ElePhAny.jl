@@ -26,8 +26,8 @@ using ElectronPhonon
     norm11 = abs(ElectronPhonon.calculate_braket_real(ψ1_real, ψ1_real))
     norm12 = abs(ElectronPhonon.calculate_braket_real(ψ1_real, ψ2_real))
     
-    @test isapprox(norm11, 1.0; atol=1e-14) 
-    @test isapprox(norm12, 0.0; atol=1e-14)
+    @test isapprox(norm11, 1.0; atol=ElectronPhonon.toleranse_tests) 
+    @test isapprox(norm12, 0.0; atol=ElectronPhonon.toleranse_tests)
 end
 
 @testset "Test parsing wavefunctions from binaries of QE" begin
@@ -37,8 +37,8 @@ end
     norm11 = abs(ElectronPhonon.calculate_braket(evc_list[1], evc_list[1]))
     norm12 = abs(ElectronPhonon.calculate_braket(evc_list[1], evc_list[2]))
     
-    @test isapprox(norm11, 1.0; atol=1e-14) 
-    @test isapprox(norm12, 0.0; atol=1e-14)
+    @test isapprox(norm11, 1.0; atol=ElectronPhonon.toleranse_tests) 
+    @test isapprox(norm12, 0.0; atol=ElectronPhonon.toleranse_tests)
 end
 
 @testset "Test parsing wavefunctions from binaries of QE" begin
@@ -48,8 +48,8 @@ end
     norm11 = abs(ElectronPhonon.calculate_braket(evc_list[1], evc_list[1]))
     norm12 = abs(ElectronPhonon.calculate_braket(evc_list[1], evc_list[2]))
     
-    @test isapprox(norm11, 1.0; atol=1e-14) 
-    @test isapprox(norm12, 0.0; atol=1e-14)
+    @test isapprox(norm11, 1.0; atol=ElectronPhonon.toleranse_tests) 
+    @test isapprox(norm12, 0.0; atol=ElectronPhonon.toleranse_tests)
 end
 
 @testset "Test transforming wavefunction to real space" begin
@@ -62,8 +62,8 @@ end
     norm11 = abs(ElectronPhonon.calculate_braket_real(wfc_list[1], wfc_list[1]))
     norm12 = abs(ElectronPhonon.calculate_braket_real(wfc_list[1], wfc_list[2]))
     
-    @test isapprox(norm11, 1.0; atol=1e-14) 
-    @test isapprox(norm12, 0.0; atol=1e-14)
+    @test isapprox(norm11, 1.0; atol=ElectronPhonon.toleranse_tests) 
+    @test isapprox(norm12, 0.0; atol=ElectronPhonon.toleranse_tests)
 end
 
 @testset "Test transforming wavefunction to real space with slow fft" begin
@@ -76,8 +76,8 @@ end
     norm11 = abs(ElectronPhonon.calculate_braket_real(wfc_list[1], wfc_list[1]))
     norm12 = abs(ElectronPhonon.calculate_braket_real(wfc_list[1], wfc_list[2]))
     
-    @test isapprox(norm11, 1.0; atol=1e-14) 
-    @test isapprox(norm12, 0.0; atol=1e-14)
+    @test isapprox(norm11, 1.0; atol=ElectronPhonon.toleranse_tests) 
+    @test isapprox(norm12, 0.0; atol=ElectronPhonon.toleranse_tests)
 end
 
 @testset "Test transforming wavefunction back to reciprocal space" begin
@@ -91,8 +91,8 @@ end
     norm11 = abs(ElectronPhonon.calculate_braket(evc_list[1], evc_list_new[1]))
     norm12 = abs(ElectronPhonon.calculate_braket(evc_list[1], evc_list_new[2])) 
     
-    @test isapprox(norm11, 1.0; atol=1e-14) 
-    @test isapprox(norm12, 0.0; atol=1e-14)
+    @test isapprox(norm11, 1.0; atol=ElectronPhonon.toleranse_tests) 
+    @test isapprox(norm12, 0.0; atol=ElectronPhonon.toleranse_tests)
 end
 
 @testset "Test unfolding wavefunctions in supercell" begin
@@ -106,8 +106,8 @@ end
     norm11 = abs(ElectronPhonon.calculate_braket_real(wfc_list_sc[1], wfc_list_sc[1]))
     norm12 = abs(ElectronPhonon.calculate_braket_real(wfc_list_sc[1], wfc_list_sc[2])) 
     
-    @test isapprox(norm11, 1.0; atol=1e-14) 
-    @test isapprox(norm12, 0.0; atol=1e-14)
+    @test isapprox(norm11, 1.0; atol=ElectronPhonon.toleranse_tests) 
+    @test isapprox(norm12, 0.0; atol=ElectronPhonon.toleranse_tests)
 end
 
 @testset "Test determining correct fft grid from scf.out" begin
@@ -131,8 +131,8 @@ end
     norm11 = abs(ElectronPhonon.calculate_braket_real(wfc_list_phase[1], wfc_list_phase[1]))
     norm12 = abs(ElectronPhonon.calculate_braket_real(wfc_list_phase[1], wfc_list_phase[2])) 
     
-    @test isapprox(norm11, 1.0; atol=1e-14) 
-    @test isapprox(norm12, 0.0; atol=1e-14)
+    @test isapprox(norm11, 1.0; atol=ElectronPhonon.toleranse_tests) 
+    @test isapprox(norm12, 0.0; atol=ElectronPhonon.toleranse_tests)
 end
 
 @testset "Test unfolding undisplaced wavefunction to supercell" begin
@@ -156,8 +156,8 @@ end
     norm11 = abs(ElectronPhonon.calculate_braket(evc_list_new[1], evc_list_new[1]))
     norm12 = abs(ElectronPhonon.calculate_braket(evc_list_new[1], evc_list_new[2])) 
     
-    @test isapprox(norm11, 1.0; atol=1e-14) 
-    @test isapprox(norm12, 0.0; atol=1e-14)
+    @test isapprox(norm11, 1.0; atol=ElectronPhonon.toleranse_tests) 
+    @test isapprox(norm12, 0.0; atol=ElectronPhonon.toleranse_tests)
 
 end
 
@@ -183,6 +183,6 @@ end
         rm(file)
     end
 
-    @test isapprox(norm11, 1.0; atol=1e-14) 
-    @test isapprox(norm12, 0.0; atol=1e-14)
+    @test isapprox(norm11, 1.0; atol=ElectronPhonon.toleranse_tests) 
+    @test isapprox(norm12, 0.0; atol=ElectronPhonon.toleranse_tests)
 end
