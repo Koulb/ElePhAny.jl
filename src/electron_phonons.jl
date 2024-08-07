@@ -11,7 +11,7 @@ end
 function prepare_model(model::ModelQE)
     # save_potential(model.path_to_calc*"displacements/", model.Ndispalce, model.mesh, model.mpi_ranks)
     prepare_wave_functions_undisp(model.path_to_calc*"displacements/", model.mesh;)# path_to_calc=path_to_calc,kcw_chanel=kcw_chanel
-    calculate_phonons(model.path_to_calc*"displacements/",model.unitcell, model.abs_disp, model.Ndispalce, model.mesh)
+    prepare_phonons_data(model.path_to_calc*"displacements/",model.unitcell, model.abs_disp, model.mesh, model.Ndispalce)
 end
 
 function prepare_model(model::ModelKCW)
@@ -103,53 +103,6 @@ function electron_phonon_qe(model::ModelQE, ik::Int, iq::Int)
     electron_phonon_qe(model.path_to_calc*"displacements/", ik, iq, model.mpi_ranks, model.path_to_qe)
 end
 
-function calculate_braket_real(bra::Array{Complex{Float64}, 3}, ket::Array{Complex{Float64}, 3})
-    Nxyz = size(ket, 1)^3
-    result = zero(Complex{Float64})
-    
-    @inbounds @simd for i in 1:Nxyz
-        result += conj(bra[i]) * ket[i]
-    end
-    
-    result /= Nxyz
-    return result
-end
-
-function calculate_braket_matrix_real(bras, kets)
-    result = zeros(Complex{Float64}, length(bras), length(kets))
-    
-    for i in 1:length(bras)
-        for j in 1:length(kets)
-            result[i,j] = calculate_braket_real(bras["wfc$i"],kets["wfc$j"])
-        end
-    end
-
-    return result
-end
-
-function calculate_braket(bra::Array{Complex{Float64}}, ket::Array{Complex{Float64}})
-    Nevc = length(bra)
-    result = zero(Complex{Float64})
-
-    @inbounds @simd for i in 1:Nevc
-        result += conj(bra[i]) * ket[i]
-    end
-
-    return result
-end
-
-function calculate_braket_matrix(bras, kets)
-    result = zeros(Complex{Float64}, length(bras), length(kets))
-    
-    @threads for i in eachindex(bras)
-        for j in eachindex(kets)
-            result[i,j] = calculate_braket(bras[i],kets[j])
-        end
-    end
-
-    return result
-end
-
 function find_degenerate(energies, thr=1e-3)
     ineq_ener = [energies[1]]
     eq_states = [[1]]
@@ -223,7 +176,7 @@ end
 
 
 function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh, ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list , U_list, V_list, M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ; save_epw::Bool=false)
-    cd(path_to_in)
+    # cd(path_to_in)
 
     Nat::Int = Ndisp//6
     scale = ev_to_ry / abs_disp
@@ -331,18 +284,24 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh, ϵk�
 
     if save_epw
         #save braket_list_rotated in the file
-        open(path_to_in*"epw/braket_list_rotated_$(ik)_$(iq)", "w") do io
-            for iat in 1:Nat
-                for i in 1:3
-                    for j in 1:nbands
-                        for k in 1:nbands
-                            data = [iat, i, j, k, real(braket_list_rotated[iat][i][j,k]), imag(braket_list_rotated[iat][i][j,k])]
-                            @printf(io, "  %5d  %5d  %5d  %5d  %16.12f  %16.12f\n", data...)
+        try
+            open(path_to_in*"epw/braket_list_rotated_$(ik)_$(iq)", "w") do io
+                for iat in 1:Nat
+                    for i in 1:3
+                        for j in 1:nbands
+                            for k in 1:nbands
+                                data = [iat, i, j, k, real(braket_list_rotated[iat][i][j,k]), imag(braket_list_rotated[iat][i][j,k])]
+                                @printf(io, "  %5d  %5d  %5d  %5d  %16.12f  %16.12f\n", data...)
+                            end
                         end
                     end
                 end
             end
+        catch
+            @info "Could not save braket_list_rotated, check if epw folder exists in path_to_calc/displacements"
         end
+        
+        return braket_list_rotated
     else
         # println("Braket list rotated")
         # println(braket_list_rotated)
@@ -359,7 +318,7 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh, ϵk�
 
         for i in 1:nbands
             for j in 1:nbands
-                open(path_to_in*"elph_elements/ep_$(i)_$(j)", "w") do io  
+                # open(path_to_in*"elph_elements/ep_$(i)_$(j)", "w") do io  
                     for iph in 1:3*Nat
                         ω = ωₐᵣᵣ[1,iph] * cm1_to_ry
                         ε = εₐᵣᵣ[1,iph,:]
@@ -382,10 +341,10 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh, ϵk�
                         gᵢⱼₘ_ₐᵣᵣ[i,j,iph] = gᵢⱼₘ/ev_to_ry
                         data = [iph, ω/cm1_to_Thz, real(gᵢⱼₘ)/ev_to_ry, imag(gᵢⱼₘ)/ev_to_ry]
                         #@printf("  %5d  %10.6f  %10.6f   %10.6f\n", data...)
-                        @printf(io, "  %5d  %10.6f  %10.10f   %10.10f\n", data...)
+                        # @printf(io, "  %5d  %10.6f  %10.10f   %10.10f\n", data...)
                     end
                     #@printf("____________________________________________\n")
-                end
+                # end
             end
         end 
 
@@ -468,22 +427,24 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh, ϵk�
         try
             elph_dfpt = parse_ph(path_to_in*"scf_0/ph.out", nbands, length(ωₐᵣᵣ))
             ωₐᵣᵣ_DFPT, _ = parse_qe_ph(path_to_in*"scf_0/dyn1")   
-        catch
-        end
 
-
-        #saving resulting electron phonon couplings 
-        # @printf("      i      j      nu      ϵkᵤ        ϵqᵤ        ωₐᵣᵣ_frozen      ωₐᵣᵣ_DFPT       g_frozen    g_DFPT\n")
-        open(path_to_in*"out/comparison_$(ik)_$(iq).txt", "w") do io 
-        for i in 1:nbands
-            for j in 1:nbands
-                    for iph in 1:3*Nat#Need to chec
-                       # @printf("  %5d  %5d  %5d  %10.6f  %10.6f  %12.6f  %12.6f  %12.12f %12.12f\n", i,j, iph, ϵkᵤ[i], ϵqᵤ[j], ωₐᵣᵣ[1,iph], ωₐᵣᵣ_DFPT[1,iph], symm_elph[i, j, iph], elph_dfpt[i, j, iph])
-                        @printf(io, "  %5d  %5d  %5d  %10.6f  %10.6f  %12.6f  %12.6f  %12.12f %12.12f\n", i,j, iph, ϵkᵤ[i], ϵqᵤ[j], ωₐᵣᵣ[1,iph], ωₐᵣᵣ_DFPT[1,iph], symm_elph[i, j, iph], elph_dfpt[i, j, iph])
+            #saving resulting electron phonon couplings 
+            # @printf("      i      j      nu      ϵkᵤ        ϵqᵤ        ωₐᵣᵣ_frozen      ωₐᵣᵣ_DFPT       g_frozen    g_DFPT\n")
+            open(path_to_in*"out/comparison_$(ik)_$(iq).txt", "w") do io 
+            for i in 1:nbands
+                for j in 1:nbands
+                        for iph in 1:3*Nat#Need to chec
+                        # @printf("  %5d  %5d  %5d  %10.6f  %10.6f  %12.6f  %12.6f  %12.12f %12.12f\n", i,j, iph, ϵkᵤ[i], ϵqᵤ[j], ωₐᵣᵣ[1,iph], ωₐᵣᵣ_DFPT[1,iph], symm_elph[i, j, iph], elph_dfpt[i, j, iph])
+                            @printf(io, "  %5d  %5d  %5d  %10.6f  %10.6f  %12.6f  %12.6f  %12.12f %12.12f\n", i,j, iph, ϵkᵤ[i], ϵqᵤ[j], ωₐᵣᵣ[1,iph], ωₐᵣᵣ_DFPT[1,iph], symm_elph[i, j, iph], elph_dfpt[i, j, iph])
+                        end
                     end
                 end
-            end
-        end 
+            end 
+        catch
+            @info "Could not save symmetrized electron-phonon matrix elements, check if out folder exists in path_to_calc/displacements"
+        end
+
+        return symm_elph
     end
 
 end
