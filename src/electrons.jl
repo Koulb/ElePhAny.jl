@@ -457,6 +457,8 @@ function read_potential(path_to_file::String;skiprows=0)
 
     ff = zeros(Float64, N1, N2, N3)
 
+
+
     for i in 1:N1, j in 1:N2, k in 1:N3
         ff[i, j, k] = rw[i + N1 * (j - 1) + N1 * N2 * (k - 1)]
     end
