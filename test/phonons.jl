@@ -73,13 +73,8 @@ end
 
   @test all(isapprox.(displacemnts_check, displacemnts; atol=ElectronPhonon.toleranse_tests))
 
-  # Use the Glob package to match all .jld2 files in the directory
-  files_to_delete = glob("*.yaml", path_tst_data)
-  
-  # Delete each file
-  for file in files_to_delete
-      rm(file)
-  end
+  # Delete the created files
+  rm(path_tst_data*"phonopy_params.yaml")
 
 end
 
@@ -110,6 +105,8 @@ end
   end
   
   ElectronPhonon.prepare_phonons_data(path_tst_data, unitcell,abs_disp, mesh, forces; save_dynq=false)
+  # Delete the created files
+  rm(path_tst_data*"mesh.conf")
   
   phonon_params = ElectronPhonon.phonopy.load(path_tst_data*"/phonopy_params.yaml")
   phonon_params_check = ElectronPhonon.phonopy.load(path_tst_xml)
