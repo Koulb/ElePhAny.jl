@@ -1,21 +1,6 @@
 using FortranFiles, LinearAlgebra, Base.Threads, ProgressMeter, JLD2, FFTW
 
-function parse_fortan_bin(file_path::String)
-    f = FortranFile(file_path)
-    ik, xkx, xky, xkz, ispin = read(f, (Int32,5))
-    ngw, igwx, npol, nbnd = read(f, (Int32,4))
-    dummy_vector = read(f, (Float64,9))
-    miller = reshape(read(f, (Int32,3*igwx)),(3, igwx))
-
-    evc_list = []
-    for _ in 1:nbnd
-        evc = read(f, (ComplexF64,igwx))
-        push!(evc_list,evc)
-    end
-    return miller, evc_list
-end
-
-function wf_from_G(miller::Matrix{Int32}, evc::Vector{ComplexF64}, Nxyz::Integer)
+function wf_from_G_fft(miller::Matrix{Int32}, evc::Vector{ComplexF64}, Nxyz::Integer)
     reciprocal_space_grid = zeros(ComplexF64, Nxyz, Nxyz, Nxyz)
     # Determine the shift needed to map Miller indices to grid indices
     shift = div(Nxyz, 2)
@@ -25,6 +10,7 @@ function wf_from_G(miller::Matrix{Int32}, evc::Vector{ComplexF64}, Nxyz::Integer
         g_vector = Int.(miller[:, idx])
         # Map the Miller indices to reciprocal space grid indices
         i, j, k = ((g_vector .+ shift) .% Nxyz) .+ 1
+        #println(i,' ', j,' ', k)
         coefficient = evc[idx]
         reciprocal_space_grid[i, j, k] = coefficient
     end
@@ -34,12 +20,13 @@ function wf_from_G(miller::Matrix{Int32}, evc::Vector{ComplexF64}, Nxyz::Integer
     return wave_function
 end
 
-function wf_from_G_slow(miller::Matrix{Int32}, evc::Vector{ComplexF64}, Nxyz::Integer)
+function wf_from_G_opt(miller::Matrix{Int32}, evc::Vector{ComplexF64}, Nxyz::Integer)
     x = range(0, 1-1/Nxyz, Nxyz)
     y = range(0, 1-1/Nxyz, Nxyz)
     z = range(0, 1-1/Nxyz, Nxyz)
 
     wave_function = zeros(ComplexF64,(Nxyz, Nxyz, Nxyz))
+    #progress = Progress(Nxyz^3, dt=1.0)
     
     @threads for i in eachindex(x)  
         for j in eachindex(y)
@@ -53,39 +40,71 @@ function wf_from_G_slow(miller::Matrix{Int32}, evc::Vector{ComplexF64}, Nxyz::In
                 exponent =  exp.(-2 * π * 1im * temp)
                 # wave_function[i, j, k] = sum(transpose(exponent)'evc)
                 wave_function[i, j, k] = dot(exponent, evc)
+                #next!(progress)
             end
         end
     end
     return wave_function
 end
 
-function wf_to_G(miller::Matrix{Int32}, wfc, Nxyz::Integer)
-    Nevc = size(miller, 2)
+function wf_from_G_opt_list(miller::Matrix{Int32}, evc_list::Vector{Any}, Nxyz::Integer)#
+    x = range(0, 1-1/Nxyz, Nxyz)
+    y = range(0, 1-1/Nxyz, Nxyz)
+    z = range(0, 1-1/Nxyz, Nxyz)
+    N_evc = size(evc_list)[1]
 
-    evc_sc = zeros(ComplexF64, size(miller, 2))
-    wfc_g = fftshift(fft(wfc))
-    shift = div(Nxyz, 2)
-    for idx in 1:Nevc
-        g_vector = Int.(miller[:, idx])
-        i, j, k = ((g_vector .+ shift) .% Nxyz) .+ 1
-        evc_sc[idx] = wfc_g[i, j, k]
+    wave_function = zeros(ComplexF64,(N_evc,Nxyz, Nxyz, Nxyz))
+    progress = Progress(N_evc*Nxyz^3, dt=1.0)
+
+    @threads for i in eachindex(x)  
+        for j in eachindex(y)
+            for k in eachindex(z)
+                x_i = x[i]
+                y_j = y[j]
+                z_k = z[k]
+
+                r_ijk = [x_i, y_j, z_k]      
+                temp  = transpose(r_ijk) * miller
+                exponent =  exp.(-2 * π * 1im * temp)
+                # wave_function[i, j, k] = sum(transpose(exponent)'evc)
+
+                for (evc_index, evc) in enumerate(evc_list)
+                    wave_function[evc_index,i, j, k] = dot(exponent, evc)
+                    next!(progress)
+                end
+            end
+        end
     end
-
-    #TODO Is it possible to not calculate this norm? Could reduce the computational cost
-    norm = sqrt(1/calculate_braket(evc_sc,evc_sc))
-    evc_sc = evc_sc .* norm
-
-    return evc_sc
+    return wave_function
 end
 
-function wf_pc_to_sc(wfc, mesh)
-    wfc_sc = repeat(wfc, outer=(mesh, mesh, mesh))
-    return wfc_sc
+function parse_fortan_bin(file_path::String)
+    f = FortranFile(file_path)
+    ik, xkx, xky, xkz, ispin = read(f, (Int32,5))
+    ngw, igwx, npol, nbnd = read(f, (Int32,4))
+    dummy_vector = read(f, (Float64,9))
+    miller = reshape(read(f, (Int32,3*igwx)),(3, igwx))
+
+    evc_list = []
+    for n in 1:nbnd
+        evc = read(f, (ComplexF64,igwx))
+        push!(evc_list,evc)
+    end
+    return miller, evc_list
 end
 
-function determine_fft_grid(path_to_file::String)
+function prepare_wave_functions(path_to_in::String; ik::Int=1)
+    file_path = path_to_in*"/tmp/scf.save/wfc$ik.dat"
+
+    # if kcw_chanel != ""
+    #     file_path = path_to_calc*"/unperturbed/TMP/kc_kcw.save/wfc$(kcw_chanel)$(ik).dat"
+    #     println("Wave functions from $file_path")
+    # end
+    miller, evc_list = parse_fortan_bin(file_path)
+
     #Determine the fft grid
-    scf_file = open(path_to_file, "r")
+    # FFT dimensions:
+    scf_file = open(path_to_in*"/scf.out", "r")
     fft_line = ""
     for line in eachline(scf_file)
         if contains(line, "FFT dimensions:")
@@ -94,17 +113,79 @@ function determine_fft_grid(path_to_file::String)
         end
     end
     close(scf_file)
+    N = parse(Int64, split(fft_line)[8][1:end-1])
 
-    Nxyz = parse(Int64, split(fft_line)[8][1:end-1]) 
-    return Nxyz
+    # potential_file = open(path_to_in*"/Vks", "r")
+    # dummy_line = readline(potential_file)
+    # fft_line = readline(potential_file)
+    # N = parse(Int64, split(fft_line)[1])
+
+    println("Transforming wave fucntions in real space:")
+    wfc_list = Dict()
+    for (index, evc) in enumerate(evc_list)
+        #println("band # $index")
+        wfc = wf_from_G_fft(miller, evc, N)
+        wfc_list["wfc$index"] = wfc
+
+    end
+    println("Data saved in "*path_to_in*"wfc_list_$ik.jld2")
+    save(path_to_in*"/wfc_list_$ik.jld2",wfc_list)
+    wfc_list = 0 # attempt to free memory
+    GC.gc()
 end
 
-function determine_phase(q_point, Nxyz)
+function prepare_wave_functions_opt(path_to_in::String; ik::Int=1)
+    file_path = path_to_in*"/tmp/scf.save/wfc$ik.dat"
+    miller, evc_list = parse_fortan_bin(file_path)
+    N_evc = size(evc_list)[1]
+
+    #Determine the fft grid
+    potential_file = open(path_to_in*"/Vks", "r")
+    dummy_line = readline(potential_file)
+    fft_line = readline(potential_file)
+    N = parse(Int64, split(fft_line)[1])
+
+    println("Transforming wave fucntions in real space:")
+    wfc_data = wf_from_G_opt_list(miller, evc_list, N)
+    wfc_list = Dict()
+    for index in 1:N_evc
+        wfc_list["wfc$index"] = wfc_data[index, :, :, :]
+    end
+
+    println("Data saved in "*path_to_in*"wfc_list_$ik.jld2")
+    save(path_to_in*"wfc_list_$ik.jld2",wfc_list)
+
+end
+
+#check that I read the correct wf for ik = 2 
+function unfold_to_sc(path_to_in::String, mesh::Int, ik::Int)
+    #Determine the fft grid
+    # FFT dimensions:
+    scf_file = open(path_to_in*"/scf.out", "r")
+    fft_line = ""
+    for line in eachline(scf_file)
+        if contains(line, "FFT dimensions:")
+            fft_line = line
+            break
+        end
+    end
+    close(scf_file)
+    Nxyz = parse(Int64, split(fft_line)[8][1:end-1]) * mesh
+    
+    # potential_file = open(path_to_in*"/Vks", "r")
+    # dummy_line = readline(potential_file)
+    # fft_line = readline(potential_file)
+    # Nxyz = parse(Int64, split(fft_line)[1]) * mesh
+
+    q_vector = determine_q_point(path_to_in,ik).* mesh
+
     x = range(0, 1-1/Nxyz, Nxyz)
     y = range(0, 1-1/Nxyz, Nxyz)
     z = range(0, 1-1/Nxyz, Nxyz)
 
     exp_factor = zeros(Complex{Float64}, Nxyz, Nxyz, Nxyz)
+    println("Unfolding wave function to sc")
+
     @threads for i in eachindex(x)  
         for j in eachindex(y)
             for k in eachindex(z)
@@ -113,19 +194,11 @@ function determine_phase(q_point, Nxyz)
                 z_k = z[k]
 
                 r_ijk = [x_i, y_j, z_k]
-                temp = dot(transpose(r_ijk), q_point)
+                temp = dot(transpose(r_ijk), q_vector)
                 exp_factor[i, j, k] = exp.(2im * π * temp)
             end
         end
     end
-
-    return exp_factor
-end
-
-function prepare_unfold_to_sc(path_to_in::String, mesh::Int, ik::Int)
-    Nxyz = determine_fft_grid(path_to_in*"/scf.out") * mesh
-    q_vector = determine_q_point(path_to_in, ik; mesh = mesh)
-    exp_factor = determine_phase(q_vector, Nxyz)
 
     wfc_list_old = load(path_to_in*"wfc_list_$ik.jld2")
     N_evc = length(wfc_list_old)
@@ -133,44 +206,99 @@ function prepare_unfold_to_sc(path_to_in::String, mesh::Int, ik::Int)
     wfc_list = Dict()
     for index in 1:N_evc
         wfc = wfc_list_old["wfc$index"]
-        wfc = wf_pc_to_sc(wfc, mesh)
+        wfc = repeat(wfc, outer=(mesh, mesh, mesh))
         wfc = wfc .* exp_factor 
         wfc_list["wfc$index"]  = wfc
     end
 
-    @info "Data saved in "*path_to_in*"wfc_list_phase_$ik.jld2"
+    println("Data saved in "*path_to_in*"wfc_list_phase_$ik.jld2")
     save(path_to_in*"wfc_list_phase_$ik.jld2",wfc_list)
 end
 
-function prepare_wave_functions_to_R(path_to_in::String; ik::Int=1)
-    file_path = path_to_in*"/tmp/scf.save/wfc$ik.dat"
-    miller, evc_list = parse_fortan_bin(file_path)
+function prepare_wave_functions_all(path_to_in::String, ik::Int, iq::Int, mesh::Int, Ndisp::Int)
+    file_path=path_to_in*"/scf_0/"
+    #prepare_wave_functions_opt(file_path;ik=ik)
+    prepare_wave_functions(file_path;ik=ik)
 
-    N = determine_fft_grid(path_to_in*"/scf.out")
-    
-    wfc_list = Dict()
-    for (index, evc) in enumerate(evc_list)
-        wfc = wf_from_G(miller, evc, N)
-        wfc_list["wfc$index"] = wfc
+    #need to fold in 1st Bz in case of arbitrary q
+    k_list = get_kpoint_list(file_path)
+    ikq = fold_kpoint(ik,iq,k_list)
+    #prepare_wave_functions_opt(file_path;ik=ikq)
+    prepare_wave_functions(file_path;ik=ikq)
+    #Need to unfold from pc to sc and mulitply wavefunctions by exp(ikr)
+    if mesh > 1
+        unfold_to_sc(file_path,mesh,ik)
+        unfold_to_sc(file_path,mesh,ikq)
     end
 
-    @info "Data saved in "*path_to_in*"wfc_list_$ik.jld2"
-    save(path_to_in*"/wfc_list_$ik.jld2",wfc_list)
-    wfc_list = 0 # attempt to free memory
-    GC.gc()
+    # TODO check consistency between convetional, fft and braket.x (Why braket(wf_1,wf_1_fft)=0???)
+    for i in 1:2:Ndisp
+        file_path=path_to_in*"/group_$i/"
+        if mesh > 1
+            #prepare_wave_functions_opt(file_path)
+            prepare_wave_functions(file_path,ik=1)
+        else
+            prepare_wave_functions(file_path,ik=ik)
+        end    
+    end
+
 end
 
-function prepare_wave_functions_to_G(path_to_in::String; ik::Int=1)
-    wfc_list = load(path_to_in*"/scf_0/wfc_list_phase_$ik.jld2")
-    Nxyz = size(wfc_list["wfc1"], 1)
-    miller_sc, _ = parse_fortan_bin(path_to_in*"/group_1/tmp/scf.save/wfc1.dat") 
+function wave_function_to_G(miller::Matrix{Int32}, evc_list, Nxyz)
+    Nevc = size(miller, 2)
+    g_list = []
 
-    g_list = Dict()  
-    for (key, wfc) in wfc_list
-        g_list[key] = wf_to_G(miller_sc, wfc, Nxyz)
+    for wfc in evc_list
+        evc_sc = zeros(ComplexF64, size(miller, 2))
+        wfc_g = fftshift(fft(wfc))
+        shift = div(Nxyz, 2)
+        for idx in 1:Nevc
+            g_vector = Int.(miller[:, idx])
+            i, j, k = ((g_vector .+ shift) .% Nxyz) .+ 1
+            evc_sc[idx] = wfc_g[i, j, k]
+        end
+
+        norm = sqrt(1/calculate_braket(evc_sc,evc_sc))
+        evc_sc = evc_sc .* norm
+        push!(g_list,evc_sc)
     end
 
-    @info "Data saved in "*path_to_in*"/scf_0/g_list_sc_$ik.jld2"
+    return g_list
+end
+
+#Need to refactor this
+function wave_functions_to_G(path_to_in::String; ik::Int=1)
+    wfc_list = load(path_to_in*"/scf_0/wfc_list_phase_$ik.jld2")
+    Nxyz = size(wfc_list["wfc1"], 1)
+    
+    local miller_sc
+    try
+        miller_sc, _ = parse_fortan_bin(path_to_in*"/group_1/tmp/scf.save/wfc1.dat") 
+    catch #KCW case 
+        miller_sc, _ = parse_fortan_bin(path_to_in*"/perturbed1/TMP/kc_kcw.save/wfcup1.dat") 
+    end
+
+    Nevc = size(miller_sc, 2)
+    g_list = Dict()
+
+    println("Tranforming wave function to G space:")
+
+    for (key, wfc) in wfc_list
+        evc_sc = zeros(ComplexF64, size(miller_sc, 2))
+        wfc_g = fftshift(fft(wfc))
+        shift = div(Nxyz, 2)
+        for idx in 1:Nevc
+            g_vector = Int.(miller_sc[:, idx])
+            i, j, k = ((g_vector .+ shift) .% Nxyz) .+ 1
+            evc_sc[idx] = wfc_g[i, j, k]
+        end
+
+        norm = sqrt(1/calculate_braket(evc_sc,evc_sc))
+        evc_sc = evc_sc .* norm
+        g_list[key] = evc_sc
+    end
+
+    println("Data saved in "*path_to_in*"g_list_sc_$ik.jld2")
     save(path_to_in*"/scf_0/g_list_sc_$ik.jld2", g_list)
 end
 
@@ -178,12 +306,30 @@ function prepare_wave_functions_undisp(path_to_in::String, ik::Int, mesh::Int)
     file_path=path_to_in*"/scf_0/"
 
     if mesh > 1
-        @info "Tranforming wave functions to R space:"
-        prepare_wave_functions_to_R(file_path;ik=ik)
-        @info "Unfolding wave functions to supercell:"
-        prepare_unfold_to_sc(file_path,mesh,ik)
-        @info "Tranforming wave functions to G space:"
-        prepare_wave_functions_to_G(path_to_in;ik=ik)
+        #prepare_wave_functions_opt(file_path;ik=ik)
+        prepare_wave_functions(file_path;ik=ik)
+        unfold_to_sc(file_path,mesh,ik)
+        wave_functions_to_G(path_to_in;ik=ik)
+    end
+
+end
+
+function prepare_wave_functions_undisp(path_to_in::String, ik::Int, iq::Int, mesh::Int)
+    file_path=path_to_in*"/scf_0/"
+
+    if mesh > 1
+        #prepare_wave_functions_opt(file_path;ik=ik)
+        prepare_wave_functions(file_path;ik=ik)
+        unfold_to_sc(file_path,mesh,ik)
+        wave_functions_to_G(path_to_in;ik=ik)
+        
+        k_list = get_kpoint_list(file_path)
+        ikq = fold_kpoint(ik,iq,k_list)
+        if ikq != ik
+            prepare_wave_functions(file_path;ik=ikq)
+            unfold_to_sc(file_path,mesh,ikq)
+            wave_functions_to_G(path_to_in;ik=ikq)
+        end    
     end
 
 end
@@ -191,7 +337,7 @@ end
 function prepare_wave_functions_undisp(path_to_in::String, mesh::Int)
     for ik in 1:mesh^3
         prepare_wave_functions_undisp(path_to_in,ik,mesh)
-        @info "ik = $ik/$(mesh^3) is ready"
+        println("ik = $ik/$(mesh^3) is ready")
     end
 end
 
@@ -214,8 +360,8 @@ function prepare_u_matrixes(path_to_in::String, Ndisplace::Int, mesh::Int)
             ψkᵤ_list = load(path_to_in*"/scf_0/g_list_sc_$ik.jld2")
             ψkᵤ = [ψkᵤ_list["wfc$iband"] for iband in 1:length(ψkᵤ_list)]
 
-            Uₖᵢⱼ[ik, :, :] = calculate_braket(ψₚ, ψkᵤ)
-            Vₖᵢⱼ[ik, :, :] = calculate_braket(ψₚₘ, ψkᵤ)
+            Uₖᵢⱼ[ik, :, :] = calculate_braket_matrix(ψₚ, ψkᵤ)
+            Vₖᵢⱼ[ik, :, :] = calculate_braket_matrix(ψₚₘ, ψkᵤ)
 	    println("ik = $ik")
         end
 
@@ -224,59 +370,69 @@ function prepare_u_matrixes(path_to_in::String, Ndisplace::Int, mesh::Int)
         println("group_$ind is ready")
     end
 
-    # Save U_list to a hdf5-like file
+    # Save U_list to a text file
+    # writedlm(path_to_in*"/scf_0/U_list.txt", U_list)  
+    # writedlm(path_to_in*"/scf_0/V_list.txt", V_list)    
+
     save(path_to_in * "scf_0/U_list.jld2", "U_list", U_list)
     save(path_to_in * "scf_0/V_list.jld2", "V_list", V_list)
 
     return U_list, V_list
 end
 
-function calculate_braket_real(bra::Array{Complex{Float64}, 3}, ket::Array{Complex{Float64}, 3})
-    Nxyz = size(ket, 1)^3
-    result = zero(Complex{Float64})
-    
-    @inbounds @simd for i in 1:Nxyz
-        result += conj(bra[i]) * ket[i]
-    end
-    
-    result /= Nxyz
-    return result
-end
+# function prepare_u_matrixes(path_to_in::String, Ndisplace::Int, mesh::Int)
+#     U_list = []
+#     V_list = []
 
-function calculate_braket_real(bras::Dict{String, Array{Complex{Float64}, 3}}, kets::Dict{String, Array{Complex{Float64}, 3}})
-    result = zeros(Complex{Float64}, length(bras), length(kets))
-    
-    for (i, bra) in enumerate(values(bras))
-        for (j, ket) in enumerate(values(kets))
-            result[i,j] = calculate_braket_real(bra, ket)
-        end
-    end
+#     println("Preparing u matrixes:")
+#     for ind in 1:2:Ndisplace
+#         group   = "group_$ind/"
+#         group_m   = "group_$(ind+1)/"
+#         miller1, ψₚ = parse_fortan_bin(path_to_in*group*"tmp/scf.save/wfc1.dat")
+        
+#         _, ψₚₘ = parse_fortan_bin(path_to_in*group_m*"tmp/scf.save/wfc1.dat")
+#         if ind == 1
+#             #TEST BLOCK WITH ψₚ ROTATED
+#             N_fft = 72
+#             #ψₚ_real = wf_from_G_fft(miller1, ψₚ, N_fft)
+#             ψₚ_real = [wf_from_G_fft(miller1, evc, N_fft) for evc in ψₚ];
+#             tras  = [0,0,0]
+#             rot   = [-1.0 -1.0 -1.0; 0.0 0.0 1.0; 0.0 1.0 0.0]
+#             map1 = rotate_grid(N_fft, N_fft, N_fft, rot, tras)
+#             ψₚₘ_real = [rotate_deriv(N_fft, N_fft, N_fft, map1, wfc) for wfc in ψₚ_real]
+#             ψₚₘ = wave_function_to_G(miller1,ψₚₘ_real, N_fft)#ψₚₘ_real
+#             println("ψₚ rotated")
+#             #TEST BLOCK WITH ψₚ ROTATED
+#         end
 
-    return result
-end
+#         nbnds = Int(size(ψₚ)[1]/mesh^3)
+        
+#         Uₖᵢⱼ = zeros(ComplexF64, mesh^3, nbnds*mesh^3, nbnds)
+#         Vₖᵢⱼ = zeros(ComplexF64, mesh^3, nbnds*mesh^3, nbnds)
 
-function calculate_braket(bra::Array{Complex{Float64}}, ket::Array{Complex{Float64}})
-    Nevc = length(bra)
-    result = zero(Complex{Float64})
+#         for ik in 1:mesh^3
+#             ψkᵤ_list = load(path_to_in*"/scf_0/g_list_sc_$ik.jld2")
+#             ψkᵤ = [ψkᵤ_list["wfc$iband"] for iband in 1:length(ψkᵤ_list)]
 
-    @inbounds @simd for i in 1:Nevc
-        result += conj(bra[i]) * ket[i]
-    end
+#             Uₖᵢⱼ[ik, :, :] = calculate_braket_matrix(ψₚ, ψkᵤ)
+#             Vₖᵢⱼ[ik, :, :] = calculate_braket_matrix(ψₚₘ, ψkᵤ)
+# 	    println("ik = $ik")
+#         end
 
-    return result
-end
+#         push!(U_list, Uₖᵢⱼ)
+#         push!(V_list, Vₖᵢⱼ)
+#         println("group_$ind is ready")
+#     end
 
-function calculate_braket(bras, kets)
-    result = zeros(Complex{Float64}, length(bras), length(kets))
-    
-    @threads for i in eachindex(bras)
-        for j in eachindex(kets)
-            result[i,j] = calculate_braket(bras[i],kets[j])
-        end
-    end
+#     # Save U_list to a text file
+#     # writedlm(path_to_in*"/scf_0/U_list.txt", U_list)  
+#     # writedlm(path_to_in*"/scf_0/V_list.txt", V_list)    
 
-    return result
-end
+#     save(path_to_in * "scf_0/U_list.jld2", "U_list", U_list)
+#     save(path_to_in * "scf_0/V_list.jld2", "V_list", V_list)
+
+#     return U_list, V_list
+# end
 
 function fold_component(x, eps=1e-4)
     """
