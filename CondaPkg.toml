@@ -1,4 +1,4 @@
 [deps]
 python = ">=3.9,<3.11"
 phonopy = ""
-ase = ""
+ase = "3.22.1"
