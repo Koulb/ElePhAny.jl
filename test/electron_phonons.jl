@@ -1,5 +1,22 @@
 using Test, PythonCall, Logging, ElectronPhonon
 
+@testset "Test parsing electron-phonon data from QE" begin
+    path_tst_data = "test_data/displacements/"
+    nbands = 4
+    nat = 2
+
+    elph_dfpt = ElectronPhonon.parse_ph(path_tst_data*"scf_0/ph.out", nbands, 3*nat)
+    ωₐᵣᵣ_DFPT, _ = ElectronPhonon.parse_qe_ph(path_tst_data*"scf_0/dyn1")   
+    # println(ωₐᵣᵣ_DFPT)
+    # println(elph_dfpt[2,:,3])
+    elph_dfpt_test = ComplexF64[0.044206963440000004 + 0.0im, 0.044206963440000004 + 0.0im, 5.002807184e-10 + 0.0im, 5.002807184e-10 + 0.0im]
+    ωₐᵣᵣ_DFPT_test = [-57.728206 -57.728206 369.259079 420.354152 479.315539 479.315539]
+
+    @test all(isapprox.(ωₐᵣᵣ_DFPT_test, ωₐᵣᵣ_DFPT; atol=ElectronPhonon.toleranse_tests))
+    @test all(isapprox.(elph_dfpt_test, elph_dfpt[2,:,3]; atol=ElectronPhonon.toleranse_tests))
+
+end
+
 @testset "Test calculating brakets using projectability approach" begin
     path_tst_data = "test_data/"
     path_to_qe = ""
