@@ -1,7 +1,7 @@
 using ElectronPhonon, PythonCall, Glob, Test
 
 @testset "Test determining q_point in crystall coordinates" begin
-  path_tst_data = "test_data/scf_0/"
+  path_tst_data = "test_data/displacements/scf_0/"
   iq = 2 
 
   q_point =  ElectronPhonon.determine_q_point(path_tst_data, iq; mesh=1)
@@ -12,7 +12,7 @@ end
 
 
 @testset "Test determining q_point in cartesian coordinates" begin
-  path_tst_data = "test_data/scf_0/"
+  path_tst_data = "test_data/displacements/scf_0/"
   iq = 2 
 
   q_point =  ElectronPhonon.determine_q_point_cart(path_tst_data, iq)
@@ -23,7 +23,7 @@ end
 
 
 @testset "Test reading forces from xml file of QE" begin
-  path_tst_data = "test_data/group_1/tmp/scf.save/data-file-schema.xml"
+  path_tst_data = "test_data/displacements/group_1/tmp/scf.save/data-file-schema.xml"
 
   forces =  ElectronPhonon.read_forces_xml(path_tst_data)
   forces_check = [0.00018426817994402487 1.8604406887485266e-7 -0.00018426817994402487;
@@ -48,7 +48,7 @@ end
 
 
 @testset "Test creating displaced supercells with phonopy" begin
-  path_tst_data = "test_data/scf_0/"
+  path_tst_data = "test_data/displacements/scf_0/"
   path_tst_xml  = "test_data/phonopy_params.yaml"
   abs_disp  = 0.001
   mesh      = 2
@@ -79,10 +79,10 @@ end
 end
 
 
-@testset "Test creating displaced supercells with phonopy" begin
-  path_tst_data = "test_data/"
+@testset "Test running phonon calculation with phonopy" begin
+  path_tst_data = "test_data/displacements/"
   path_tst_xml  = "test_data/phonopy_params.yaml"
-  path_tst_group = "test_data/group_1/"  
+  path_tst_group = "test_data/displacements/group_1/"  
   abs_disp  = 0.001
   mesh      = 2
   Ndispalce = 12
@@ -105,8 +105,10 @@ end
   end
   
   ElectronPhonon.prepare_phonons_data(path_tst_data, unitcell,abs_disp, mesh, forces; save_dynq=false)
-  # Delete the created files
+  # Delete created files
   rm(path_tst_data*"mesh.conf")
+  rm(path_tst_data*"phonopy.yaml")
+  rm(path_tst_data*"qpoints.yaml")
   
   phonon_params = ElectronPhonon.phonopy.load(path_tst_data*"/phonopy_params.yaml")
   phonon_params_check = ElectronPhonon.phonopy.load(path_tst_xml)

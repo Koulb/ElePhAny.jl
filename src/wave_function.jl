@@ -214,8 +214,8 @@ function prepare_u_matrixes(path_to_in::String, Ndisplace::Int, mesh::Int)
             ψkᵤ_list = load(path_to_in*"/scf_0/g_list_sc_$ik.jld2")
             ψkᵤ = [ψkᵤ_list["wfc$iband"] for iband in 1:length(ψkᵤ_list)]
 
-            Uₖᵢⱼ[ik, :, :] = calculate_braket_matrix(ψₚ, ψkᵤ)
-            Vₖᵢⱼ[ik, :, :] = calculate_braket_matrix(ψₚₘ, ψkᵤ)
+            Uₖᵢⱼ[ik, :, :] = calculate_braket(ψₚ, ψkᵤ)
+            Vₖᵢⱼ[ik, :, :] = calculate_braket(ψₚₘ, ψkᵤ)
 	    println("ik = $ik")
         end
 
@@ -266,7 +266,7 @@ function calculate_braket(bra::Array{Complex{Float64}}, ket::Array{Complex{Float
     return result
 end
 
-function calculate_braket(bras::Dict{String, Array{Complex{Float64}}}, kets::Dict{String, Array{Complex{Float64}}})
+function calculate_braket(bras, kets)
     result = zeros(Complex{Float64}, length(bras), length(kets))
     
     @threads for i in eachindex(bras)

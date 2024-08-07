@@ -26,7 +26,7 @@ using Test, JLD2, Glob, Logging, ElectronPhonon
 end
 
 @testset "Test parsing wavefunctions from binaries of QE" begin
-    path_tst_data = "test_data/scf_0/tmp/scf.save/wfc1.dat"
+    path_tst_data = "test_data/displacements/scf_0/tmp/scf.save/wfc1.dat"
 
     _, evc_list = ElectronPhonon.parse_fortan_bin(path_tst_data)
     norm11 = abs(ElectronPhonon.calculate_braket(evc_list[1], evc_list[1]))
@@ -37,7 +37,7 @@ end
 end
 
 @testset "Test parsing wavefunctions from binaries of QE" begin
-    path_tst_data = "test_data/scf_0/tmp/scf.save/wfc1.dat"
+    path_tst_data = "test_data/displacements/scf_0/tmp/scf.save/wfc1.dat"
 
     _, evc_list = ElectronPhonon.parse_fortan_bin(path_tst_data)
     norm11 = abs(ElectronPhonon.calculate_braket(evc_list[1], evc_list[1]))
@@ -48,7 +48,7 @@ end
 end
 
 @testset "Test transforming wavefunction to real space" begin
-    path_tst_data = "test_data/scf_0/tmp/scf.save/wfc1.dat"
+    path_tst_data = "test_data/displacements/scf_0/tmp/scf.save/wfc1.dat"
     Nxyz = 36
 
     miller, evc_list = ElectronPhonon.parse_fortan_bin(path_tst_data)
@@ -62,7 +62,7 @@ end
 end
 
 @testset "Test transforming wavefunction to real space with slow fft" begin
-    path_tst_data = "test_data/scf_0/tmp/scf.save/wfc1.dat"
+    path_tst_data = "test_data/displacements/scf_0/tmp/scf.save/wfc1.dat"
     miller, evc_list = ElectronPhonon.parse_fortan_bin(path_tst_data)
     Nxyz = 20
 
@@ -76,7 +76,7 @@ end
 end
 
 @testset "Test transforming wavefunction back to reciprocal space" begin
-    path_tst_data = "test_data/scf_0/tmp/scf.save/wfc1.dat"
+    path_tst_data = "test_data/displacements/scf_0/tmp/scf.save/wfc1.dat"
     Nxyz = 36
 
     miller, evc_list = ElectronPhonon.parse_fortan_bin(path_tst_data)
@@ -91,7 +91,7 @@ end
 end
 
 @testset "Test unfolding wavefunctions in supercell" begin
-    path_tst_data = "test_data/scf_0/tmp/scf.save/wfc1.dat"
+    path_tst_data = "test_data/displacements/scf_0/tmp/scf.save/wfc1.dat"
     Nxyz = 36
 
     miller, evc_list = ElectronPhonon.parse_fortan_bin(path_tst_data)
@@ -106,14 +106,14 @@ end
 end
 
 @testset "Test determining correct fft grid from scf.out" begin
-    path_tst_data = "test_data/scf_0/scf.out"
+    path_tst_data = "test_data/displacements/scf_0/scf.out"
     Nxyz = ElectronPhonon.determine_fft_grid(path_tst_data)
 
     @test isapprox(Nxyz, 36; atol=1e-14) 
 end
 
 @testset "Test determining the phase of ik != 0 wavefunction" begin
-    path_tst_data = "test_data/scf_0/"
+    path_tst_data = "test_data/displacements/scf_0/"
     ik = 2
 
     Nxyz = ElectronPhonon.determine_fft_grid(path_tst_data * "scf.out")
@@ -131,7 +131,7 @@ end
 end
 
 @testset "Test unfolding undisplaced wavefunction to supercell" begin
-    path_tst_data = "test_data/"
+    path_tst_data = "test_data/displacements/"
     ik = 2
     mesh = 2
     Nxyz = ElectronPhonon.determine_fft_grid(path_tst_data * "scf_0/scf.out")
@@ -158,7 +158,7 @@ end
 
 
 @testset "Test unfolding undisplaced wavefunction to supercell in automated way" begin
-    path_tst_data = "test_data/"
+    path_tst_data = "test_data/displacements/"
     ik = 2
     mesh = 2
     global_logger(ConsoleLogger(Warn))
@@ -170,8 +170,11 @@ end
     norm11 = abs(ElectronPhonon.calculate_braket(ψkᵤ[1], ψkᵤ[1]))
     norm12 = abs(ElectronPhonon.calculate_braket(ψkᵤ[1], ψkᵤ[2]))  
 
-    # Use the Glob package to match all .jld2 files in the directory
-    files_to_delete = glob("*.jld2", joinpath(path_tst_data, "scf_0"))
+    # Use the Glob package to match all necessary   files in the directory
+    files_to_delete1 = glob("g_list_sc*", joinpath(path_tst_data, "scf_0"))
+    files_to_delete2 = glob("wfc_list*", joinpath(path_tst_data, "scf_0"))
+    files_to_delete  =reduce(vcat, (files_to_delete1, files_to_delete2))
+
     
     # Delete each file
     for file in files_to_delete

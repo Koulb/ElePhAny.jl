@@ -65,7 +65,7 @@ function dislpaced_unitecells(path_to_save, unitcell, abs_disp, mesh)
     return supercells
 end
 
-function collect_forces(path_to_in::String, unitcell, Ndispalce)
+function collect_forces(path_to_in::String, unitcell, mesh, Ndispalce)
   # Get a number of displacements
   # files = readdir(path_to_in; join=true)
   number_atoms = length(unitcell[:symbols])*mesh^3
@@ -131,10 +131,10 @@ function save_dyn_matirx(path_to_in::String, mesh::Int)
     return true 
 end
 
-function prepare_phonons_data(path_to_in::String, unitcell, mesh, abs_disp, Ndispalce::String; save_dynq=true)
+function prepare_phonons_data(path_to_in::String, unitcell, abs_disp, mesh, Ndispalce::Int64; save_dynq=true)
     #Get the forces
-    forces = collect_forces(path_to_in, unitcell, Ndispalce)
-    prepare_phonons_data(path_to_in, unitcell, mesh, abs_disp, forces; save_dynq=save_dynq)
+    forces = collect_forces(path_to_in, unitcell, mesh, Ndispalce)
+    prepare_phonons_data(path_to_in, unitcell, abs_disp, mesh, forces; save_dynq=save_dynq)
 end
 
 function prepare_phonons_data(path_to_in::String, unitcell, abs_disp, mesh, forces::Array{Float64}; save_dynq=true)
