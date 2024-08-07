@@ -1,21 +1,7 @@
 using BlockArrays, LinearAlgebra
 
-function determine_q_point_old(path_to_in, iq; mesh=1)
-    atoms = ase_io.read(path_to_in*"/scf.out")
-    kpoints = atoms.calc.kpts
-    q_vector = [0,0,0]
-    for (index, kpoint) in enumerate(kpoints)
-        if index == iq
-            q_vector = pyconvert(Vector{Float64},kpoint.k.* mesh)
-            break
-        end
-    end
-    
-    return round.(q_vector;digits=4)
-end
-
 function determine_q_point(path_to_in, iq; mesh=1)
-    file = open(path_to_in*"/kpoints.dat", "r")
+    file = open(joinpath(path_to_in,"kpoints.dat"), "r")
     lines_qpoints = readlines(file)
     close(file)
     qpoints = [parse.(Float64, split(line)[1:end-1]) for line in lines_qpoints[3:end]]  
@@ -79,83 +65,24 @@ function dislpaced_unitecells(path_to_save, unitcell, abs_disp, mesh)
     return supercells
 end
 
-function calculate_phonons(path_to_in::String,unitcell,abs_disp, Ndispalce, mesh; iq=0)
-    # Get a number of displacements
-    files = readdir(path_to_in; join=true)
-    number_atoms = length(unitcell[:symbols])*mesh^3
-    forces = Array{Float64}(undef, Ndispalce, number_atoms, 3)
-    
+function collect_forces(path_to_in::String, unitcell, Ndispalce)
+  # Get a number of displacements
+  # files = readdir(path_to_in; join=true)
+  number_atoms = length(unitcell[:symbols])*mesh^3
+  forces = Array{Float64}(undef, Ndispalce, number_atoms, 3)
+  
     for i_disp in 1:Ndispalce
         dir_name = "group_"*string(i_disp)*"/"
         #atom = ase.io.read(path_to_in*dir_name * "/scf.out")
         # forces[i_disp,:,:] = pyconvert(Matrix{Float64},atom.get_forces())*(Bohr/Rydberg)
-        
+
         force = read_forces_xml(path_to_in*dir_name*"/tmp/scf.save/data-file-schema.xml")
         forces[i_disp,:,:] = force
-        
-        # println("Forces scaled: ", forces[i_disp,:,:])
-        # println(size(forces[i_disp,:,:]))
-        # println("Forces: ", atom.get_forces())
-        # exit(3)
     end
+    return forces
+end
 
-    #This conversions Julia to Python are getting me worried 
-    unitcell[:cell] = pylist(pyconvert(Array,unitcell[:cell])./bohr_to_ang)#Should be in Bohr, hence conversion
-    unitcell_phonopy = phonopy_structure_atoms.PhonopyAtoms(;symbols=unitcell[:symbols], 
-                                                             cell=unitcell[:cell], 
-                                                             scaled_positions=pylist(unitcell[:scaled_positions]))
-
-    phonon = phonopy.Phonopy(unitcell_phonopy,
-                             is_symmetry=false, 
-                             supercell_matrix=pylist([[mesh, 0, 0], [0, mesh, 0], [0, 0, mesh]]),
-                             calculator="qe",
-                             factor=pwscf_to_cm1)#from internal units to Thz and then to cm-1
-    
-    phonon.generate_displacements(distance=abs_disp)#, is_plusminus="false"
-
-    
-    # phonon.set_forces(Py(forces[1:2:end,:,:]).to_numpy())
-    phonon.set_forces(Py(forces).to_numpy())
-    phonon.produce_force_constants()
-    # phonon.symmetrize_force_constants_by_space_group()
-    # phonon.symmetrize_force_constants()
-
-    #phonon.run_mesh(mesh = [1, 1, 1], is_gamma_center=true, with_eigenvectors=true)
-    #mesh_dict = phonon.get_mesh_dict()
-    phonon.save(path_to_in*"phonopy_params.yaml"; settings=Dict(:force_constants => true))
-
-    #Dumb way of using phonopy since api gives diffrent result
-    current_directory = pwd()
-    cd(path_to_in)
-    command = `phonopy -c phonopy_params.yaml --dim="$mesh $mesh $mesh" --eigvecs --factor $pwscf_to_cm1 -p mesh.conf`
-    file_name = "mesh.conf"
-
-    content = ""
-    if iq == 0
-        # content = "MESH = $mesh $mesh $mesh\nGAMMA_CENTER = .TRUE."
-        qpoint = determine_q_point(path_to_in*"scf_0/",1)
-        content = "QPOINTS = $(qpoint[1]) $(qpoint[2]) $(qpoint[3])"
-        for iq in 2:mesh^3
-            qpoint = determine_q_point(path_to_in*"scf_0/",iq)
-            content = content*" $(qpoint[1]) $(qpoint[2]) $(qpoint[3])"
-        end
-    else
-        qpoint = determine_q_point(path_to_in*"scf_0/",iq)
-        content = "QPOINTS = $(qpoint[1]) $(qpoint[2]) $(qpoint[3])"
-    end
-
-    content = content*" \nWRITEDM = .TRUE."
-    #content = content*" \nFC_SYMMETRY = .TRUE."
-    
-    file = open(path_to_in*file_name, "w")
-    write(file, content)
-    close(file)
-    
-    #run(pipeline(command))
-    run(pipeline(command,stdout = devnull), wait = false)
-
-    cd(current_directory)
-
+function save_dyn_matirx(path_to_in::String, mesh::Int)
     #saving the dynamic matrix 
     path_to_dyn = path_to_in*"dyn_mat"
     command = `mkdir $path_to_dyn`
@@ -163,18 +90,15 @@ function calculate_phonons(path_to_in::String,unitcell,abs_disp, Ndispalce, mesh
         run(command);
         println(command)
     catch; end
-    
-    sleep(3)
 
-    phonons = YAML.load_file(path_to_in*"qpoints.yaml")
+    # phonons = YAML.load_file(path_to_in*"qpoints.yaml")
     phonon_params = phonopy.load(path_to_in*"phonopy_params.yaml")
-
     scaled_pos = pyconvert(Matrix, phonon_params.primitive.get_scaled_positions())
 
     nat = size(scaled_pos)[1]
     phase_block = [[3,3] for _ in 1:nat]
     phase_matrix = BlockArray{ComplexF64}(undef_blocks, phase_block...)
-    masses = pyconvert(Vector{Float64},phonon.masses)
+    masses = pyconvert(Vector{Float64},phonon_params.masses)
     #phonon_params.symmetrize_force_constants()
 
     for iq in 1:mesh^3
@@ -206,6 +130,71 @@ function calculate_phonons(path_to_in::String,unitcell,abs_disp, Ndispalce, mesh
 
     return true 
 end
+
+function prepare_phonons_data(path_to_in::String, unitcell, mesh, abs_disp, Ndispalce::String; save_dynq=true)
+    #Get the forces
+    forces = collect_forces(path_to_in, unitcell, Ndispalce)
+    prepare_phonons_data(path_to_in, unitcell, mesh, abs_disp, forces; save_dynq=save_dynq)
+end
+
+function prepare_phonons_data(path_to_in::String, unitcell, abs_disp, mesh, forces::Array{Float64}; save_dynq=true)
+    #This conversions Julia to Python are getting me worried 
+    unitcell[:cell] = pylist(pyconvert(Array,unitcell[:cell])./bohr_to_ang)#Should be in Bohr, hence conversion
+    unitcell_phonopy = phonopy_structure_atoms.PhonopyAtoms(;symbols=unitcell[:symbols], 
+                                                             cell=unitcell[:cell], 
+                                                             scaled_positions=pylist(unitcell[:scaled_positions]))
+
+    phonon = phonopy.Phonopy(unitcell_phonopy,
+                             is_symmetry=false, 
+                             supercell_matrix=pylist([[mesh, 0, 0], [0, mesh, 0], [0, 0, mesh]]),
+                             calculator="qe",
+                             factor=pwscf_to_cm1)#from internal units to Thz and then to cm-1
+    
+    phonon.generate_displacements(distance=abs_disp)#, is_plusminus="false"
+
+    
+    # phonon.set_forces(Py(forces[1:2:end,:,:]).to_numpy())
+    phonon.set_forces(Py(forces).to_numpy())
+    phonon.produce_force_constants()
+    # phonon.symmetrize_force_constants_by_space_group()#Coud it help?
+    # phonon.symmetrize_force_constants()
+
+    phonon.save(path_to_in*"phonopy_params.yaml"; settings=Dict(:force_constants => true))
+
+    #Dumb way of using phonopy since api gives diffrent result
+    current_directory = pwd()
+
+    command = `phonopy -c phonopy_params.yaml --dim="$mesh $mesh $mesh" --eigvecs --factor $pwscf_to_cm1 -p mesh.conf`
+    file_name = "mesh.conf"
+
+    content = ""
+    qpoint = determine_q_point(path_to_in*"scf_0/",1)
+    content = "QPOINTS = $(qpoint[1]) $(qpoint[2]) $(qpoint[3])"
+    for iq in 2:mesh^3
+        qpoint = determine_q_point(path_to_in*"scf_0/",iq)
+        content = content*" $(qpoint[1]) $(qpoint[2]) $(qpoint[3])"
+    end
+
+    content = content*" \nWRITEDM = .TRUE."
+    #content = content*" \nFC_SYMMETRY = .TRUE."
+    
+    
+    file = open(path_to_in*file_name, "w")
+    write(file, content)
+    close(file)
+    
+    #run(pipeline(command))
+    cd(path_to_in)
+    run(pipeline(command,stdout = devnull), wait = true)
+    cd(current_directory)
+
+    if save_dynq==true
+        save_dyn_matirx(path_to_in, mesh)
+    end
+
+    return true
+end
+
 
 #Parse phonons eigenvalues and eigenvectors from qe output  
 function parse_qe_ph(path_to_dyn)

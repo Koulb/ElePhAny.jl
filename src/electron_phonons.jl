@@ -11,7 +11,7 @@ end
 function prepare_model(model::ModelQE)
     # save_potential(model.path_to_calc*"displacements/", model.Ndispalce, model.mesh, model.mpi_ranks)
     prepare_wave_functions_undisp(model.path_to_calc*"displacements/", model.mesh;)# path_to_calc=path_to_calc,kcw_chanel=kcw_chanel
-    calculate_phonons(model.path_to_calc*"displacements/",model.unitcell, model.abs_disp, model.Ndispalce, model.mesh)
+    prepare_phonons_data(model.path_to_calc*"displacements/",model.unitcell, model.abs_disp, model.mesh, model.Ndispalce)
 end
 
 function prepare_model(model::ModelKCW)

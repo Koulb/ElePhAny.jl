@@ -1,9 +1,4 @@
-using Test
-using JLD2
-using Glob
-using Logging 
-
-using ElectronPhonon
+using Test, JLD2, Glob, Logging, ElectronPhonon
 
 @testset "Test brakets calcuations" begin
     ψ1 =  Array{Complex{Float64}}([1.0 + 1im, 0.0 + 1im, 0.0 + 1im, 0.0 + 1im])
