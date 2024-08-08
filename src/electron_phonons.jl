@@ -208,10 +208,9 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh, Ïµká
 
         for i in 1:nbands
           if real(u_trace_check[i,i]) < 0.999999 ||  real(u_m_trace_check[i,i]) < 0.999999
-                println("Uk trace check [$i, $i] = ", u_trace_check[i,i])
-                println("Uk_m trace check [$i, $i] = ", u_m_trace_check[i,i])
-                println("U matrices are not in good shape")
-                exit(3)
+                @warn "Uk trace check [$i, $i] = ", u_trace_check[i,i]
+                @warn "Uk_m trace check [$i, $i] = ", u_m_trace_check[i,i]
+                @warn "U matrices are not in good shape at displacemnt $ind"
               end
         end
 
@@ -222,10 +221,9 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh, Ïµká
 
         for i in 1:nbands
           if real(u_trace_check[i,i]) < 0.999999 ||  real(u_m_trace_check[i,i]) < 0.999999
-                println("Uq trace check [$i, $i] = ", u_trace_check[i,i])
-                println("Uq_m trace check [$i, $i] = ", u_m_trace_check[i,i])
-                println("U matrices are not in good shape")
-                exit(3)
+                @warn "Uq trace check [$i, $i] = ", u_trace_check[i,i]
+                @warn "Uq_m trace check [$i, $i] = ", u_m_trace_check[i,i]
+                @warn "U matrices are not in good shape at displacemnt $ind"
               end
         end
 
