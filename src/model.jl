@@ -1,9 +1,15 @@
+abstract type AbstractModel end
 abstract type AbstractElectrons end
 abstract type AbstractPhonons end
-abstract type AbstractModel end
+abstract type AbstractSymmetries end
 
+struct Symmetries <: AbstractSymmetries
+    ineq_atoms_list::Vector{Int64}
+    trans_list::Vector{Vector{Float64}}
+    rot_list::Vector{Matrix{Float64}}
+end
 
-struct ModelQE <: AbstractModel
+mutable struct ModelQE <: AbstractModel 
     path_to_calc::String
     abs_disp::Float64
     path_to_qe::String
@@ -12,9 +18,11 @@ struct ModelQE <: AbstractModel
     Ndispalce::Int
     unitcell::Dict
     scf_parameters::Dict
+    use_symm::Bool
+    symmetries::Symmetries
 end
 
-struct ModelKCW <: AbstractModel
+mutable struct ModelKCW <: AbstractModel
     path_to_calc::String
     spin_channel::String
     abs_disp::Float64
@@ -24,14 +32,35 @@ struct ModelKCW <: AbstractModel
     Ndispalce::Int
     unitcell::Dict
     scf_parameters::Dict
+    use_symm::Bool
 end
 
-function create_model(path_to_calc::String, abs_disp::Float64, path_to_qe::String, mpi_ranks::Int, mesh::Int, Ndispalce::Int, unitcell::Dict, scf_parameters::Dict)
-    return ModelQE(path_to_calc, abs_disp, path_to_qe, mpi_ranks, mesh, Ndispalce, unitcell, scf_parameters)
+function create_model(;path_to_calc::String = "./", 
+                      abs_disp::Float64    = 1e-3, 
+                      path_to_qe::String   = "./", 
+                      mpi_ranks::Int       = 1, 
+                      mesh::Int            = 2,  
+                      Ndispalce::Int       = 0,
+                      unitcell::Dict       = Dict(), 
+                      scf_parameters::Dict = Dict(), 
+                      use_symm::Bool       = false,
+                      symmetries::Symmetries = Symmetries([],[],[]))
+    
+    return ModelQE(path_to_calc, abs_disp, path_to_qe, mpi_ranks, mesh, Ndispalce, unitcell, scf_parameters, use_symm, symmetries)
 end
 
-function create_model_kcw(path_to_calc::String, spin_channel::String, abs_disp::Float64, path_to_qe::String, mpi_ranks::Int, mesh::Int, Ndispalce::Int, unitcell::Dict, scf_parameters::Dict)
-    return ModelKCW(path_to_calc, spin_channel, abs_disp, path_to_qe, mpi_ranks, mesh, Ndispalce, unitcell, scf_parameters)
+function create_model_kcw(path_to_calc::String, 
+                          spin_channel::String, 
+                          abs_disp::Float64, 
+                          path_to_qe::String, 
+                          mpi_ranks::Int, 
+                          mesh::Int, 
+                          Ndispalce::Int, 
+                          unitcell::Dict, 
+                          scf_parameters::Dict, 
+                          use_symm::Bool)
+
+    return ModelKCW(path_to_calc, spin_channel, abs_disp, path_to_qe, mpi_ranks, mesh, Ndispalce, unitcell, scf_parameters, use_symm)
 end
 
 struct Electrons <: AbstractElectrons

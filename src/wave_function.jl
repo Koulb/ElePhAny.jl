@@ -195,60 +195,36 @@ function prepare_wave_functions_undisp(path_to_in::String, mesh::Int)
     end
 end
 
-function prepare_u_matrixes(path_to_in::String, Ndisplace::Int, mesh::Int; save_matrixes::Bool=true)
+function prepare_u_matrixes(path_to_in::String, natoms::Int, mesh::Int; symmetries::Symmetries = Symmetries([], [], []), save_matrixes::Bool=true)
     U_list = []
     V_list = []
 
+    Ndisplace_nosym = 6 * natoms    
     #TEST BLOCK WITH ψₚ ROTATED
-    
-    trans_arry  = [
-    [0.0, 0.0, 0.0],
-    [0.0, -1.1102230246251565e-16, 0.0],
-    [1.1102230246251565e-16, -1.1102230246251565e-16, 0.0],
-    [0.0, 0.0, 0.0],
-    [0.0, -1.1102230246251565e-16, 1.1102230246251565e-16],
-    [0.0, 0.0, 0.0],
-    [0.75, 0.7499999999999998, 0.7500000000000002],
-    [0.75, 0.7499999999999999, 0.75],
-    [0.75, 0.7499999999999998, 0.7500000000000002],
-    [0.7500000000000002, 0.7499999999999998, 0.75],
-    [0.75, 0.7499999999999999, 0.75],
-    [0.7500000000000002, 0.7499999999999998, 0.75]] ./ 2.0
 
-    rot_array   = [
-    [1.0 0.0 0.0; 0.0 1.0 0.0; 0.0 0.0 1.0],
-    [-1.0 -1.0 -1.0; 0.0 0.0 1.0; 0.0 1.0 0.0],
-    [0.0 0.0 1.0; 1.0 0.0 0.0; 0.0 1.0 0.0],
-    [0.0 1.0 0.0; -1.0 -1.0 -1.0; 0.0 0.0 1.0],
-    [0.0 1.0 0.0; 0.0 0.0 1.0; 1.0 0.0 0.0],
-    [0.0 0.0 1.0; 0.0 1.0 0.0; -1.0 -1.0 -1.0],
-    [1.0 1.0 1.0; 0.0 -1.0 0.0; 0.0 0.0 -1.0],
-    [-1.0 0.0 0.0; 0.0 0.0 -1.0; 0.0 -1.0 0.0],
-    [0.0 0.0 -1.0; 1.0 1.0 1.0; 0.0 -1.0 0.0],
-    [0.0 -1.0 0.0; -1.0 0.0 0.0; 0.0 0.0 -1.0],
-    [0.0 -1.0 0.0; 0.0 0.0 -1.0; 1.0 1.0 1.0],
-    [0.0 0.0 -1.0; 0.0 -1.0 0.0; -1.0 0.0 0.0]]
+    trans_list = symmetries.trans_list ./ mesh
+    rot_list = symmetries.rot_list
     
     N_fft = 72
     miller1, ψₚ0 = parse_fortan_bin(path_to_in*"/group_1/tmp/scf.save/wfc1.dat")
-    ψₚ0_real = [wf_from_G_fft(miller1, evc, N_fft) for evc in ψₚ0]
+    ψₚ0_real = [wf_from_G(miller1, evc, N_fft) for evc in ψₚ0]
     ψₚ = ψₚ0
     println("Preparing u matrixes:")
-    for ind in 1:2:Ndisplace
+    for ind in 1:2:Ndisplace_nosym
 
         if ind != 1
-            tras  = trans_arry[ind]
-            rot   = rot_array[ind]
+            tras  = trans_list[ind]
+            rot   = rot_list[ind]
             map1 = rotate_grid(N_fft, N_fft, N_fft, rot, tras)
             ψₚ_real = [rotate_deriv(N_fft, N_fft, N_fft, map1, wfc) for wfc in ψₚ0_real]
-            ψₚ = wave_function_to_G(miller1,ψₚ_real, N_fft)
+            ψₚ = [wf_to_G(miller1, evc, N_fft) for evc in ψₚ_real]
         end
         
-        tras  = trans_arry[ind+1]
-        rot   = rot_array[ind+1]
+        tras  = trans_list[ind+1]
+        rot   = rot_list[ind+1]
         map1 = rotate_grid(N_fft, N_fft, N_fft, rot, tras)
         ψₚₘ_real = [rotate_deriv(N_fft, N_fft, N_fft, map1, wfc) for wfc in ψₚ0_real]
-        ψₚₘ = wave_function_to_G(miller1,ψₚₘ_real, N_fft)
+        ψₚₘ = [wf_to_G(miller1, evc, N_fft) for evc in ψₚₘ_real]
         
     #TEST BLOCK WITH ψₚ ROTATED
 
@@ -268,7 +244,7 @@ function prepare_u_matrixes(path_to_in::String, Ndisplace::Int, mesh::Int; save_
 
         push!(U_list, Uₖᵢⱼ)
         push!(V_list, Vₖᵢⱼ)
-        @info ("group_$ind is ready")
+        @info ("group_$ind and group_$(ind+1) are ready")
     end
 
     # Save U_list to a hdf5-like file

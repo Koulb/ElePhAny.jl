@@ -4,6 +4,7 @@ const Vec3{T} = SVector{3,T} where {T}
 const Mat3{T} = SMatrix{3,3,T,9} where {T}
 
 function read_qe_xml(filename::AbstractString)
+    # Taken from Wannier.jl package for now
     # from qe/Modules/constants.f90
     Bohr_QE = 0.529177210903
     BOHR_RADIUS_ANGS = Bohr_QE  # Angstrom
@@ -136,10 +137,11 @@ function create_scf_calc(path_to_scf::String, unitcell, scf_parameters)
     ase_io.write(path_to_scf*"scf.in",atoms; scf_parameters...)
 end
 
-function create_disp_calc(path_to_in::String, unitcell, scf_parameters, abs_disp, mesh; from_scratch = false)
+function create_disp_calc(path_to_in::String, unitcell, scf_parameters, abs_disp, mesh, use_symm; from_scratch = false)
     # Change to the specified directory
     cd(path_to_in)
 
+    # Clean the folder if nescessary                     
     if (from_scratch && isdir(path_to_in * "displacements"))
         run(`rm -rf displacements`)
     end
@@ -175,7 +177,7 @@ function create_disp_calc(path_to_in::String, unitcell, scf_parameters, abs_disp
         println(command)
     catch; end
 
-    unitcells_disp = dislpaced_unitecells(path_to_in, unitcell, abs_disp, mesh)
+    unitcells_disp = dislpaced_unitecells(path_to_in, unitcell, abs_disp, mesh, use_symm)
     Ndispalce = size(unitcells_disp)[1]
 
     for i_disp in 1:Ndispalce
@@ -202,15 +204,36 @@ function create_disp_calc(path_to_in::String, unitcell, scf_parameters, abs_disp
 end
 
 
-function create_disp_calc(model::ModelQE; from_scratch = false)
-    create_disp_calc(model.path_to_calc, model.unitcell, model.scf_parameters, model.abs_disp, model.mesh; from_scratch = from_scratch)
+function create_disp_calc!(model::ModelQE; from_scratch = false)
+    # Clean the folder if nescessary                     
+    if (from_scratch && isdir(model.path_to_calc * "displacements"))
+        run(`rm -rf $(model.path_to_calc)/displacements`)
+    end
+    command = `mkdir $(model.path_to_calc)/displacements`
+    try
+        run(command);
+        println(command)
+    catch; end
+
+    check_symmetries!(model)
+
+    Ndispalce = create_disp_calc(model.path_to_calc, model.unitcell, model.scf_parameters, model.abs_disp, model.mesh, model.use_symm)
+    if Ndispalce != model.Ndispalce
+        @error "Inconsistend amount of displacement between phonopy ($Ndispalce) and symmetries calcuation ($(model.Ndisplace)) " 
+    end
 end
 
 
 function create_disp_calc(model::ModelKCW; from_scratch = false)
-    if (from_scratch && isdir(model.path_to_cals * "displacements"))
-        run(`rm -rf displacements`)
+    # Clean the folder if nescessary     # Will it work ??                
+    if (from_scratch && isdir(model.path_to_calc * "displacements"))
+        run(`rm -rf $(model.path_to_calc)/displacements`)
     end
+    command = `mkdir displacements`
+    try
+        run(command);
+        println(command)
+    catch; end
 
     path_to_scf = model.path_to_calc * "displacements/scf_0"
     path_to_wfc_out = path_to_scf*"/tmp/scf.save"
@@ -566,14 +589,13 @@ function fold_kpoint(ik, iq, k_list)
     return ikq
 end
 
-function prepare_eigenvalues(path_to_in::String, Ndisplace::Int, mesh::Int; spin_channel="") 
+function prepare_eigenvalues(path_to_in::String, natoms::Int; Ndisplace::Int = 6*natoms, ineq_atoms_list::Vector{Int}=[], spin_channel::String="") 
     path_to_xml="tmp/scf.save/data-file-schema.xml"
     group = "scf_0/"
+    ϵₚ_list_raw  = [] 
     ϵₚ_list  = [] 
     ϵₚₘ_list = [] 
 
-    k_list = get_kpoint_list(path_to_in*group)
-    
     if spin_channel == "up"
         ϵkᵤ_list = read_qe_xml(path_to_in*group*path_to_xml)[:eigenvalues_up]
     elseif spin_channel == "dw"
@@ -582,26 +604,29 @@ function prepare_eigenvalues(path_to_in::String, Ndisplace::Int, mesh::Int; spin
         ϵkᵤ_list = read_qe_xml(path_to_in*group*path_to_xml)[:eigenvalues]
     end
 
-    for ind in 1:2:Ndisplace
+    k_list = get_kpoint_list(path_to_in*group)
+    for ind in 1:Ndisplace
         group = "group_$ind/"
-        group_m = "group_$(ind+1)/"
 
         if spin_channel == "up"
             ϵₚ = read_qe_xml(path_to_in*group*path_to_xml)[:eigenvalues_up][1]
-            ϵₚₘ = read_qe_xml(path_to_in*group_m*path_to_xml)[:eigenvalues_up][1]
         elseif spin_channel == "dw"
             ϵₚ = read_qe_xml(path_to_in*group*path_to_xml)[:eigenvalues_dn][1]
-            ϵₚₘ = read_qe_xml(path_to_in*group_m*path_to_xml)[:eigenvalues_dn][1]
         else
             ϵₚ = read_qe_xml(path_to_in*group*path_to_xml)[:eigenvalues][1]
-            ϵₚₘ = read_qe_xml(path_to_in*group_m*path_to_xml)[:eigenvalues][1]
         end
 
-        push!(ϵₚ_list,ϵₚ)
-        push!(ϵₚₘ_list,ϵₚₘ)
+        push!(ϵₚ_list_raw,ϵₚ)
     end
 
-    # Save ϵ to a bin files
+    for ind in 1:2:6*natoms
+        ϵₚ  = Ndisplace != 6 * natoms ? ϵₚ_list_raw[ineq_atoms_list[ind]] : ϵₚ_list_raw[ind]
+        ϵₚₘ = Ndisplace != 6 * natoms ? ϵₚ_list_raw[ineq_atoms_list[ind+1]] : ϵₚ_list_raw[ind+1]
+        push!(ϵₚ_list, ϵₚ)
+        push!(ϵₚₘ_list, ϵₚₘ)
+    end
+
+    # Save ϵ to a hdf5-like files
     save(path_to_in * "scf_0/ek_list.jld2", "ek_list", ϵkᵤ_list)
     save(path_to_in * "scf_0/ep_list.jld2", "ep_list", ϵₚ_list)
     save(path_to_in * "scf_0/epm_list.jld2", "epm_list", ϵₚₘ_list)
@@ -610,9 +635,9 @@ function prepare_eigenvalues(path_to_in::String, Ndisplace::Int, mesh::Int; spin
     return ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list
 end
 
-function create_electrons(path_to_in::String, Ndisplace::Int, mesh::Int)
-    U_list, V_list = prepare_u_matrixes(path_to_in, Ndisplace, mesh)
-    ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list = prepare_eigenvalues(path_to_in, Ndisplace, mesh)
+function create_electrons(path_to_in::String, natoms::Int, mesh::Int)
+    U_list, V_list = prepare_u_matrixes(path_to_in, natoms, mesh)
+    ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list = prepare_eigenvalues(path_to_in, natoms)
 
     return Electrons(U_list, V_list, ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list)
 end
@@ -624,8 +649,15 @@ function create_electrons(model::AbstractModel)
         spin_channel = model.spin_channel
     end
 
-    U_list, V_list = prepare_u_matrixes(model.path_to_calc*"displacements/", model.Ndispalce, model.mesh)
-    ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list = prepare_eigenvalues(model.path_to_calc*"displacements/", model.Ndispalce, model.mesh; spin_channel=spin_channel)
+    symmetries = Symmetries([],[],[])
+    if hasproperty(model, :symmetries) 
+        symmetries = model.symmetries
+    end
+
+    natoms = length(model.unitcell[:symbols])
+
+    U_list, V_list = prepare_u_matrixes(model.path_to_calc*"displacements/", natoms, model.mesh; symmetries=symmetries)
+    ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list = prepare_eigenvalues(model.path_to_calc*"displacements/", natoms; Ndisplace=model.Ndispalce, ineq_atoms_list=symmetries.ineq_atoms_list, spin_channel=spin_channel)
    
     return Electrons(U_list, V_list, ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list)
 end

@@ -3,7 +3,7 @@ using LinearAlgebra, Printf, YAML, Plots, Base.Threads
 
 function run_calculations(model)
     # Electrons calculation
-    create_disp_calc(model.path_to_calc, model.unitcell, model.scf_parameters, model.abs_disp, model.mesh; from_scratch = true)
+    # create_disp_calc(model.path_to_calc, model.unitcell, model.scf_parameters, model.abs_disp, model.mesh; from_scratch = true)
     run_disp_calc(model.path_to_calc*"displacements/", model.Ndispalce, model.mpi_ranks)
     run_nscf_calc(model.path_to_calc, model.unitcell, model.scf_parameters, model.mesh, model.path_to_qe, model.mpi_ranks)
 end
@@ -11,7 +11,7 @@ end
 function prepare_model(model::ModelQE)
     # save_potential(model.path_to_calc*"displacements/", model.Ndispalce, model.mesh, model.mpi_ranks)
     prepare_wave_functions_undisp(model.path_to_calc*"displacements/", model.mesh;)# path_to_calc=path_to_calc,kcw_chanel=kcw_chanel
-    prepare_phonons_data(model.path_to_calc*"displacements/",model.unitcell, model.abs_disp, model.mesh, model.Ndispalce)
+    prepare_phonons_data(model.path_to_calc*"displacements/",model.unitcell, model.abs_disp, model.mesh, model.use_symm, model.Ndispalce)
 end
 
 function prepare_model(model::ModelKCW)
@@ -175,10 +175,10 @@ function load_wf_u_debug(path_to_in::String, ik)
 end
 
 
-function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh, ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list , U_list, V_list, M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ; save_epw::Bool=false)
+function electron_phonon(path_to_in::String, abs_disp, Nat, ik, iq, mesh, ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list , U_list, V_list, M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ; save_epw::Bool=false)
     # cd(path_to_in)
 
-    Nat::Int = Ndisp//6
+    Ndisp_nosym = 6*Nat
     scale = ev_to_ry / abs_disp
 
     group = "scf_0/"
@@ -193,9 +193,8 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh, ϵk�
     braket_list_rotated = []
     # print("Electron_phonon check:")
 
-    for ind in 1:2:Ndisp
+    for ind in 1:2:Ndisp_nosym
         ind_abs = (ind-1)÷2 + 1
-        group   = "group_$ind/"
 
         ϵₚ = ϵₚ_list[ind_abs]
         #TODO understand whether symmetry usage is properly justified
@@ -484,7 +483,7 @@ function plot_ep_coupling(model::ModelQE, ik::Int=0, iq::Int=0)
     plot_ep_coupling(model.path_to_calc*"displacements/", ik, iq)
 end
 
-function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh, electrons::AbstractElectrons, phonons::AbstractPhonons; save_epw::Bool=false, path_to_calc="",kcw_chanel="")
+function electron_phonon(path_to_in::String, abs_disp, natoms, ik, iq, mesh, electrons::AbstractElectrons, phonons::AbstractPhonons; save_epw::Bool=false, path_to_calc="",kcw_chanel="")
     ϵkᵤ_list = electrons.ϵkᵤ_list
     ϵₚ_list = electrons.ϵₚ_list
     ϵₚₘ_list = electrons.ϵₚₘ_list
@@ -496,7 +495,7 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh, elec
     εₐᵣᵣ_ₗᵢₛₜ = phonons.εₐᵣᵣ_ₗᵢₛₜ
     mₐᵣᵣ = phonons.mₐᵣᵣ
 
-    electron_phonon(path_to_in, abs_disp, Ndisp, ik, iq, mesh, ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list , U_list, V_list, M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ; save_epw=save_epw)
+    electron_phonon(path_to_in, abs_disp, natoms, ik, iq, mesh, ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list , U_list, V_list, M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ; save_epw=save_epw)
 
 end
 
@@ -512,6 +511,8 @@ function electron_phonon(model::AbstractModel, ik, iq, electrons::AbstractElectr
     εₐᵣᵣ_ₗᵢₛₜ = phonons.εₐᵣᵣ_ₗᵢₛₜ
     mₐᵣᵣ = phonons.mₐᵣᵣ
 
-    electron_phonon(model.path_to_calc*"displacements/", model.abs_disp, model.Ndispalce, ik, iq, model.mesh, ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list , U_list, V_list, M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ; save_epw=save_epw)
+    natoms = length(model.unitcell[:symbols])
+
+    electron_phonon(model.path_to_calc*"displacements/", model.abs_disp, natoms, ik, iq, model.mesh, ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list , U_list, V_list, M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ; save_epw=save_epw)
 
 end
