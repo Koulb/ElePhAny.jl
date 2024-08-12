@@ -199,52 +199,52 @@ function prepare_u_matrixes(path_to_in::String, natoms::Int, mesh::Int; symmetri
     U_list = []
     V_list = []
 
-    Ndisplace_nosym = 6 * natoms    
-    #TEST BLOCK WITH ψₚ ROTATED
+    Ndisplace_nosym = 6 * natoms
 
-    trans_list = symmetries.trans_list ./ mesh
-    rot_list = symmetries.rot_list
-    
-    N_fft = 72
-    miller1, ψₚ0 = parse_fortan_bin(path_to_in*"/group_1/tmp/scf.save/wfc1.dat")
-    ψₚ0_real = [wf_from_G(miller1, evc, N_fft) for evc in ψₚ0]
-    ψₚ = ψₚ0
+    N_fft = determine_fft_grid(path_to_in*"group_1/scf.out")
+    ψₚ0_list = []
+    miller_list = []
+    for (ind, _) in enumerate(unique(symmetries.ineq_atoms_list))
+        miller1, ψₚ0 = parse_fortan_bin(path_to_in*"/group_$ind/tmp/scf.save/wfc1.dat")
+        ψₚ0_real = [wf_from_G(miller1, evc, N_fft) for evc in ψₚ0]
+        push!(ψₚ0_list, ψₚ0_real)
+        push!(miller_list, miller1)
+    end
+
     println("Preparing u matrixes:")
-    for ind in 1:2:Ndisplace_nosym
+    for ind in 1:Ndisplace_nosym
+        ψₚ = []
 
-        if ind != 1
-            tras  = trans_list[ind]
-            rot   = rot_list[ind]
+        if ind == symmetries.ineq_atoms_list[ind]
+            _, ψₚ = parse_fortan_bin(path_to_in*"/group_$ind/tmp/scf.save/wfc1.dat")
+        else
+            ψₚ0_real = ψₚ0_list[symmetries.ineq_atoms_list[ind]]
+            miller1 = miller_list[symmetries.ineq_atoms_list[ind]]
+            tras  = symmetries.trans_list[ind] ./mesh
+            rot   = symmetries.rot_list[ind]
             map1 = rotate_grid(N_fft, N_fft, N_fft, rot, tras)
             ψₚ_real = [rotate_deriv(N_fft, N_fft, N_fft, map1, wfc) for wfc in ψₚ0_real]
             ψₚ = [wf_to_G(miller1, evc, N_fft) for evc in ψₚ_real]
         end
-        
-        tras  = trans_list[ind+1]
-        rot   = rot_list[ind+1]
-        map1 = rotate_grid(N_fft, N_fft, N_fft, rot, tras)
-        ψₚₘ_real = [rotate_deriv(N_fft, N_fft, N_fft, map1, wfc) for wfc in ψₚ0_real]
-        ψₚₘ = [wf_to_G(miller1, evc, N_fft) for evc in ψₚₘ_real]
-        
-    #TEST BLOCK WITH ψₚ ROTATED
 
         nbnds = Int(size(ψₚ)[1]/mesh^3)
-        
+
         Uₖᵢⱼ = zeros(ComplexF64, mesh^3, nbnds*mesh^3, nbnds)
-        Vₖᵢⱼ = zeros(ComplexF64, mesh^3, nbnds*mesh^3, nbnds)
 
         for ik in 1:mesh^3
             ψkᵤ_list = load(path_to_in*"/scf_0/g_list_sc_$ik.jld2")
             ψkᵤ = [ψkᵤ_list["wfc$iband"] for iband in 1:length(ψkᵤ_list)]
 
             Uₖᵢⱼ[ik, :, :] = calculate_braket(ψₚ, ψkᵤ)
-            Vₖᵢⱼ[ik, :, :] = calculate_braket(ψₚₘ, ψkᵤ)
 	    @info ("ik = $ik")
         end
 
-        push!(U_list, Uₖᵢⱼ)
-        push!(V_list, Vₖᵢⱼ)
-        @info ("group_$ind and group_$(ind+1) are ready")
+        if isodd(ind)
+            push!(U_list, Uₖᵢⱼ)
+        else
+            push!(V_list, Uₖᵢⱼ)
+        end
+        @info ("group_$ind is ready")
     end
 
     # Save U_list to a hdf5-like file
