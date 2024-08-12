@@ -1,43 +1,47 @@
 function check_symmetries(path_to_calc, unitcell, abs_disp)
-    unitcell_phonopy = phonopy.structure.atoms.PhonopyAtoms(;symbols=unitcell[:symbols], 
+    unitcell_phonopy = phonopy.structure.atoms.PhonopyAtoms(;symbols=unitcell[:symbols],
     cell=pylist(pyconvert(Array,unitcell[:cell])./bohr_to_ang),#Should be in Bohr, hence conversion
     scaled_positions=unitcell[:scaled_positions],
     masses=unitcell[:masses])
-    
+
     phonon_symm = phonopy.Phonopy(unitcell_phonopy)
-    phonon_nosymm = phonopy.Phonopy(unitcell_phonopy, is_symmetry=false)  
+    phonon_nosymm = phonopy.Phonopy(unitcell_phonopy, is_symmetry=false)
     symm_ops = phonon_symm.symmetry.get_symmetry_operations()
     scaled_pos = phonon_symm.primitive.scaled_positions
-    
+
     phonon_symm.generate_displacements(distance=abs_disp)
     phonon_nosymm.generate_displacements(distance=abs_disp)
     phonon_nosymm.save(path_to_calc*"displacements/phonopy_params_nosym.yaml")
-    
-    scaled_pos = pyconvert(Vector{Vector{Float64}},scaled_pos) 
+
+    scaled_pos = pyconvert(Vector{Vector{Float64}},scaled_pos)
     Uᶜʳʸˢᵗ = pyconvert(Matrix{Float64},phonon_symm.primitive.cell)
-    
+
     dataˢʸᵐ = pyconvert(Vector{Vector{Float64}},phonon_symm.get_displacements())
     dRˢʸᵐ = [round.(transpose(Uᶜʳʸˢᵗ^-1) * vec[2:4], digits=16) for vec in dataˢʸᵐ]
     Rˢʸᵐ  = [scaled_pos[convert(Int64, vec[1])+1] for vec in dataˢʸᵐ]
-    
+
     dataⁿᵒˢʸᵐ = pyconvert(Vector{Vector{Float64}},phonon_nosymm.get_displacements())
     dRⁿᵒˢʸᵐ = [round.(transpose(Uᶜʳʸˢᵗ^-1) * vec[2:4], digits=16) for vec in dataⁿᵒˢʸᵐ]
     Rⁿᵒˢʸᵐ  = [scaled_pos[convert(Int64, vec[1])+1] for vec in dataⁿᵒˢʸᵐ]
-    
+
     trans_list = []
-    rot_list  = []
+    rot_list   = []
     ineq_atoms_list = []
     index = 1
-    
-    for inosym in 1:length(Rⁿᵒˢʸᵐ)
+
+    inosym = 1
+    isym   = 1
+    while inosym <= length(Rⁿᵒˢʸᵐ)
         R2 = Rⁿᵒˢʸᵐ[inosym] + dRⁿᵒˢʸᵐ[inosym]
-        for isym in 1:length(Rˢʸᵐ)
+        check  = true
+        isym = 1
+        while check == true && isym <= length(Rˢʸᵐ)
             R1 = Rˢʸᵐ[isym] + dRˢʸᵐ[isym]
             for (tras_py, rot_py) in zip(symm_ops["translations"], symm_ops["rotations"])
-                trans = pyconvert(Vector{Float64}, tras_py) 
+                trans = pyconvert(Vector{Float64}, tras_py)
                 rot = pyconvert(Matrix{Float64}, rot_py)
                 rotR1 = rot * R1 .+ trans
-    
+
                 if all(abs.(R2 - rotR1) .< 1e-8)
                     @info "Found symmetry $index out of $(length(Rⁿᵒˢʸᵐ))"
                     index += 1
@@ -46,10 +50,13 @@ function check_symmetries(path_to_calc, unitcell, abs_disp)
                     push!(trans_list, trans)
                     push!(rot_list, rot)
                     push!(ineq_atoms_list, isym)
+                    check = false
                     break
                 end
             end
+            isym += 1
         end
+        inosym += 1
     end
 
     return Symmetries(ineq_atoms_list, trans_list, rot_list)
@@ -117,7 +124,7 @@ function rotate_grid(N1, N2, N3, rot, tras)
                     # error("Error in folding")
                 end
 
-                ind = i1 + (i2) * N1 + (i3) * N1 * N2 
+                ind = i1 + (i2) * N1 + (i3) * N1 * N2
                 push!(mapp, ind)
             end
         end
