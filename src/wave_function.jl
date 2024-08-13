@@ -40,15 +40,15 @@ function wf_from_G_slow(miller::Matrix{Int32}, evc::Vector{ComplexF64}, Nxyz::In
     z = range(0, 1-1/Nxyz, Nxyz)
 
     wave_function = zeros(ComplexF64,(Nxyz, Nxyz, Nxyz))
-    
-    @threads for i in eachindex(x)  
+
+    @threads for i in eachindex(x)
         for j in eachindex(y)
             for k in eachindex(z)
                 x_i = x[i]
                 y_j = y[j]
                 z_k = z[k]
 
-                r_ijk = [x_i, y_j, z_k]      
+                r_ijk = [x_i, y_j, z_k]
                 temp  = transpose(r_ijk) * miller
                 exponent =  exp.(-2 * π * 1im * temp)
                 # wave_function[i, j, k] = sum(transpose(exponent)'evc)
@@ -95,7 +95,7 @@ function determine_fft_grid(path_to_file::String)
     end
     close(scf_file)
 
-    Nxyz = parse(Int64, split(fft_line)[8][1:end-1]) 
+    Nxyz = parse(Int64, split(fft_line)[8][1:end-1])
     return Nxyz
 end
 
@@ -105,7 +105,7 @@ function determine_phase(q_point, Nxyz)
     z = range(0, 1-1/Nxyz, Nxyz)
 
     exp_factor = zeros(Complex{Float64}, Nxyz, Nxyz, Nxyz)
-    @threads for i in eachindex(x)  
+    @threads for i in eachindex(x)
         for j in eachindex(y)
             for k in eachindex(z)
                 x_i = x[i]
@@ -134,7 +134,7 @@ function prepare_unfold_to_sc(path_to_in::String, mesh::Int, ik::Int)
     for index in 1:N_evc
         wfc = wfc_list_old["wfc$index"]
         wfc = wf_pc_to_sc(wfc, mesh)
-        wfc = wfc .* exp_factor 
+        wfc = wfc .* exp_factor
         wfc_list["wfc$index"]  = wfc
     end
 
@@ -147,7 +147,7 @@ function prepare_wave_functions_to_R(path_to_in::String; ik::Int=1)
     miller, evc_list = parse_fortan_bin(file_path)
 
     N = determine_fft_grid(path_to_in*"/scf.out")
-    
+
     wfc_list = Dict()
     for (index, evc) in enumerate(evc_list)
         wfc = wf_from_G(miller, evc, N)
@@ -163,9 +163,9 @@ end
 function prepare_wave_functions_to_G(path_to_in::String; ik::Int=1)
     wfc_list = load(path_to_in*"/scf_0/wfc_list_phase_$ik.jld2")
     Nxyz = size(wfc_list["wfc1"], 1)
-    miller_sc, _ = parse_fortan_bin(path_to_in*"/group_1/tmp/scf.save/wfc1.dat") 
+    miller_sc, _ = parse_fortan_bin(path_to_in*"/group_1/tmp/scf.save/wfc1.dat")
 
-    g_list = Dict()  
+    g_list = Dict()
     for (key, wfc) in wfc_list
         g_list[key] = wf_to_G(miller_sc, wfc, Nxyz)
     end
@@ -203,11 +203,13 @@ function prepare_u_matrixes(path_to_in::String, natoms::Int, mesh::Int; symmetri
 
     N_fft = determine_fft_grid(path_to_in*"group_1/scf.out")
     ψₚ0_list = []
+    ψₚ0_real_list = []
     miller_list = []
     for (ind, _) in enumerate(unique(symmetries.ineq_atoms_list))
         miller1, ψₚ0 = parse_fortan_bin(path_to_in*"/group_$ind/tmp/scf.save/wfc1.dat")
         ψₚ0_real = [wf_from_G(miller1, evc, N_fft) for evc in ψₚ0]
-        push!(ψₚ0_list, ψₚ0_real)
+        push!(ψₚ0_list, ψₚ0)
+        push!(ψₚ0_real_list, ψₚ0_real)
         push!(miller_list, miller1)
     end
 
@@ -215,13 +217,20 @@ function prepare_u_matrixes(path_to_in::String, natoms::Int, mesh::Int; symmetri
     for ind in 1:Ndisplace_nosym
         ψₚ = []
 
-        if ind == symmetries.ineq_atoms_list[ind]
-            _, ψₚ = parse_fortan_bin(path_to_in*"/group_$ind/tmp/scf.save/wfc1.dat")
+        #If rot = [100;010;001] and tras = [0;0;0] then we do not need to rotate the wave functions
+        # if ind == symmetries.ineq_atoms_list[ind]
+            # _, ψₚ = parse_fortan_bin(path_to_in*"/group_$ind/tmp/scf.save/wfc1.dat")
+        # else
+
+        tras  = symmetries.trans_list[ind] ./mesh
+        rot   = symmetries.rot_list[ind]
+        if all(isapprox.(tras,[0.0,0.0,0.0], atol = 1e-15)) &&
+           all(isapprox.(rot, [[1.0,0.0,0.0] [0.0,1.0,0.0] [0.0,0.0,1.0]], atol = 1e-15))
+           println("we are here at index $ind")
+            _, ψₚ = parse_fortan_bin(path_to_in*"/group_$(symmetries.ineq_atoms_list[ind])/tmp/scf.save/wfc1.dat")
         else
-            ψₚ0_real = ψₚ0_list[symmetries.ineq_atoms_list[ind]]
+            ψₚ0_real = ψₚ0_real_list[symmetries.ineq_atoms_list[ind]]
             miller1 = miller_list[symmetries.ineq_atoms_list[ind]]
-            tras  = symmetries.trans_list[ind] ./mesh
-            rot   = symmetries.rot_list[ind]
             map1 = rotate_grid(N_fft, N_fft, N_fft, rot, tras)
             ψₚ_real = [rotate_deriv(N_fft, N_fft, N_fft, map1, wfc) for wfc in ψₚ0_real]
             ψₚ = [wf_to_G(miller1, evc, N_fft) for evc in ψₚ_real]
@@ -259,18 +268,18 @@ end
 function calculate_braket_real(bra::Array{Complex{Float64}, 3}, ket::Array{Complex{Float64}, 3})
     Nxyz = size(ket, 1)^3
     result = zero(Complex{Float64})
-    
+
     @inbounds @simd for i in 1:Nxyz
         result += conj(bra[i]) * ket[i]
     end
-    
+
     result /= Nxyz
     return result
 end
 
 function calculate_braket_real(bras::Dict{String, Array{Complex{Float64}, 3}}, kets::Dict{String, Array{Complex{Float64}, 3}})
     result = zeros(Complex{Float64}, length(bras), length(kets))
-    
+
     for (i, bra) in enumerate(values(bras))
         for (j, ket) in enumerate(values(kets))
             result[i,j] = calculate_braket_real(bra, ket)
@@ -293,7 +302,7 @@ end
 
 function calculate_braket(bras, kets)
     result = zeros(Complex{Float64}, length(bras), length(kets))
-    
+
     @threads for i in eachindex(bras)
         for j in eachindex(kets)
             result[i,j] = calculate_braket(bras[i],kets[j])

@@ -37,10 +37,23 @@ function check_symmetries(path_to_calc, unitcell, abs_disp)
         isym = 1
         while check == true && isym <= length(Rˢʸᵐ)
             R1 = Rˢʸᵐ[isym] + dRˢʸᵐ[isym]
+            #Need to understand why it does not work for the second atom
+            # println("inosym = $inosym")
+            # println("R2 = $(Rⁿᵒˢʸᵐ[inosym])")
+            # println("dR2 = $(dRⁿᵒˢʸᵐ[inosym])")
+            # println("isym = $isym")
+            # println("R1 = $(Rˢʸᵐ[isym])")
+            # println("dR1 = $(dRˢʸᵐ[isym])")
+            ind_sym = 1
             for (tras_py, rot_py) in zip(symm_ops["translations"], symm_ops["rotations"])
                 trans = pyconvert(Vector{Float64}, tras_py)
                 rot = pyconvert(Matrix{Float64}, rot_py)
-                rotR1 = rot * R1 .+ trans
+                rotR1 = fold_component.(rot * R1 .+ trans)
+                # println("rotR1 = $rotR1")
+                # println("translation: $trans")
+                # println("rotation   : $rot")
+                # println("ind_sym = $ind_sym")
+                ind_sym += 1
 
                 if all(abs.(R2 - rotR1) .< 1e-8)
                     @info "Found symmetry $index out of $(length(Rⁿᵒˢʸᵐ))"
@@ -58,6 +71,9 @@ function check_symmetries(path_to_calc, unitcell, abs_disp)
         end
         inosym += 1
     end
+
+    # println("indq_atoms_list:")
+    # println(ineq_atoms_list)
 
     return Symmetries(ineq_atoms_list, trans_list, rot_list)
 end
