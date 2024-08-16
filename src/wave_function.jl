@@ -206,6 +206,7 @@ function prepare_u_matrixes(path_to_in::String, natoms::Int, mesh::Int; symmetri
     ψₚ0_real_list = []
     miller_list = []
     for (ind, _) in enumerate(unique(symmetries.ineq_atoms_list))
+        println("Preparing wave functions for group_$ind:")
         miller1, ψₚ0 = parse_fortan_bin(path_to_in*"/group_$ind/tmp/scf.save/wfc1.dat")
         ψₚ0_real = [wf_from_G(miller1, evc, N_fft) for evc in ψₚ0]
         push!(ψₚ0_list, ψₚ0)
@@ -217,16 +218,11 @@ function prepare_u_matrixes(path_to_in::String, natoms::Int, mesh::Int; symmetri
     for ind in 1:Ndisplace_nosym
         ψₚ = []
 
-        #If rot = [100;010;001] and tras = [0;0;0] then we do not need to rotate the wave functions
-        # if ind == symmetries.ineq_atoms_list[ind]
-            # _, ψₚ = parse_fortan_bin(path_to_in*"/group_$ind/tmp/scf.save/wfc1.dat")
-        # else
 
-        tras  = symmetries.trans_list[ind] ./mesh
+        tras  = symmetries.trans_list[ind] #./mesh
         rot   = symmetries.rot_list[ind]
         if all(isapprox.(tras,[0.0,0.0,0.0], atol = 1e-15)) &&
            all(isapprox.(rot, [[1.0,0.0,0.0] [0.0,1.0,0.0] [0.0,0.0,1.0]], atol = 1e-15))
-           println("we are here at index $ind")
             _, ψₚ = parse_fortan_bin(path_to_in*"/group_$(symmetries.ineq_atoms_list[ind])/tmp/scf.save/wfc1.dat")
         else
             ψₚ0_real = ψₚ0_real_list[symmetries.ineq_atoms_list[ind]]

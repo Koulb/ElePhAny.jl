@@ -446,7 +446,7 @@ function electron_phonon(path_to_in::String, abs_disp, Nat, ik, iq, mesh, ϵkᵤ
 
 end
 
-function plot_ep_coupling(path_to_in::String, ik::Int, iq::Int)
+function plot_ep_coupling(path_to_in::String, ik::Int, iq::Int; nbnd_max=-1)
     # Initialize empty arrays for x and y
     x = Float64[]
     y = Float64[]
@@ -460,8 +460,19 @@ function plot_ep_coupling(path_to_in::String, ik::Int, iq::Int)
                 # Extract the last two columns and convert them to Float64
                 x_val = parse(Float64, columns[end])
                 y_val = parse(Float64, columns[end-1])
-                push!(x, x_val)
-                push!(y, y_val)
+
+                i_val = parse(Int64, columns[1])
+                j_val = parse(Int64, columns[2])
+
+                if nbnd_max > 0
+                    if i_val < nbnd_max && j_val < nbnd_max
+                        push!(x, x_val)
+                        push!(y, y_val)
+                    end
+                else
+                    push!(x, x_val)
+                    push!(y, y_val)
+                end
             end
         end
     end
@@ -479,8 +490,8 @@ function plot_ep_coupling(path_to_in::String, ik::Int, iq::Int)
     return x, y
 end
 
-function plot_ep_coupling(model::ModelQE, ik::Int=0, iq::Int=0)
-    plot_ep_coupling(model.path_to_calc*"displacements/", ik, iq)
+function plot_ep_coupling(model::ModelQE, ik::Int=0, iq::Int=0; nbnd_max=-1)
+    plot_ep_coupling(model.path_to_calc*"displacements/", ik, iq; nbnd_max=nbnd_max)
 end
 
 function electron_phonon(path_to_in::String, abs_disp, natoms, ik, iq, mesh, electrons::AbstractElectrons, phonons::AbstractPhonons; save_epw::Bool=false, path_to_calc="",kcw_chanel="")

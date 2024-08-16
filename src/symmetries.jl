@@ -1,20 +1,21 @@
-function check_symmetries(path_to_calc, unitcell, abs_disp)
+function check_symmetries(path_to_calc, unitcell, mesh, abs_disp)
     unitcell_phonopy = phonopy.structure.atoms.PhonopyAtoms(;symbols=unitcell[:symbols],
     cell=pylist(pyconvert(Array,unitcell[:cell])./bohr_to_ang),#Should be in Bohr, hence conversion
     scaled_positions=unitcell[:scaled_positions],
     masses=unitcell[:masses])
+    supercell_matrix=pylist([[mesh, 0, 0], [0, mesh, 0], [0, 0, mesh]])
 
-    phonon_symm = phonopy.Phonopy(unitcell_phonopy)
-    phonon_nosymm = phonopy.Phonopy(unitcell_phonopy, is_symmetry=false)
+    phonon_symm = phonopy.Phonopy(unitcell_phonopy,supercell_matrix=supercell_matrix)
+    phonon_nosymm = phonopy.Phonopy(unitcell_phonopy, is_symmetry=false,supercell_matrix=supercell_matrix)
     symm_ops = phonon_symm.symmetry.get_symmetry_operations()
-    scaled_pos = phonon_symm.primitive.scaled_positions
+    scaled_pos = phonon_symm.supercell.scaled_positions
 
     phonon_symm.generate_displacements(distance=abs_disp)
     phonon_nosymm.generate_displacements(distance=abs_disp)
     phonon_nosymm.save(path_to_calc*"displacements/phonopy_params_nosym.yaml")
 
     scaled_pos = pyconvert(Vector{Vector{Float64}},scaled_pos)
-    Uᶜʳʸˢᵗ = pyconvert(Matrix{Float64},phonon_symm.primitive.cell)
+    Uᶜʳʸˢᵗ = pyconvert(Matrix{Float64},phonon_symm.supercell.cell)
 
     dataˢʸᵐ = pyconvert(Vector{Vector{Float64}},phonon_symm.get_displacements())
     dRˢʸᵐ = [round.(transpose(Uᶜʳʸˢᵗ^-1) * vec[2:4], digits=16) for vec in dataˢʸᵐ]
@@ -37,22 +38,11 @@ function check_symmetries(path_to_calc, unitcell, abs_disp)
         isym = 1
         while check == true && isym <= length(Rˢʸᵐ)
             R1 = Rˢʸᵐ[isym] + dRˢʸᵐ[isym]
-            #Need to understand why it does not work for the second atom
-            # println("inosym = $inosym")
-            # println("R2 = $(Rⁿᵒˢʸᵐ[inosym])")
-            # println("dR2 = $(dRⁿᵒˢʸᵐ[inosym])")
-            # println("isym = $isym")
-            # println("R1 = $(Rˢʸᵐ[isym])")
-            # println("dR1 = $(dRˢʸᵐ[isym])")
             ind_sym = 1
             for (tras_py, rot_py) in zip(symm_ops["translations"], symm_ops["rotations"])
                 trans = pyconvert(Vector{Float64}, tras_py)
                 rot = pyconvert(Matrix{Float64}, rot_py)
                 rotR1 = fold_component.(rot * R1 .+ trans)
-                # println("rotR1 = $rotR1")
-                # println("translation: $trans")
-                # println("rotation   : $rot")
-                # println("ind_sym = $ind_sym")
                 ind_sym += 1
 
                 if all(abs.(R2 - rotR1) .< 1e-8)
@@ -72,14 +62,11 @@ function check_symmetries(path_to_calc, unitcell, abs_disp)
         inosym += 1
     end
 
-    # println("indq_atoms_list:")
-    # println(ineq_atoms_list)
-
     return Symmetries(ineq_atoms_list, trans_list, rot_list)
 end
 
 function check_symmetries!(model::ModelQE)
-    symmetries = check_symmetries(model.path_to_calc, model.unitcell, model.abs_disp)
+    symmetries = check_symmetries(model.path_to_calc, model.unitcell, model.mesh, model.abs_disp)
     natoms = length(pyconvert(Vector{Vector{Float64}}, model.unitcell[:scaled_positions]))
 
     if length(symmetries.trans_list) == 6 * natoms
@@ -136,8 +123,8 @@ function rotate_grid(N1, N2, N3, rot, tras)
 
                 eps = 1e-5
                 if i1 >= N1 - eps || i2 >= N2 - eps || i3 >= N3 - eps
-                    #println(i1, i2, i3, N1, N2, N3)
-                    # error("Error in folding")
+                    println(i1, i2, i3, N1, N2, N3)
+                    @error "Symmetries usage gave error in folding"
                 end
 
                 ind = i1 + (i2) * N1 + (i3) * N1 * N2
@@ -166,11 +153,11 @@ function rotate_deriv(N1, N2, N3, mapp, ff)
                 ind1 = ind1 % (N1 * N2)
                 i2 = div(ind1, N1)
                 i1 = ind1 % N1
-               # if (i1 + (i2) * N1 + (i3) * N1 * N2) != mapp[ind]
-                    #println("different")
-                    #println(i1, i2, i3, ind, mapp[ind])
-                    # error()
-                #end
+               if (i1 + (i2) * N1 + (i3) * N1 * N2) != mapp[ind]
+                    println("different")
+                    println(i1, i2, i3, ind, mapp[ind])
+                    @error "Symmetries usage gave error in rotation"
+                end
                 ind += 1
 
                 ff_rot[i1+1, i2+1, i3+1] = ff[i+1, j+1, k+1]
