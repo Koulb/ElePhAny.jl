@@ -75,8 +75,8 @@ function read_qe_xml(filename::AbstractString)
     kpoints = Vec3{Float64}[]
 
     n_electrons = parse(Float64, findfirst("nelec", band_structure).content)
-    
-    fermi_energy = 0.0 
+
+    fermi_energy = 0.0
     try
         fermi_energy = parse(Float64, findfirst("fermi_energy", band_structure).content)
     catch; end
@@ -132,7 +132,7 @@ end
 function create_scf_calc(path_to_scf::String, unitcell, scf_parameters)
     # Create the cell
     atoms  = pycall(ase.Atoms;unitcell...)
-        
+
     # Write the input file using Quantum ESPRESSO format
     ase_io.write(path_to_scf*"scf.in",atoms; scf_parameters...)
 end
@@ -141,7 +141,7 @@ function create_disp_calc(path_to_in::String, unitcell, scf_parameters, abs_disp
     # Change to the specified directory
     cd(path_to_in)
 
-    # Clean the folder if nescessary                     
+    # Clean the folder if nescessary
     if (from_scratch && isdir(path_to_in * "displacements"))
         run(`rm -rf displacements`)
     end
@@ -151,11 +151,11 @@ function create_disp_calc(path_to_in::String, unitcell, scf_parameters, abs_disp
         run(command);
         println(command)
     catch; end
-    path_to_in = path_to_in * "displacements/" 
+    path_to_in = path_to_in * "displacements/"
     cd(path_to_in)
     println("Creating folders in $path_to_in:")
 
-    command = `mkdir scf_0 epw out elph_elements`        
+    command = `mkdir scf_0 epw out elph_elements`
     try
         run(command);
         println(command)
@@ -182,7 +182,7 @@ function create_disp_calc(path_to_in::String, unitcell, scf_parameters, abs_disp
 
     for i_disp in 1:Ndispalce
         dir_name = "group_"*string(i_disp)*"/"
-        command = `mkdir $dir_name`   
+        command = `mkdir $dir_name`
         command_cp = `cp ../run.sh $dir_name`
 
         try
@@ -205,7 +205,7 @@ end
 
 
 function create_disp_calc!(model::ModelQE; from_scratch = false)
-    # Clean the folder if nescessary                     
+    # Clean the folder if nescessary
     if (from_scratch && isdir(model.path_to_calc * "displacements"))
         run(`rm -rf $(model.path_to_calc)/displacements`)
     end
@@ -215,17 +215,23 @@ function create_disp_calc!(model::ModelQE; from_scratch = false)
         println(command)
     catch; end
 
-    check_symmetries!(model)
+    if model.use_symm
+        check_symmetries!(model)
+    else
+        model.Ndispalce = 6 * length(pyconvert(Vector{Vector{Float64}}, model.unitcell[:scaled_positions]))
+        println("No symmetries used")
+        println("Number of displacements: $(model.Ndispalce)")
+    end
 
     Ndispalce = create_disp_calc(model.path_to_calc, model.unitcell, model.scf_parameters, model.abs_disp, model.mesh, model.use_symm)
     if Ndispalce != model.Ndispalce
-        @error "Inconsistend amount of displacement between phonopy ($Ndispalce) and symmetries calcuation ($(model.Ndisplace)) " 
+        @error "Inconsistend amount of displacement between phonopy ($Ndispalce) and symmetries calcuation ($(model.Ndisplace)) "
     end
 end
 
 
 function create_disp_calc(model::ModelKCW; from_scratch = false)
-    # Clean the folder if nescessary     # Will it work ??                
+    # Clean the folder if nescessary     # Will it work ??
     if (from_scratch && isdir(model.path_to_calc * "displacements"))
         run(`rm -rf $(model.path_to_calc)/displacements`)
     end
@@ -237,14 +243,14 @@ function create_disp_calc(model::ModelKCW; from_scratch = false)
 
     path_to_scf = model.path_to_calc * "displacements/scf_0"
     path_to_wfc_out = path_to_scf*"/tmp/scf.save"
-    
+
     if (!isdir(path_to_scf))
-        command = `mkdir -p $path_to_wfc_out`  
+        command = `mkdir -p $path_to_wfc_out`
         run(command);
         println(command)
     end
 
-    command = `mkdir $(model.path_to_calc)displacements/epw $(model.path_to_calc)displacements/elph_elements`        
+    command = `mkdir $(model.path_to_calc)displacements/epw $(model.path_to_calc)displacements/elph_elements`
     try
         run(command);
         println(command)
@@ -252,16 +258,16 @@ function create_disp_calc(model::ModelKCW; from_scratch = false)
 
     for ind in range(1, model.mesh^3)
         file =  model.path_to_calc * "unperturbed/TMP/kc_kcw.save/wfc$(model.spin_channel)$(ind).dat"
-        command = `cp $file $path_to_wfc_out/wfc$(ind).dat`  
+        command = `cp $file $path_to_wfc_out/wfc$(ind).dat`
         run(command);
     end
 
     file =  model.path_to_calc * "unperturbed/TMP/kc_kcw.save/data-file-schema.xml"
-    command = `cp $file $path_to_wfc_out/`  
+    command = `cp $file $path_to_wfc_out/`
     run(command);
 
     file =  model.path_to_calc * "unperturbed/wannier/nscf.pwo"
-    command = `cp $file $path_to_scf/scf.out`  
+    command = `cp $file $path_to_scf/scf.out`
     run(command);
 
     command = `$(model.path_to_qe)/W90/utility/kmesh.pl $(model.mesh) $(model.mesh) $(model.mesh)`
@@ -271,7 +277,7 @@ function create_disp_calc(model::ModelKCW; from_scratch = false)
 
     for i_disp in 1:model.Ndispalce
         dir_name =  model.path_to_calc * "displacements/group_$(i_disp)/tmp/scf.save"
-        command = `mkdir -p $dir_name`   
+        command = `mkdir -p $dir_name`
         try
             run(command);
             println(command)
@@ -296,7 +302,7 @@ end
 function run_scf(path_to_in::String, mpi_ranks::Int = 0)
     # Change to the specified directory
     cd(path_to_in)
-    
+
     # Execute the command
     if mpi_ranks > 0
         command = `mpirun -np $mpi_ranks pw.x -in scf.in`
@@ -311,7 +317,7 @@ end
 function run_scf_cluster(path_to_in::String)
     # Change to the specified directory
     cd(path_to_in)
-    
+
     command = `sbatch run.sh`
 
     println(command)
@@ -325,10 +331,10 @@ function run_nscf_calc(path_to_in::String, unitcell, scf_parameters, mesh, path_
     command = `$path_to_kmesh/W90/utility/kmesh.pl $mesh $mesh $mesh`
     println(command)
     run(pipeline(command, stdout="kpoints.dat", stderr="kmesherr.txt"))
-    
+
     atoms  = pycall(ase.Atoms;unitcell...)
     scf_parameters[:calculation] = "nscf"
- 
+
     nscf_parameters       = deepcopy(scf_parameters)
     #Case of hybrids
     if haskey(scf_parameters, :nqx1)
@@ -386,7 +392,7 @@ function run_nscf_calc(path_to_in::String, unitcell, scf_parameters, mesh, path_
         file = open(path_to_copy, "w")
         writedlm(file, lines, quotes=false)
         close(file)
-        
+
     catch; end
 
     println("Running nscf:")
@@ -410,7 +416,7 @@ end
 
 function run_disp_calc(path_to_in::String, Ndispalce::Int, mpi_ranks::Int = 0)
     # Change to the specified directory
-    #FIXME Only run scf in the DFT case (not Hybrids)   
+    #FIXME Only run scf in the DFT case (not Hybrids)
     println("Running scf_0:")
     if(isfile(path_to_in*"scf_0/"*"run.sh"))
         run_scf_cluster(path_to_in*"scf_0/")
@@ -427,7 +433,7 @@ function run_disp_calc(path_to_in::String, Ndispalce::Int, mpi_ranks::Int = 0)
             run_scf_cluster(path_to_in*dir_name)
         else
             run_scf(path_to_in*dir_name, mpi_ranks)
-        end        
+        end
     end
 
     return true
@@ -437,7 +443,7 @@ end
 function read_potential(path_to_file::String;skiprows=0)
     rw = Float64[]
     N1, N2, N3 = 0, 0 ,0
-   
+
     start = 1
     open(path_to_file) do file
         lines = readlines(file)
@@ -451,7 +457,7 @@ function read_potential(path_to_file::String;skiprows=0)
                 skiprows +=  1
             end
         end
-    
+
         line = split(lines[1+skiprows])
         N1 = parse(Int, line[1])
         N2 = parse(Int, line[2])
@@ -501,11 +507,11 @@ function save_potential(path_to_in::String, Ndispalce, mesh, mpi_ranks)
             "spin_component" => 1,
         )
     )
-    
+
     if mpi_ranks > 0
         command = `mpirun -np $mpi_ranks pp.x -in pp.in`
     else
-        command = `pp.x -in pp.in`
+        command = `pp.x -in pp.in_nosym`
     end
 
     println("Saving potential: ")
@@ -535,7 +541,7 @@ function save_potential(path_to_in::String, Ndispalce, mesh, mpi_ranks)
         else
             println("Displacement #$i_disp")
         end
-        
+
         println(command)
         run(pipeline(command, stdout="pp.out", stderr="errs_pp.txt"))
 
@@ -553,7 +559,7 @@ function get_kpoint_list(path_to_in)
     file = open(path_to_in*"/kpoints.dat", "r")
     lines_kpoints = readlines(file)
     close(file)
-    klist = [parse.(Float64, split(line)[1:end-1]) for line in lines_kpoints[3:end]]  
+    klist = [parse.(Float64, split(line)[1:end-1]) for line in lines_kpoints[3:end]]
     return klist
 end
 
@@ -581,7 +587,7 @@ function fold_kpoint(ik, iq, k_list)
 
     for (index, k_point) in enumerate(k_list)
         if all(isapprox.(kq_point, k_point, atol=1e-5))
-            ikq = index 
+            ikq = index
             break
         end
     end
@@ -589,12 +595,12 @@ function fold_kpoint(ik, iq, k_list)
     return ikq
 end
 
-function prepare_eigenvalues(path_to_in::String, natoms::Int; Ndisplace::Int = 6*natoms, ineq_atoms_list::Vector{Int}=[], spin_channel::String="") 
+function prepare_eigenvalues(path_to_in::String, natoms::Int; Ndisplace::Int = 6*natoms, ineq_atoms_list::Vector{Int}=[], spin_channel::String="")
     path_to_xml="tmp/scf.save/data-file-schema.xml"
     group = "scf_0/"
-    ϵₚ_list_raw  = [] 
-    ϵₚ_list  = [] 
-    ϵₚₘ_list = [] 
+    ϵₚ_list_raw  = []
+    ϵₚ_list  = []
+    ϵₚₘ_list = []
 
     if spin_channel == "up"
         ϵkᵤ_list = read_qe_xml(path_to_in*group*path_to_xml)[:eigenvalues_up]
@@ -645,12 +651,12 @@ end
 function create_electrons(model::AbstractModel)
 
     spin_channel = ""
-    if hasproperty(model, :spin_channel) 
+    if hasproperty(model, :spin_channel)
         spin_channel = model.spin_channel
     end
 
     symmetries = Symmetries([],[],[])
-    if hasproperty(model, :symmetries) 
+    if hasproperty(model, :symmetries)
         symmetries = model.symmetries
     end
 
@@ -658,7 +664,7 @@ function create_electrons(model::AbstractModel)
 
     U_list, V_list = prepare_u_matrixes(model.path_to_calc*"displacements/", natoms, model.mesh; symmetries=symmetries)
     ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list = prepare_eigenvalues(model.path_to_calc*"displacements/", natoms; Ndisplace=model.Ndispalce, ineq_atoms_list=symmetries.ineq_atoms_list, spin_channel=spin_channel)
-   
+
     return Electrons(U_list, V_list, ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list)
 end
 
@@ -669,6 +675,6 @@ function load_electrons(model::AbstractModel)
     ϵₚ_list  = load(model.path_to_calc * "displacements/scf_0/ep_list.jld2")["ep_list"]
     ϵₚₘ_list = load(model.path_to_calc * "displacements/scf_0/epm_list.jld2")["epm_list"]
     k_list   = load(model.path_to_calc * "displacements/scf_0/k_list.jld2")["k_list"]
-   
+
     return Electrons(U_list, V_list, ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list)
 end

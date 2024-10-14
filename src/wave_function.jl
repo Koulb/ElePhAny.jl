@@ -218,9 +218,17 @@ function prepare_u_matrixes(path_to_in::String, natoms::Int, mesh::Int; symmetri
     for ind in 1:Ndisplace_nosym
         ψₚ = []
 
+        local tras, rot
+        #check if symmetries are empty
+        if isempty(symmetries.trans_list) && isempty(symmetries.rot_list)
+            tras = [0.0,0.0,0.0]
+            rot  = [[1.0,0.0,0.0] [0.0,1.0,0.0] [0.0,0.0,1.0]]
+            append!(symmetries.ineq_atoms_list, ind)
+        else
+            tras  = symmetries.trans_list[ind] #./mesh
+            rot   = symmetries.rot_list[ind]
+        end
 
-        tras  = symmetries.trans_list[ind] #./mesh
-        rot   = symmetries.rot_list[ind]
         if all(isapprox.(tras,[0.0,0.0,0.0], atol = 1e-15)) &&
            all(isapprox.(rot, [[1.0,0.0,0.0] [0.0,1.0,0.0] [0.0,0.0,1.0]], atol = 1e-15))
             _, ψₚ = parse_fortan_bin(path_to_in*"/group_$(symmetries.ineq_atoms_list[ind])/tmp/scf.save/wfc1.dat")
