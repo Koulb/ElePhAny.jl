@@ -41,13 +41,13 @@ function read_forces_xml(path_to_xml::String)
     return forces_matrix
 end
 
-function dislpaced_unitecells(path_to_save, unitcell, abs_disp, mesh)
+function dislpaced_unitecells(path_to_save, unitcell, abs_disp, mesh, use_symm)
     unitcell_phonopy = phonopy_structure_atoms.PhonopyAtoms(;symbols=unitcell[:symbols], 
                                                              cell=pylist(pyconvert(Array,unitcell[:cell])./bohr_to_ang),#Should be in Bohr, hence conversion
                                                              scaled_positions=unitcell[:scaled_positions],
                                                              masses=unitcell[:masses])
 
-    phonon = phonopy.Phonopy(unitcell_phonopy, is_symmetry=false, supercell_matrix=pylist([[mesh, 0, 0], [0, mesh, 0], [0, 0, mesh]]))
+    phonon = phonopy.Phonopy(unitcell_phonopy, is_symmetry=use_symm, supercell_matrix=pylist([[mesh, 0, 0], [0, mesh, 0], [0, 0, mesh]]))
     phonon.generate_displacements(distance=abs_disp)
     supercells_data = phonon.supercells_with_displacements
     supercells = []
@@ -131,13 +131,13 @@ function save_dyn_matirx(path_to_in::String, mesh::Int)
     return true 
 end
 
-function prepare_phonons_data(path_to_in::String, unitcell, abs_disp, mesh, Ndispalce::Int64; save_dynq=true)
+function prepare_phonons_data(path_to_in::String, unitcell, abs_disp, mesh, use_symm, Ndispalce::Int64; save_dynq=true)
     #Get the forces
     forces = collect_forces(path_to_in, unitcell, mesh, Ndispalce)
-    prepare_phonons_data(path_to_in, unitcell, abs_disp, mesh, forces; save_dynq=save_dynq)
+    prepare_phonons_data(path_to_in, unitcell, abs_disp, mesh, use_symm, forces; save_dynq=save_dynq)
 end
 
-function prepare_phonons_data(path_to_in::String, unitcell, abs_disp, mesh, forces::Array{Float64}; save_dynq=true)
+function prepare_phonons_data(path_to_in::String, unitcell, abs_disp, mesh, use_symm, forces::Array{Float64}; save_dynq=true)
     #This conversions Julia to Python are getting me worried 
     unitcell[:cell] = pylist(pyconvert(Array,unitcell[:cell])./bohr_to_ang)#Should be in Bohr, hence conversion
     unitcell_phonopy = phonopy_structure_atoms.PhonopyAtoms(;symbols=unitcell[:symbols], 
@@ -145,13 +145,12 @@ function prepare_phonons_data(path_to_in::String, unitcell, abs_disp, mesh, forc
                                                              scaled_positions=pylist(unitcell[:scaled_positions]))
 
     phonon = phonopy.Phonopy(unitcell_phonopy,
-                             is_symmetry=false, 
+                             is_symmetry=use_symm, 
                              supercell_matrix=pylist([[mesh, 0, 0], [0, mesh, 0], [0, 0, mesh]]),
                              calculator="qe",
                              factor=pwscf_to_cm1)#from internal units to Thz and then to cm-1
     
     phonon.generate_displacements(distance=abs_disp)#, is_plusminus="false"
-
     
     # phonon.set_forces(Py(forces[1:2:end,:,:]).to_numpy())
     phonon.set_forces(Py(forces).to_numpy())
@@ -242,10 +241,19 @@ function parse_qe_ph(path_to_dyn)
     return [ωₐᵣᵣ_ₚₕ, εₐᵣᵣ_ₚₕ]
 end
 
-function prepare_phonons(path_to_in::String, Ndisp::Int, mesh::Int)
-    phonon_params = phonopy.load(path_to_in*"phonopy_params.yaml")
-    displacements = phonon_params.displacements[pyslice(0,Ndisp,2)]
+function prepare_phonons(path_to_in::String, mesh::Int)
+
+    local phonon_params
+   
+    if isfile(path_to_in * "phonopy_params_nosym.yaml") # to get all the possible displacements
+        phonon_params = phonopy.load(path_to_in * "phonopy_params_nosym.yaml")
+    else
+        phonon_params = phonopy.load(path_to_in*"phonopy_params.yaml")
+    end
+
     Nat = Int(size(pyconvert(Vector,phonon_params.masses))[1])
+    Ndisp_nosym = 6 * Nat
+    displacements = phonon_params.displacements[pyslice(0,Ndisp_nosym,2)]
     M_phonon  = []
     ωₐᵣᵣ_ₗᵢₛₜ = []
     εₐᵣᵣ_ₗᵢₛₜ = []
@@ -261,6 +269,7 @@ function prepare_phonons(path_to_in::String, Ndisp::Int, mesh::Int)
         U_inv =  vcat(U'...)^-1
         push!(M_phonon, U_inv)
     end
+
     # writedlm(path_to_in*"/scf_0/M_phonon.txt", M_phonon)  
     save(path_to_in * "scf_0/M_phonon.jld2", "M_phonon", M_phonon)
 
@@ -299,14 +308,14 @@ function prepare_phonons(path_to_in::String, Ndisp::Int, mesh::Int)
     return M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ
 end
 
-function create_phonons(path_to_in::String, Ndisplace::Int, mesh::Int)
-    M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ = prepare_phonons(path_to_in, Ndisplace, mesh)
+function create_phonons(path_to_in::String, mesh::Int)
+    M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ = prepare_phonons(path_to_in, mesh)
 
     return Phonons(M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ)
 end
 
 function create_phonons(model::AbstractModel)
-    M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ = prepare_phonons(model.path_to_calc*"displacements/", model.Ndispalce, model.mesh)
+    M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ = prepare_phonons(model.path_to_calc*"displacements/", model.mesh)
 
     return Phonons(M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ)
 end

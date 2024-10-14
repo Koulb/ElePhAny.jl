@@ -3,7 +3,6 @@ using LinearAlgebra, Printf, YAML, Plots, Base.Threads
 
 function run_calculations(model)
     # Electrons calculation
-    create_disp_calc(model.path_to_calc, model.unitcell, model.scf_parameters, model.abs_disp, model.mesh; from_scratch = true)
     run_disp_calc(model.path_to_calc*"displacements/", model.Ndispalce, model.mpi_ranks)
     run_nscf_calc(model.path_to_calc, model.unitcell, model.scf_parameters, model.mesh, model.path_to_qe, model.mpi_ranks)
 end
@@ -11,7 +10,7 @@ end
 function prepare_model(model::ModelQE)
     # save_potential(model.path_to_calc*"displacements/", model.Ndispalce, model.mesh, model.mpi_ranks)
     prepare_wave_functions_undisp(model.path_to_calc*"displacements/", model.mesh;)# path_to_calc=path_to_calc,kcw_chanel=kcw_chanel
-    prepare_phonons_data(model.path_to_calc*"displacements/",model.unitcell, model.abs_disp, model.mesh, model.Ndispalce)
+    prepare_phonons_data(model.path_to_calc*"displacements/",model.unitcell, model.abs_disp, model.mesh, model.use_symm, model.Ndispalce)
 end
 
 function prepare_model(model::ModelKCW)
@@ -36,7 +35,7 @@ function check_calculations(path_to_calc, Ndisp)
             if occursin("JOB DONE.", lines[end-1])
                 check = true
             end
-    
+
             file = open(path_to_calc*"scf_0/scf.out", "r")
             lines = readlines(file)
             close(file)
@@ -44,7 +43,7 @@ function check_calculations(path_to_calc, Ndisp)
                 check = check && true
             end
         catch; end
-    end 
+    end
     println("All calculations finished")
 
     return
@@ -59,7 +58,7 @@ function electron_phonon_qe(path_to_in::String, ik::Int, iq::Int, mpi_ranks::Int
     kpoint = determine_q_point_cart(path_to_in*dir_name,ik)
     qpoint = determine_q_point_cart(path_to_in*dir_name,iq)
 
-    # println("kpoint = ", kpoint)    
+    # println("kpoint = ", kpoint)
     # println("qpoint = ", qpoint)
 
     parameters = Dict(
@@ -73,9 +72,9 @@ function electron_phonon_qe(path_to_in::String, ik::Int, iq::Int, mpi_ranks::Int
             "qplot"    => ".true.",
             "q_in_band_form" => ".true.",
             "electron_phonon" => "'epw'",
-            "kx" =>  kpoint[1], 
-            "ky" =>  kpoint[2], 
-            "kz" =>  kpoint[3], 
+            "kx" =>  kpoint[1],
+            "ky" =>  kpoint[2],
+            "kz" =>  kpoint[3],
         )
     )
 
@@ -106,7 +105,7 @@ end
 function find_degenerate(energies, thr=1e-3)
     ineq_ener = [energies[1]]
     eq_states = [[1]]
-    
+
     for (i, en) in enumerate(energies[2:end])
         if abs(en - ineq_ener[end]) < thr
             push!(eq_states[end], i+1)
@@ -115,7 +114,7 @@ function find_degenerate(energies, thr=1e-3)
             push!(eq_states, [i+1])
         end
     end
-    
+
     return ineq_ener, eq_states
 end
 
@@ -123,12 +122,12 @@ function parse_ph(file_name, nbands, nfreq)
     file = open(file_name, "r")
     # Initialize a flag to check if word is found
     found_data = false
-    
+
     # Initialize a counter for the next 10 lines
     lines_to_read = nbands*nbands*nfreq+2
     current_line = 1
     elph_dfpt = zeros(ComplexF64,(nbands, nbands, nfreq))
-    
+
     # Read the file line by line
     for line in eachline(file)
         if found_data
@@ -137,13 +136,13 @@ function parse_ph(file_name, nbands, nfreq)
                 i, j, iph = parse(Int64,split_line[1]), parse(Int64,split_line[2]), parse(Int64,split_line[3])
                 elph_dfpt[i,j,iph]= parse(Float64,split_line[end])/1e3 # to meV
             end
-    
+
             current_line += 1
             if current_line == lines_to_read
-                break 
+                break
             end
         elseif occursin("ibnd     jbnd", line)
-            found_data = true  
+            found_data = true
         end
     end
 
@@ -151,12 +150,12 @@ function parse_ph(file_name, nbands, nfreq)
 end
 
 function load_wf_debug(path_to_in::String)
-    
+
     wfc_list = Dict()
     for iband in 1:32
         wfc_re, = read_potential(path_to_in*"wfun_$(iband)_1_re";skiprows=1)
         wfc_im, = read_potential(path_to_in*"wfun_$(iband)_1_im";skiprows=1)
-        
+
         wfc = wfc_re + 1im * wfc_im
         wfc_list["wfc$iband"] = wfc
     end
@@ -171,14 +170,14 @@ function load_wf_u_debug(path_to_in::String, ik)
         wfc_list["wfc$iband"] = result
     end
 
-    return wfc_list 
+    return wfc_list
 end
 
 
-function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh, ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list , U_list, V_list, M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ; save_epw::Bool=false)
+function electron_phonon(path_to_in::String, abs_disp, Nat, ik, iq, mesh, ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list , U_list, V_list, M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ; save_epw::Bool=false)
     # cd(path_to_in)
 
-    Nat::Int = Ndisp//6
+    Ndisp_nosym = 6*Nat
     scale = ev_to_ry / abs_disp
 
     group = "scf_0/"
@@ -193,14 +192,13 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh, ϵk�
     braket_list_rotated = []
     # print("Electron_phonon check:")
 
-    for ind in 1:2:Ndisp
+    for ind in 1:2:Ndisp_nosym
         ind_abs = (ind-1)÷2 + 1
-        group   = "group_$ind/"
 
         ϵₚ = ϵₚ_list[ind_abs]
         #TODO understand whether symmetry usage is properly justified
-        ϵₚₘ = ϵₚ_list[ind_abs]#ϵₚₘ_list[ind_abs] 
-       
+        ϵₚₘ = ϵₚ_list[ind_abs]#ϵₚₘ_list[ind_abs]
+
         Uk  = U_list[ind_abs][ik,:,:]
         Ukₘ = V_list[ind_abs][ik,:,:]
         u_trace_check = conj(transpose(Uk))*Uk
@@ -237,7 +235,7 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh, ϵk�
                     result += Uk[k,j]* conj(Uq[k,i]) * ϵₚ[k]
                     result -= Ukₘ[k,j]* conj(Uqₘ[k,i]) * ϵₚₘ[k]
                     # if real(Uk[k,j]* conj(Uq[k,i])) ≈ 1.0
-                    # if isapprox(real(Uk[k,j]* conj(Uq[k,i])), 1.0, atol=1e-6) 
+                    # if isapprox(real(Uk[k,j]* conj(Uq[k,i])), 1.0, atol=1e-6)
                     #     println(Uk[k,j]* conj(Uq[k,i]))
                     #     println(i, ' ', j)
                     #     # # result += ϵₚ[k]
@@ -249,16 +247,16 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh, ϵk�
                     #     println("ϵkᵤ - U^2*ϵₚ[k] = ", (Uk[k,j]* conj(Uq[k,i]) * ϵₚ[k]-ϵkᵤ[i]))
 
                     #    # println("ϵₚ[k] - ϵₚₘ[k] /2 = ", result)
-                        
+
                     #     result += Uk[k,j]* conj(Uq[k,i]) * ϵₚ[k]
                     # else
                     #     result += Uk[k,j]* conj(Uq[k,i]) * ϵₚ[k]
                     # end
                     # println(k, ' ',ϵₚ[k], ' ',Uk[k,j]* conj(Uq[k,i]), ' ', result)
                     # println(k, ' ',ϵₚₘ[k], ' ',Ukₘ[k,j]* conj(Uqₘ[k,i]), ' ', result)
-               
+
                 end
-                
+
                 braket[i,j] = result/2.0
             end
             # println("_____________________________________________________________")
@@ -298,7 +296,6 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh, ϵk�
         catch
             @info "Could not save braket_list_rotated, check if epw folder exists in path_to_calc/displacements"
         end
-        
         return braket_list_rotated
     else
         # println("Braket list rotated")
@@ -310,13 +307,13 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh, ϵk�
         εₐᵣᵣ = εₐᵣᵣ_ₗᵢₛₜ[iq]
 
         #DEBUG WITH QE OUTPUT##
-        # ωₐᵣᵣ, εₐᵣᵣ = parse_qe_ph(path_to_in*"scf_0/dyn1")
-        #DEBUG WITH QE OUTPUT##  
+        ωₐᵣᵣ, εₐᵣᵣ = parse_qe_ph(path_to_in*"scf_0/dyn1")
+        #DEBUG WITH QE OUTPUT##
         gᵢⱼₘ_ₐᵣᵣ = Array{ComplexF64, 3}(undef, (nbands, nbands, length(ωₐᵣᵣ)))
 
         for i in 1:nbands
             for j in 1:nbands
-                # open(path_to_in*"elph_elements/ep_$(i)_$(j)", "w") do io  
+                # open(path_to_in*"elph_elements/ep_$(i)_$(j)", "w") do io
                     for iph in 1:3*Nat
                         ω = ωₐᵣᵣ[1,iph] * cm1_to_ry
                         ε = εₐᵣᵣ[1,iph,:]
@@ -328,12 +325,12 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh, ϵk�
                             for i_cart in 1:3
                                 braket = braket_cart[i_cart]
                                 temp_iat::Int = 3*(iat - 1) + i_cart
-                                gᵢⱼₘ += disp*conj(ε[temp_iat])*braket[i,j] 
-                                
+                                gᵢⱼₘ += disp*conj(ε[temp_iat])*braket[i,j]
+
                                 #if i == 1 && j == 3
                                 #   println(i,' ',j,' ',iph,' ',disp, ' ',  ω,' ', m,' ',ε[temp_iat],' ',braket[i,j], ' ',gᵢⱼₘ)
                                 #end
-                                
+
                             end
                         end
                         gᵢⱼₘ_ₐᵣᵣ[i,j,iph] = gᵢⱼₘ/ev_to_ry
@@ -344,7 +341,7 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh, ϵk�
                     #@printf("____________________________________________\n")
                 # end
             end
-        end 
+        end
 
         #Acoustic sum rule for poor
         # if ik==ikq && iq == 1;
@@ -418,17 +415,17 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh, ϵk�
             end
         end
 
-        #read dfpt data 
+        #read dfpt data
         elph_dfpt = zeros(ComplexF64, size(symm_elph))
         ωₐᵣᵣ_DFPT = zeros(Float64, size(ωₐᵣᵣ))
-       
+
         try
             elph_dfpt = parse_ph(path_to_in*"scf_0/ph.out", nbands, length(ωₐᵣᵣ))
-            ωₐᵣᵣ_DFPT, _ = parse_qe_ph(path_to_in*"scf_0/dyn1")   
+            ωₐᵣᵣ_DFPT, _ = parse_qe_ph(path_to_in*"scf_0/dyn1")
 
-            #saving resulting electron phonon couplings 
+            #saving resulting electron phonon couplings
             # @printf("      i      j      nu      ϵkᵤ        ϵqᵤ        ωₐᵣᵣ_frozen      ωₐᵣᵣ_DFPT       g_frozen    g_DFPT\n")
-            open(path_to_in*"out/comparison_$(ik)_$(iq).txt", "w") do io 
+            open(path_to_in*"out/comparison_$(ik)_$(iq).txt", "w") do io
             for i in 1:nbands
                 for j in 1:nbands
                         for iph in 1:3*Nat#Need to chec
@@ -437,7 +434,7 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh, ϵk�
                         end
                     end
                 end
-            end 
+            end
         catch
             @info "Could not save symmetrized electron-phonon matrix elements, check if out folder exists in path_to_calc/displacements"
         end
@@ -447,7 +444,7 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh, ϵk�
 
 end
 
-function plot_ep_coupling(path_to_in::String, ik::Int, iq::Int)
+function plot_ep_coupling(path_to_in::String, ik::Int, iq::Int; nbnd_max=-1)
     # Initialize empty arrays for x and y
     x = Float64[]
     y = Float64[]
@@ -461,12 +458,23 @@ function plot_ep_coupling(path_to_in::String, ik::Int, iq::Int)
                 # Extract the last two columns and convert them to Float64
                 x_val = parse(Float64, columns[end])
                 y_val = parse(Float64, columns[end-1])
-                push!(x, x_val)
-                push!(y, y_val)
+
+                i_val = parse(Int64, columns[1])
+                j_val = parse(Int64, columns[2])
+
+                if nbnd_max > 0
+                    if i_val < nbnd_max && j_val < nbnd_max
+                        push!(x, x_val)
+                        push!(y, y_val)
+                    end
+                else
+                    push!(x, x_val)
+                    push!(y, y_val)
+                end
             end
         end
     end
-    
+
 
     # Create a scatter plot
     scatter(x, y, xlabel="g_DFPT", ylabel="g_frozen", title="Comparison", color = "red")
@@ -474,17 +482,17 @@ function plot_ep_coupling(path_to_in::String, ik::Int, iq::Int)
     plot!(line, line, color = "black", legend = false)
     xlims!(0, 1.1*maximum(x))
     ylims!(0, 1.1*maximum(x))
-  
+
     savefig(path_to_in*"out/comparison_$(ik)_$(iq).png")
 
     return x, y
 end
 
-function plot_ep_coupling(model::ModelQE, ik::Int=0, iq::Int=0)
-    plot_ep_coupling(model.path_to_calc*"displacements/", ik, iq)
+function plot_ep_coupling(model::ModelQE, ik::Int=0, iq::Int=0; nbnd_max=-1)
+    plot_ep_coupling(model.path_to_calc*"displacements/", ik, iq; nbnd_max=nbnd_max)
 end
 
-function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh, electrons::AbstractElectrons, phonons::AbstractPhonons; save_epw::Bool=false, path_to_calc="",kcw_chanel="")
+function electron_phonon(path_to_in::String, abs_disp, natoms, ik, iq, mesh, electrons::AbstractElectrons, phonons::AbstractPhonons; save_epw::Bool=false, path_to_calc="",kcw_chanel="")
     ϵkᵤ_list = electrons.ϵkᵤ_list
     ϵₚ_list = electrons.ϵₚ_list
     ϵₚₘ_list = electrons.ϵₚₘ_list
@@ -496,7 +504,7 @@ function electron_phonon(path_to_in::String, abs_disp, Ndisp, ik, iq, mesh, elec
     εₐᵣᵣ_ₗᵢₛₜ = phonons.εₐᵣᵣ_ₗᵢₛₜ
     mₐᵣᵣ = phonons.mₐᵣᵣ
 
-    electron_phonon(path_to_in, abs_disp, Ndisp, ik, iq, mesh, ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list , U_list, V_list, M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ; save_epw=save_epw)
+    electron_phonon(path_to_in, abs_disp, natoms, ik, iq, mesh, ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list , U_list, V_list, M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ; save_epw=save_epw)
 
 end
 
@@ -512,6 +520,8 @@ function electron_phonon(model::AbstractModel, ik, iq, electrons::AbstractElectr
     εₐᵣᵣ_ₗᵢₛₜ = phonons.εₐᵣᵣ_ₗᵢₛₜ
     mₐᵣᵣ = phonons.mₐᵣᵣ
 
-    electron_phonon(model.path_to_calc*"displacements/", model.abs_disp, model.Ndispalce, ik, iq, model.mesh, ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list , U_list, V_list, M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ; save_epw=save_epw)
+    natoms = length(model.unitcell[:symbols])
+
+    electron_phonon(model.path_to_calc*"displacements/", model.abs_disp, natoms, ik, iq, model.mesh, ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list , U_list, V_list, M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ; save_epw=save_epw)
 
 end

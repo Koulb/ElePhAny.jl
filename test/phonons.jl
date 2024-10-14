@@ -18,7 +18,7 @@ end
   q_point =  ElectronPhonon.determine_q_point_cart(path_tst_data, iq)
   q_point_check = [-0.5, 0.5, -0.5]
 
-  @test all(isapprox.(q_point, q_point; atol=ElectronPhonon.toleranse_tests))
+  @test all(isapprox.(q_point_check, q_point; atol=ElectronPhonon.toleranse_tests))
 end
 
 
