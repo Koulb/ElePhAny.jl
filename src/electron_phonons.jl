@@ -4,17 +4,33 @@ using LinearAlgebra, Printf, YAML, Plots, Base.Threads
 function run_calculations(model)
     # Electrons calculation
     run_disp_calc(model.path_to_calc*"displacements/", model.Ndispalce, model.mpi_ranks)
-    run_nscf_calc(model.path_to_calc, model.unitcell, model.scf_parameters, model.mesh, model.path_to_qe, model.mpi_ranks)
+    run_nscf_calc(model.path_to_calc*"displacements/", model.mpi_ranks)
+    run_disp_nscf_calc(model.path_to_calc*"displacements/", model.Ndispalce, model.mpi_ranks)
 end
 
 function prepare_model(model::ModelQE)
-    # save_potential(model.path_to_calc*"displacements/", model.Ndispalce, model.mesh, model.mpi_ranks)
-    prepare_wave_functions_undisp(model.path_to_calc*"displacements/", model.mesh;)# path_to_calc=path_to_calc,kcw_chanel=kcw_chanel
-    prepare_phonons_data(model.path_to_calc*"displacements/",model.unitcell, model.abs_disp, model.mesh, model.use_symm, model.Ndispalce)
+    # save_potential(model.path_to_calc*"displacements/", model.Ndispalce, model.sc_size, model.mpi_ranks)
+
+    a          =  5.43052 #??
+    ecutoff    = model.scf_parameters[:ecutwfc]
+    mesh_scale = model.k_mesh * model.sc_size
+
+    # miller_map = create_unified_Grid(model.path_to_calc*"displacements/", a, ecutoff, mesh_scale)
+    # prepare_wave_functions_undisp(model.path_to_calc*"displacements/",miller_map, model.sc_size; k_mesh=model.k_mesh)# path_to_calc=path_to_calc,kcw_chanel=kcw_chanel
+    # prepare_wave_functions_disp(model.path_to_calc*"displacements/", miller_map, model.Ndispalce, model.k_mesh;)
+
+    prepare_phonons_data(model.path_to_calc*"displacements/",model.unitcell, model.abs_disp, model.sc_size, model.k_mesh, model.use_symm, model.Ndispalce)
 end
 
+# function prepare_model(model::ModelQE)
+#     save_potential(model.path_to_calc*"displacements/", model.Ndispalce, model.sc_size, model.mpi_ranks)
+#     prepare_wave_functions_undisp(model.path_to_calc*"displacements/", model.sc_size; k_mesh=model.k_mesh)# path_to_calc=path_to_calc,kcw_chanel=kcw_chanel
+#     prepare_wave_functions_disp(model.path_to_calc*"displacements/",model.Ndispalce, model.sc_size, model.k_mesh;)
+#     prepare_phonons_data(model.path_to_calc*"displacements/",model.unitcell, model.abs_disp, model.sc_size, model.use_symm, model.Ndispalce)
+# end
+
 function prepare_model(model::ModelKCW)
-    prepare_wave_functions_undisp(model.path_to_calc*"displacements/", model.mesh)
+    prepare_wave_functions_undisp(model.path_to_calc*"displacements/", model.sc_size)
 end
 
 function check_calculations(path_to_calc, Ndisp)
@@ -174,7 +190,7 @@ function load_wf_u_debug(path_to_in::String, ik)
 end
 
 
-function electron_phonon(path_to_in::String, abs_disp, Nat, ik, iq, mesh, ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list , U_list, V_list, M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ; save_epw::Bool=false)
+function electron_phonon(path_to_in::String, abs_disp, Nat, ik, iq, sc_size, k_mesh, ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list , U_list, V_list, M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ; save_epw::Bool=false)
     # cd(path_to_in)
 
     Ndisp_nosym = 6*Nat
@@ -197,33 +213,33 @@ function electron_phonon(path_to_in::String, abs_disp, Nat, ik, iq, mesh, ϵkᵤ
 
         ϵₚ = ϵₚ_list[ind_abs]
         #TODO understand whether symmetry usage is properly justified
-        ϵₚₘ = ϵₚ_list[ind_abs]#ϵₚₘ_list[ind_abs]
+        ϵₚₘ = ϵₚₘ_list[ind_abs]
 
-        Uk  = U_list[ind_abs][ik,:,:]
-        Ukₘ = V_list[ind_abs][ik,:,:]
-        u_trace_check = conj(transpose(Uk))*Uk
-        u_m_trace_check = conj(transpose(Ukₘ))*Ukₘ
+        Uk  = U_list[ind_abs][:,ik,:,:]
+        Ukₘ = V_list[ind_abs][:,ik,:,:]
+        # u_trace_check = conj(transpose(Uk))*Uk
+        # u_m_trace_check = conj(transpose(Ukₘ))*Ukₘ
 
-        for i in 1:nbands
-          if real(u_trace_check[i,i]) < 0.999999 ||  real(u_m_trace_check[i,i]) < 0.999999
-                @warn "Uk trace check [$i, $i] = ", u_trace_check[i,i]
-                @warn "Uk_m trace check [$i, $i] = ", u_m_trace_check[i,i]
-                @warn "U matrices are not in good shape at displacemnt $ind"
-              end
-        end
+        # for i in 1:nbands
+        #   if real(u_trace_check[i,i]) < 0.999999 ||  real(u_m_trace_check[i,i]) < 0.999999
+        #         @warn "Uk trace check [$i, $i] = ", u_trace_check[i,i]
+        #         @warn "Uk_m trace check [$i, $i] = ", u_m_trace_check[i,i]
+        #         @warn "U matrices are not in good shape at displacemnt $ind"
+        #       end
+        # end
 
-        Uq  = U_list[ind_abs][ikq,:,:]
-        Uqₘ = V_list[ind_abs][ikq,:,:]
-        u_trace_check = conj(transpose(Uq))*Uq
-        u_m_trace_check = conj(transpose(Uqₘ))*Uqₘ
+        Uq  = U_list[ind_abs][:,ikq,:,:]
+        Uqₘ = V_list[ind_abs][:,ikq,:,:]
+        # u_trace_check = conj(transpose(Uq))*Uq
+        # u_m_trace_check = conj(transpose(Uqₘ))*Uqₘ
 
-        for i in 1:nbands
-          if real(u_trace_check[i,i]) < 0.999999 ||  real(u_m_trace_check[i,i]) < 0.999999
-                @warn "Uq trace check [$i, $i] = ", u_trace_check[i,i]
-                @warn "Uq_m trace check [$i, $i] = ", u_m_trace_check[i,i]
-                @warn "U matrices are not in good shape at displacemnt $ind"
-              end
-        end
+        # for i in 1:nbands
+        #   if real(u_trace_check[i,i]) < 0.999999 ||  real(u_m_trace_check[i,i]) < 0.999999
+        #         @warn "Uq trace check [$i, $i] = ", u_trace_check[i,i]
+        #         @warn "Uq_m trace check [$i, $i] = ", u_m_trace_check[i,i]
+        #         @warn "U matrices are not in good shape at displacemnt $ind"
+        #       end
+        # end
 
         # println("Calculating brakets for group $ind")
         for i in 1:nbands
@@ -231,44 +247,46 @@ function electron_phonon(path_to_in::String, abs_disp, Nat, ik, iq, mesh, ϵkᵤ
                 result = 0.0#(i==j && ik==ikq ? -ϵkᵤ[i] : 0.0)#0.0##TODO: check this iq or ikq
                 # println(i, ' ', j, ' ', result)
 
-                for k in 1:nbands*mesh^3
-                    result += Uk[k,j]* conj(Uq[k,i]) * ϵₚ[k]
-                    result -= Ukₘ[k,j]* conj(Uqₘ[k,i]) * ϵₚₘ[k]
-                    # if real(Uk[k,j]* conj(Uq[k,i])) ≈ 1.0
-                    # if isapprox(real(Uk[k,j]* conj(Uq[k,i])), 1.0, atol=1e-6)
-                    #     println(Uk[k,j]* conj(Uq[k,i]))
-                    #     println(i, ' ', j)
-                    #     # # result += ϵₚ[k]
-                    #     # result = (ϵₚ[k] - ϵₚₘ[k])/2.0
-                    #     # #Need to investigate even small displacements
-                    #     println("ϵkᵤ = ", ϵkᵤ)
-                    #     println("ϵₚ[k] = ", ϵₚ[k])
-                    #     println("ϵkᵤ - ϵₚ[k] = ", (ϵₚ[k]-ϵkᵤ[i]))
-                    #     println("ϵkᵤ - U^2*ϵₚ[k] = ", (Uk[k,j]* conj(Uq[k,i]) * ϵₚ[k]-ϵkᵤ[i]))
+                for k in 1:nbands*sc_size^3
+                    for ip in 1:k_mesh^3
+                    # ip = 1
+                        result += Uk[ip, k, j]* conj(Uq[ip, k,i]) * ϵₚ[ip][k]
+                        result -= Ukₘ[ip, k, j]* conj(Uqₘ[ip, k,i]) * ϵₚₘ[ip][k]
+                        # if real(Uk[k,j]* conj(Uq[k,i])) ≈ 1.0
+                        # if isapprox(real(Uk[k,j]* conj(Uq[k,i])), 1.0, atol=1e-6)
+                        #     println(Uk[k,j]* conj(Uq[k,i]))
+                        #     println(i, ' ', j)
+                        #     # # result += ϵₚ[k]
+                        #     # result = (ϵₚ[k] - ϵₚₘ[k])/2.0
+                        #     # #Need to investigate even small displacements
+                        #     println("ϵkᵤ = ", ϵkᵤ)
+                        #     println("ϵₚ[k] = ", ϵₚ[k])
+                        #     println("ϵkᵤ - ϵₚ[k] = ", (ϵₚ[k]-ϵkᵤ[i]))
+                        #     println("ϵkᵤ - U^2*ϵₚ[k] = ", (Uk[k,j]* conj(Uq[k,i]) * ϵₚ[k]-ϵkᵤ[i]))
 
-                    #    # println("ϵₚ[k] - ϵₚₘ[k] /2 = ", result)
+                        #    # println("ϵₚ[k] - ϵₚₘ[k] /2 = ", result)
 
-                    #     result += Uk[k,j]* conj(Uq[k,i]) * ϵₚ[k]
-                    # else
-                    #     result += Uk[k,j]* conj(Uq[k,i]) * ϵₚ[k]
-                    # end
-                    # println(k, ' ',ϵₚ[k], ' ',Uk[k,j]* conj(Uq[k,i]), ' ', result)
-                    # println(k, ' ',ϵₚₘ[k], ' ',Ukₘ[k,j]* conj(Uqₘ[k,i]), ' ', result)
-
+                        #     result += Uk[k,j]* conj(Uq[k,i]) * ϵₚ[k]
+                        # else
+                        #     result += Uk[k,j]* conj(Uq[k,i]) * ϵₚ[k]
+                        # end
+                        println(k,' ',ip, ' ',ϵₚ[ip][k], ' ',Uk[ip, k,j]* conj(Uq[ip, k,i]), ' ', result)
+                        println(k,' ',ip, ' ', ϵₚₘ[ip][k], ' ',Ukₘ[ip, k,j]* conj(Uqₘ[ip, k,i]), ' ', result)
+                    end
                 end
 
                 braket[i,j] = result/2.0
             end
-            # println("_____________________________________________________________")
-            # exit(3)
+            println("_____________________________________________________________")
+            exit(3)
         end
 
 
-        push!(braket_list, transpose(conj(braket))*scale*mesh^3)
+        push!(braket_list, transpose(conj(braket))*scale*(sc_size)^3)
 
     end
     # println("Braket list unrotated")
-    # println(scale*mesh^3)
+    # println(scale*sc_size^3)
     # println(braket_list)
 
     for iat in 1:Nat
@@ -492,7 +510,7 @@ function plot_ep_coupling(model::ModelQE, ik::Int=0, iq::Int=0; nbnd_max=-1)
     plot_ep_coupling(model.path_to_calc*"displacements/", ik, iq; nbnd_max=nbnd_max)
 end
 
-function electron_phonon(path_to_in::String, abs_disp, natoms, ik, iq, mesh, electrons::AbstractElectrons, phonons::AbstractPhonons; save_epw::Bool=false, path_to_calc="",kcw_chanel="")
+function electron_phonon(path_to_in::String, abs_disp, natoms, ik, iq, sc_size, electrons::AbstractElectrons, phonons::AbstractPhonons; save_epw::Bool=false, path_to_calc="",kcw_chanel="")
     ϵkᵤ_list = electrons.ϵkᵤ_list
     ϵₚ_list = electrons.ϵₚ_list
     ϵₚₘ_list = electrons.ϵₚₘ_list
@@ -504,7 +522,7 @@ function electron_phonon(path_to_in::String, abs_disp, natoms, ik, iq, mesh, ele
     εₐᵣᵣ_ₗᵢₛₜ = phonons.εₐᵣᵣ_ₗᵢₛₜ
     mₐᵣᵣ = phonons.mₐᵣᵣ
 
-    electron_phonon(path_to_in, abs_disp, natoms, ik, iq, mesh, ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list , U_list, V_list, M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ; save_epw=save_epw)
+    electron_phonon(path_to_in, abs_disp, natoms, ik, iq, sc_size, ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list , U_list, V_list, M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ; save_epw=save_epw)
 
 end
 
@@ -522,6 +540,6 @@ function electron_phonon(model::AbstractModel, ik, iq, electrons::AbstractElectr
 
     natoms = length(model.unitcell[:symbols])
 
-    electron_phonon(model.path_to_calc*"displacements/", model.abs_disp, natoms, ik, iq, model.mesh, ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list , U_list, V_list, M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ; save_epw=save_epw)
+    electron_phonon(model.path_to_calc*"displacements/", model.abs_disp, natoms, ik, iq, model.sc_size, model.k_mesh, ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list , U_list, V_list, M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ; save_epw=save_epw)
 
 end

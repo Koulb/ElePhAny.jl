@@ -134,10 +134,37 @@ function create_scf_calc(path_to_scf::String, unitcell, scf_parameters)
     atoms  = pycall(ase.Atoms;unitcell...)
 
     # Write the input file using Quantum ESPRESSO format
-    ase_io.write(path_to_scf*"scf.in",atoms; scf_parameters...)
+    ase_io.write(path_to_scf,atoms; scf_parameters...)
 end
 
-function create_disp_calc(path_to_in::String, unitcell, scf_parameters, abs_disp, mesh, use_symm; from_scratch = false)
+function include_kpoins(path_to_nscf::String, paht_to_kpts::String)
+    # Change the kpoints without ASE (not implemented yet)
+    file = open(paht_to_kpts, "r")
+    lines_kpoints = readlines(file)
+    close(file)
+
+    file = open(path_to_nscf, "r")
+    lines_nscf = readlines(file)
+    close(file)
+
+    index_kpoints = 0
+
+    for (index, line) in enumerate(lines_nscf)
+        if occursin("K_POINTS", line)
+            index_kpoints = index
+            break
+        end
+    end
+
+    deleteat!(lines_nscf,index_kpoints+1)
+    splice!(lines_nscf, index_kpoints, lines_kpoints)
+
+    file = open(path_to_nscf, "w")
+    writedlm(file, lines_nscf)
+    close(file)
+end
+
+function create_disp_calc(path_to_in::String, path_to_qe::String, unitcell, scf_parameters, abs_disp, sc_size, k_mesh, use_symm; from_scratch = false)
     # Change to the specified directory
     cd(path_to_in)
 
@@ -161,15 +188,31 @@ function create_disp_calc(path_to_in::String, unitcell, scf_parameters, abs_disp
         println(command)
     catch; end
 
+    command = `$(path_to_qe)/W90/utility/kmesh.pl $(k_mesh*sc_size) $(k_mesh*sc_size) $(k_mesh*sc_size)`
+    println(command)
+    run(pipeline(command, stdout=path_to_in*"/scf_0/kpoints.dat", stderr=path_to_in*"/scf_0/ksc_sizeerr.txt"))
+
+    command = `$(path_to_qe)/W90/utility/kmesh.pl $sc_size $sc_size $sc_size`
+    println(command)
+    run(pipeline(command, stdout=path_to_in*"/scf_0/kpoints_sc.dat", stderr=path_to_in*"/scf_0/ksc_sizeerr.txt"))
+
     nscf_parameters       = deepcopy(scf_parameters)
+
     #Case of hybrids
     if haskey(scf_parameters, :nqx1)
-        nscf_parameters[:nqx1] = mesh
-        nscf_parameters[:nqx2] = mesh
-        nscf_parameters[:nqx3] = mesh
+        nscf_parameters[:nqx1] = sc_size*k_mesh
+        nscf_parameters[:nqx2] = sc_size*k_mesh
+        nscf_parameters[:nqx3] = sc_size*k_mesh
     end
 
-    create_scf_calc(path_to_in*"scf_0/",unitcell, nscf_parameters)
+    pop!(nscf_parameters, :nbnd)
+    create_scf_calc(path_to_in*"scf_0/scf.in",unitcell, nscf_parameters)
+
+    #create nscf calculation as well
+    nscf_parameters[:calculation] = "nscf"
+    nscf_parameters[:nbnd]= scf_parameters[:nbnd]
+    create_scf_calc(path_to_in*"scf_0/nscf.in",unitcell, nscf_parameters)
+    include_kpoins(path_to_in*"scf_0/nscf.in", path_to_in*"scf_0/kpoints.dat")
 
     try
         command = `cp ../run.sh scf_0`
@@ -177,7 +220,7 @@ function create_disp_calc(path_to_in::String, unitcell, scf_parameters, abs_disp
         println(command)
     catch; end
 
-    unitcells_disp = dislpaced_unitecells(path_to_in, unitcell, abs_disp, mesh, use_symm)
+    unitcells_disp = dislpaced_unitecells(path_to_in, unitcell, abs_disp, sc_size, use_symm)
     Ndispalce = size(unitcells_disp)[1]
 
     for i_disp in 1:Ndispalce
@@ -194,10 +237,16 @@ function create_disp_calc(path_to_in::String, unitcell, scf_parameters, abs_disp
         catch; end
 
         nscf_parameters       = deepcopy(scf_parameters)
-        nscf_parameters[:nbnd]= nscf_parameters[:nbnd]*mesh^3#+2*mesh^3 #need to understand how I provide aditional states to keep the projectability satisfied
-        nscf_parameters[:kpts]= pytuple((1, 1, 1))
 
-        create_scf_calc(path_to_in*dir_name,unitcells_disp[i_disp], nscf_parameters)
+        pop!(nscf_parameters, :nbnd)
+        nscf_parameters[:kpts]= pytuple((k_mesh, k_mesh, k_mesh))
+        create_scf_calc(path_to_in*dir_name*"scf.in",unitcells_disp[i_disp], nscf_parameters)
+
+        #create nscf calculation as well
+        nscf_parameters[:calculation] = "nscf"
+        nscf_parameters[:nbnd]= scf_parameters[:nbnd]*sc_size^3#+2*sc_size^3 #need to understand how I provide aditional states to keep the projectability satisfied
+        create_scf_calc(path_to_in*dir_name*"nscf.in",unitcells_disp[i_disp], nscf_parameters)
+        include_kpoins(path_to_in*"group_$i_disp/nscf.in", path_to_in*"scf_0/kpoints_sc.dat")
     end
 
     return Ndispalce
@@ -223,7 +272,7 @@ function create_disp_calc!(model::ModelQE; from_scratch = false)
         println("Number of displacements: $(model.Ndispalce)")
     end
 
-    Ndispalce = create_disp_calc(model.path_to_calc, model.unitcell, model.scf_parameters, model.abs_disp, model.mesh, model.use_symm)
+    Ndispalce = create_disp_calc(model.path_to_calc, model.path_to_qe, model.unitcell, model.scf_parameters, model.abs_disp, model.sc_size, model.k_mesh, model.use_symm)
     if Ndispalce != model.Ndispalce
         @error "Inconsistend amount of displacement between phonopy ($Ndispalce) and symmetries calcuation ($(model.Ndisplace)) "
     end
@@ -256,7 +305,7 @@ function create_disp_calc(model::ModelKCW; from_scratch = false)
         println(command)
     catch; end
 
-    for ind in range(1, model.mesh^3)
+    for ind in range(1, model.sc_size^3)
         file =  model.path_to_calc * "unperturbed/TMP/kc_kcw.save/wfc$(model.spin_channel)$(ind).dat"
         command = `cp $file $path_to_wfc_out/wfc$(ind).dat`
         run(command);
@@ -270,10 +319,10 @@ function create_disp_calc(model::ModelKCW; from_scratch = false)
     command = `cp $file $path_to_scf/scf.out`
     run(command);
 
-    command = `$(model.path_to_qe)/W90/utility/kmesh.pl $(model.mesh) $(model.mesh) $(model.mesh)`
-    run(pipeline(command, stdout="$path_to_scf/kpoints.dat", stderr="$path_to_scf/kmesherr.txt"))
+    command = `$(model.path_to_qe)/W90/utility/ksc_size.pl $(model.sc_size) $(model.sc_size) $(model.sc_size)`
+    run(pipeline(command, stdout="$path_to_scf/kpoints.dat", stderr="$path_to_scf/ksc_sizeerr.txt"))
 
-    dislpaced_unitecells(model.path_to_calc*"displacements/", model.unitcell, model.abs_disp, model.mesh)
+    dislpaced_unitecells(model.path_to_calc*"displacements/", model.unitcell, model.abs_disp, model.sc_size)
 
     for i_disp in 1:model.Ndispalce
         dir_name =  model.path_to_calc * "displacements/group_$(i_disp)/tmp/scf.save"
@@ -324,55 +373,11 @@ function run_scf_cluster(path_to_in::String)
     run(pipeline(command, stdout="run.out", stderr="errs.txt"))
 end
 
-function run_nscf_calc(path_to_in::String, unitcell, scf_parameters, mesh, path_to_kmesh, mpi_ranks)
+function run_nscf_calc(path_to_in::String, mpi_ranks)
     println("Ceating nscf:")
-    cd(path_to_in*"displacements/scf_0/")
+    cd(path_to_in*"/scf_0/")
 
-    command = `$path_to_kmesh/W90/utility/kmesh.pl $mesh $mesh $mesh`
-    println(command)
-    run(pipeline(command, stdout="kpoints.dat", stderr="kmesherr.txt"))
-
-    atoms  = pycall(ase.Atoms;unitcell...)
-    scf_parameters[:calculation] = "nscf"
-
-    nscf_parameters       = deepcopy(scf_parameters)
-    #Case of hybrids
-    if haskey(scf_parameters, :nqx1)
-        nscf_parameters[:nqx1] = mesh
-        nscf_parameters[:nqx2] = mesh
-        nscf_parameters[:nqx3] = mesh
-    end
-
-    # Write the input file using Quantum ESPRESSO format
-    ase_io.write(path_to_in*"displacements/scf_0/nscf.in",atoms; nscf_parameters...)
-
-    # Change the kpoints without ASE (not implemented yet)
-    file = open(path_to_in*"displacements/scf_0/kpoints.dat", "r")
-    lines_kpoints = readlines(file)
-    close(file)
-
-    file = open(path_to_in*"displacements/scf_0/nscf.in", "r")
-    lines_nscf = readlines(file)
-    close(file)
-
-    index_kpoints = 0
-
-    for (index, line) in enumerate(lines_nscf)
-        if occursin("K_POINTS", line)
-            index_kpoints = index
-            break
-        end
-    end
-
-    deleteat!(lines_nscf,index_kpoints+1)
-    splice!(lines_nscf, index_kpoints, lines_kpoints)
-
-    file = open(path_to_in*"displacements/scf_0/nscf.in", "w")
-    writedlm(file, lines_nscf)
-    close(file)
-
-    # Try to copy cluster run file
-    path_to_copy = path_to_in*"displacements/scf_0/run_nscf.sh"
+    path_to_copy = path_to_in*"/scf_0/run_nscf.sh"
     try
         command = `cp ./run.sh $path_to_copy`
         run(command);
@@ -417,6 +422,7 @@ end
 function run_disp_calc(path_to_in::String, Ndispalce::Int, mpi_ranks::Int = 0)
     # Change to the specified directory
     #FIXME Only run scf in the DFT case (not Hybrids)
+
     println("Running scf_0:")
     if(isfile(path_to_in*"scf_0/"*"run.sh"))
         run_scf_cluster(path_to_in*"scf_0/")
@@ -438,6 +444,66 @@ function run_disp_calc(path_to_in::String, Ndispalce::Int, mpi_ranks::Int = 0)
 
     return true
 end
+
+function run_disp_nscf_calc(path_to_in::String, Ndispalce::Int, mpi_ranks::Int = 0)
+    for i_disp in 1:Ndispalce
+        println("Running displacement # $i_disp:")
+        dir_name = "group_"*string(i_disp)*"/"
+        cd(path_to_in*dir_name)
+
+        #save scf xml file that has forces
+        try
+            command = `cp $(path_to_in*dir_name)/tmp/scf.save/data-file-schema.xml $(path_to_in*dir_name)/tmp/scf.save/data-file-schema-scf.xml`
+            run(command)
+            println(command)
+        catch; end
+
+        # Try to copy cluster run file
+        path_to_copy = path_to_in*"displacements/group_$i_disp/run_nscf.sh"
+        try
+            command = `cp ./run.sh $path_to_copy`
+            run(command);
+            println(command)
+
+            # Open the run_nscf.sh file and replace "scf.in" with "nscf.in"
+            file = open(path_to_copy, "r")
+            lines = readlines(file)
+            close(file)
+
+            for (index, line) in enumerate(lines)
+                if occursin("scf.in", line)
+                    lines[index] = replace(line, "scf.in" => "nscf.in")
+                end
+            end
+
+            file = open(path_to_copy, "w")
+            writedlm(file, lines, quotes=false)
+            close(file)
+
+        catch; end
+
+
+
+        if(isfile(path_to_in*dir_name*"run_nscf.sh"))
+            command = `sbatch run_nscf.sh`
+            println(command)
+            run(pipeline(command, stdout="run_nscf.out", stderr="errs.txt"))
+        else
+            # Execute the command
+            if mpi_ranks > 0
+                command = `mpirun -np $mpi_ranks pw.x -in nscf.in`
+            else
+                command = `pw.x -in nscf.in`
+            end
+
+            println(command)
+            run(pipeline(command, stdout="nscf.out", stderr="nerrs.txt"))
+        end
+    end
+
+    return true
+end
+
 
 ###TODO Need to check consistenct for the reading of the potetial
 function read_potential(path_to_file::String;skiprows=0)
@@ -493,7 +559,7 @@ function read_potential(path_to_file::String;skiprows=0)
     return ff, N1, N2, N3
 end
 
-function save_potential(path_to_in::String, Ndispalce, mesh, mpi_ranks)
+function save_potential(path_to_in::String, Ndispalce, sc_size, mpi_ranks)
     # Get a number of displacements
     files = readdir(path_to_in; join=true)
 
@@ -545,9 +611,9 @@ function save_potential(path_to_in::String, Ndispalce, mesh, mpi_ranks)
         println(command)
         run(pipeline(command, stdout="pp.out", stderr="errs_pp.txt"))
 
-        if mesh > 1 &&  dir_name == "scf_0/"
+        if sc_size > 1 &&  dir_name == "scf_0/"
             Upot_pc, = read_potential(path_to_in*dir_name*"Vks",skiprows=1)
-            Upot_sc = repeat(Upot_pc, outer=(mesh, mesh, mesh))
+            Upot_sc = repeat(Upot_pc, outer=(sc_size, sc_size, sc_size))
             save(path_to_in*dir_name*"Vks.jld2", "Upot_sc", Upot_sc)
         end
         #Need to check consistency between python and julia potential (lot or ?)
@@ -614,12 +680,13 @@ function prepare_eigenvalues(path_to_in::String, natoms::Int; Ndisplace::Int = 6
     for ind in 1:Ndisplace
         group = "group_$ind/"
 
+        #Need to save values coresponding to differents k-points not only gamma
         if spin_channel == "up"
-            ϵₚ = read_qe_xml(path_to_in*group*path_to_xml)[:eigenvalues_up][1]
+            ϵₚ = read_qe_xml(path_to_in*group*path_to_xml)[:eigenvalues_up]#[1]
         elseif spin_channel == "dw"
-            ϵₚ = read_qe_xml(path_to_in*group*path_to_xml)[:eigenvalues_dn][1]
+            ϵₚ = read_qe_xml(path_to_in*group*path_to_xml)[:eigenvalues_dn]#[1]
         else
-            ϵₚ = read_qe_xml(path_to_in*group*path_to_xml)[:eigenvalues][1]
+            ϵₚ = read_qe_xml(path_to_in*group*path_to_xml)[:eigenvalues]#[1]
         end
 
         push!(ϵₚ_list_raw,ϵₚ)
@@ -641,8 +708,8 @@ function prepare_eigenvalues(path_to_in::String, natoms::Int; Ndisplace::Int = 6
     return ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list
 end
 
-function create_electrons(path_to_in::String, natoms::Int, mesh::Int)
-    U_list, V_list = prepare_u_matrixes(path_to_in, natoms, mesh)
+function create_electrons(path_to_in::String, natoms::Int, sc_size::Int, k_mesh::Int)
+    U_list, V_list = prepare_u_matrixes(path_to_in, natoms, sc_size, k_mesh)
     ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list = prepare_eigenvalues(path_to_in, natoms)
 
     return Electrons(U_list, V_list, ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list)
@@ -662,7 +729,7 @@ function create_electrons(model::AbstractModel)
 
     natoms = length(model.unitcell[:symbols])
 
-    U_list, V_list = prepare_u_matrixes(model.path_to_calc*"displacements/", natoms, model.mesh; symmetries=symmetries)
+    U_list, V_list = prepare_u_matrixes(model.path_to_calc*"displacements/", natoms, model.sc_size, model.k_mesh; symmetries=symmetries)
     ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list = prepare_eigenvalues(model.path_to_calc*"displacements/", natoms; Ndisplace=model.Ndispalce, ineq_atoms_list=symmetries.ineq_atoms_list, spin_channel=spin_channel)
 
     return Electrons(U_list, V_list, ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list)

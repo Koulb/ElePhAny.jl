@@ -1,9 +1,9 @@
-function check_symmetries(path_to_calc, unitcell, mesh, abs_disp)
+function check_symmetries(path_to_calc, unitcell, sc_size, abs_disp)
     unitcell_phonopy = phonopy.structure.atoms.PhonopyAtoms(;symbols=unitcell[:symbols],
     cell=pylist(pyconvert(Array,unitcell[:cell])./bohr_to_ang),#Should be in Bohr, hence conversion
     scaled_positions=unitcell[:scaled_positions],
     masses=unitcell[:masses])
-    supercell_matrix=pylist([[mesh, 0, 0], [0, mesh, 0], [0, 0, mesh]])
+    supercell_matrix=pylist([[sc_size, 0, 0], [0, sc_size, 0], [0, 0, sc_size]])
 
     phonon_symm = phonopy.Phonopy(unitcell_phonopy,supercell_matrix=supercell_matrix)
     phonon_nosymm = phonopy.Phonopy(unitcell_phonopy, is_symmetry=false,supercell_matrix=supercell_matrix)
@@ -66,7 +66,7 @@ function check_symmetries(path_to_calc, unitcell, mesh, abs_disp)
 end
 
 function check_symmetries!(model::ModelQE)
-    symmetries = check_symmetries(model.path_to_calc, model.unitcell, model.mesh, model.abs_disp)
+    symmetries = check_symmetries(model.path_to_calc, model.unitcell, model.sc_size, model.abs_disp)
     natoms = length(pyconvert(Vector{Vector{Float64}}, model.unitcell[:scaled_positions]))
 
     if length(symmetries.trans_list) == 6 * natoms

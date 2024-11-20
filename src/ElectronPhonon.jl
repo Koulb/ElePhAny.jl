@@ -30,7 +30,7 @@ export create_disp_calc, create_disp_calc!, run_disp_calc, save_potential, run_n
 export load_electrons
 include("electrons.jl")
 
-export prepare_wave_functions_all, prepare_wave_functions_undisp, prepare_u_matrixes, create_phonons
+export prepare_wave_functions_all, prepare_wave_functions_undisp, prepare_u_matrixes, create_phonons, create_miller_index
 include("wave_function.jl")
 
 export calculate_phonons, prepare_phonons, load_phonons

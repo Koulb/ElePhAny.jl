@@ -20,8 +20,8 @@ using Test, JLD2, Glob, Logging, ElectronPhonon
 
     norm11 = abs(ElectronPhonon.calculate_braket_real(ψ1_real, ψ1_real))
     norm12 = abs(ElectronPhonon.calculate_braket_real(ψ1_real, ψ2_real))
-    
-    @test isapprox(norm11, 1.0; atol=ElectronPhonon.toleranse_tests) 
+
+    @test isapprox(norm11, 1.0; atol=ElectronPhonon.toleranse_tests)
     @test isapprox(norm12, 0.0; atol=ElectronPhonon.toleranse_tests)
 end
 
@@ -31,8 +31,8 @@ end
     _, evc_list = ElectronPhonon.parse_fortan_bin(path_tst_data)
     norm11 = abs(ElectronPhonon.calculate_braket(evc_list[1], evc_list[1]))
     norm12 = abs(ElectronPhonon.calculate_braket(evc_list[1], evc_list[2]))
-    
-    @test isapprox(norm11, 1.0; atol=ElectronPhonon.toleranse_tests) 
+
+    @test isapprox(norm11, 1.0; atol=ElectronPhonon.toleranse_tests)
     @test isapprox(norm12, 0.0; atol=ElectronPhonon.toleranse_tests)
 end
 
@@ -42,8 +42,8 @@ end
     _, evc_list = ElectronPhonon.parse_fortan_bin(path_tst_data)
     norm11 = abs(ElectronPhonon.calculate_braket(evc_list[1], evc_list[1]))
     norm12 = abs(ElectronPhonon.calculate_braket(evc_list[1], evc_list[2]))
-    
-    @test isapprox(norm11, 1.0; atol=ElectronPhonon.toleranse_tests) 
+
+    @test isapprox(norm11, 1.0; atol=ElectronPhonon.toleranse_tests)
     @test isapprox(norm12, 0.0; atol=ElectronPhonon.toleranse_tests)
 end
 
@@ -56,8 +56,8 @@ end
 
     norm11 = abs(ElectronPhonon.calculate_braket_real(wfc_list[1], wfc_list[1]))
     norm12 = abs(ElectronPhonon.calculate_braket_real(wfc_list[1], wfc_list[2]))
-    
-    @test isapprox(norm11, 1.0; atol=ElectronPhonon.toleranse_tests) 
+
+    @test isapprox(norm11, 1.0; atol=ElectronPhonon.toleranse_tests)
     @test isapprox(norm12, 0.0; atol=ElectronPhonon.toleranse_tests)
 end
 
@@ -70,8 +70,8 @@ end
 
     norm11 = abs(ElectronPhonon.calculate_braket_real(wfc_list[1], wfc_list[1]))
     norm12 = abs(ElectronPhonon.calculate_braket_real(wfc_list[1], wfc_list[2]))
-    
-    @test isapprox(norm11, 1.0; atol=ElectronPhonon.toleranse_tests) 
+
+    @test isapprox(norm11, 1.0; atol=ElectronPhonon.toleranse_tests)
     @test isapprox(norm12, 0.0; atol=ElectronPhonon.toleranse_tests)
 end
 
@@ -82,11 +82,11 @@ end
     miller, evc_list = ElectronPhonon.parse_fortan_bin(path_tst_data)
     wfc_list = [ElectronPhonon.wf_from_G(miller, evc, Nxyz) for evc in evc_list]
     evc_list_new = [ElectronPhonon.wf_to_G(miller, wfc, Nxyz) for wfc in wfc_list]
-    
+
     norm11 = abs(ElectronPhonon.calculate_braket(evc_list[1], evc_list_new[1]))
-    norm12 = abs(ElectronPhonon.calculate_braket(evc_list[1], evc_list_new[2])) 
-    
-    @test isapprox(norm11, 1.0; atol=ElectronPhonon.toleranse_tests) 
+    norm12 = abs(ElectronPhonon.calculate_braket(evc_list[1], evc_list_new[2]))
+
+    @test isapprox(norm11, 1.0; atol=ElectronPhonon.toleranse_tests)
     @test isapprox(norm12, 0.0; atol=ElectronPhonon.toleranse_tests)
 end
 
@@ -97,11 +97,11 @@ end
     miller, evc_list = ElectronPhonon.parse_fortan_bin(path_tst_data)
     wfc_list = [ElectronPhonon.wf_from_G(miller, evc, Nxyz) for evc in evc_list]
     wfc_list_sc = [ElectronPhonon.wf_pc_to_sc(wfc, 2) for wfc in wfc_list]
-    
+
     norm11 = abs(ElectronPhonon.calculate_braket_real(wfc_list_sc[1], wfc_list_sc[1]))
-    norm12 = abs(ElectronPhonon.calculate_braket_real(wfc_list_sc[1], wfc_list_sc[2])) 
-    
-    @test isapprox(norm11, 1.0; atol=ElectronPhonon.toleranse_tests) 
+    norm12 = abs(ElectronPhonon.calculate_braket_real(wfc_list_sc[1], wfc_list_sc[2]))
+
+    @test isapprox(norm11, 1.0; atol=ElectronPhonon.toleranse_tests)
     @test isapprox(norm12, 0.0; atol=ElectronPhonon.toleranse_tests)
 end
 
@@ -109,7 +109,7 @@ end
     path_tst_data = "test_data/displacements/scf_0/scf.out"
     Nxyz = ElectronPhonon.determine_fft_grid(path_tst_data)
 
-    @test isapprox(Nxyz, 36; atol=1e-14) 
+    @test isapprox(Nxyz, 36; atol=1e-14)
 end
 
 @testset "Test determining the phase of ik != 0 wavefunction" begin
@@ -122,36 +122,36 @@ end
     q_point = ElectronPhonon.determine_q_point(path_tst_data, ik)
     phase = ElectronPhonon.determine_phase(q_point, Nxyz)
     wfc_list_phase = [wfc .* phase for wfc in wfc_list]
- 
+
     norm11 = abs(ElectronPhonon.calculate_braket_real(wfc_list_phase[1], wfc_list_phase[1]))
-    norm12 = abs(ElectronPhonon.calculate_braket_real(wfc_list_phase[1], wfc_list_phase[2])) 
-    
-    @test isapprox(norm11, 1.0; atol=ElectronPhonon.toleranse_tests) 
+    norm12 = abs(ElectronPhonon.calculate_braket_real(wfc_list_phase[1], wfc_list_phase[2]))
+
+    @test isapprox(norm11, 1.0; atol=ElectronPhonon.toleranse_tests)
     @test isapprox(norm12, 0.0; atol=ElectronPhonon.toleranse_tests)
 end
 
 @testset "Test unfolding undisplaced wavefunction to supercell" begin
     path_tst_data = "test_data/displacements/"
     ik = 2
-    mesh = 2
+    sc_size = 2
     Nxyz = ElectronPhonon.determine_fft_grid(path_tst_data * "scf_0/scf.out")
 
     miller, evc_list = ElectronPhonon.parse_fortan_bin(path_tst_data * "/scf_0/tmp/scf.save/wfc$ik.dat")
-    miller_sc, _ = ElectronPhonon.parse_fortan_bin(path_tst_data * "/group_1/tmp/scf.save/wfc1.dat") 
+    miller_sc, _ = ElectronPhonon.parse_fortan_bin(path_tst_data * "/group_1/tmp/scf.save/wfc1.dat")
 
     wfc_list = [ElectronPhonon.wf_from_G(miller, evc, Nxyz) for evc in evc_list]
-    wfc_list_sc = [ElectronPhonon.wf_pc_to_sc(wfc, mesh) for wfc in wfc_list]
+    wfc_list_sc = [ElectronPhonon.wf_pc_to_sc(wfc, sc_size) for wfc in wfc_list]
 
-    q_point = ElectronPhonon.determine_q_point(path_tst_data * "scf_0/", ik; mesh=mesh)    
-    phase = ElectronPhonon.determine_phase(q_point, mesh*Nxyz)
+    q_point = ElectronPhonon.determine_q_point(path_tst_data * "scf_0/", ik; sc_size=sc_size)
+    phase = ElectronPhonon.determine_phase(q_point, sc_size*Nxyz)
 
     wfc_list_phase = [wfc .* phase for wfc in wfc_list_sc]
-    evc_list_new = [ElectronPhonon.wf_to_G(miller_sc, wfc, mesh*Nxyz) for wfc in wfc_list_phase]
+    evc_list_new = [ElectronPhonon.wf_to_G(miller_sc, wfc, sc_size*Nxyz) for wfc in wfc_list_phase]
 
     norm11 = abs(ElectronPhonon.calculate_braket(evc_list_new[1], evc_list_new[1]))
-    norm12 = abs(ElectronPhonon.calculate_braket(evc_list_new[1], evc_list_new[2])) 
-    
-    @test isapprox(norm11, 1.0; atol=ElectronPhonon.toleranse_tests) 
+    norm12 = abs(ElectronPhonon.calculate_braket(evc_list_new[1], evc_list_new[2]))
+
+    @test isapprox(norm11, 1.0; atol=ElectronPhonon.toleranse_tests)
     @test isapprox(norm12, 0.0; atol=ElectronPhonon.toleranse_tests)
 
 end
@@ -160,27 +160,27 @@ end
 @testset "Test unfolding undisplaced wavefunction to supercell in automated way" begin
     path_tst_data = "test_data/displacements/"
     ik = 2
-    mesh = 2
+    sc_size = 2
     global_logger(ConsoleLogger(Warn))
-    prepare_wave_functions_undisp(path_tst_data, mesh)
+    prepare_wave_functions_undisp(path_tst_data, sc_size)
 
     ψkᵤ_list = load(path_tst_data*"/scf_0/g_list_sc_$ik.jld2")
     ψkᵤ = [ψkᵤ_list["wfc$iband"] for iband in 1:length(ψkᵤ_list)]
- 
+
     norm11 = abs(ElectronPhonon.calculate_braket(ψkᵤ[1], ψkᵤ[1]))
-    norm12 = abs(ElectronPhonon.calculate_braket(ψkᵤ[1], ψkᵤ[2]))  
+    norm12 = abs(ElectronPhonon.calculate_braket(ψkᵤ[1], ψkᵤ[2]))
 
     # Use the Glob package to match all necessary   files in the directory
     files_to_delete1 = glob("g_list_sc*", joinpath(path_tst_data, "scf_0"))
     files_to_delete2 = glob("wfc_list*", joinpath(path_tst_data, "scf_0"))
     files_to_delete  =reduce(vcat, (files_to_delete1, files_to_delete2))
 
-    
+
     # Delete each file
     for file in files_to_delete
         rm(file)
     end
 
-    @test isapprox(norm11, 1.0; atol=ElectronPhonon.toleranse_tests) 
+    @test isapprox(norm11, 1.0; atol=ElectronPhonon.toleranse_tests)
     @test isapprox(norm12, 0.0; atol=ElectronPhonon.toleranse_tests)
 end
