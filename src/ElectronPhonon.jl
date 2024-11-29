@@ -36,5 +36,10 @@ include("phonons.jl")
 export run_calculations, prepare_model, electron_phonon, electron_phonon_qe, plot_ep_coupling, get_kpoint_list, fold_kpoint
 include("electron_phonons.jl")
 
+export parse_qe_in, parse_frozen_params
+include("io.jl")
+
+#cli
+include("cli/mail.jl")
 
 end
