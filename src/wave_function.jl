@@ -281,14 +281,10 @@ end
 
 function create_unified_Grid(path_to_dat, a, ecutoff, mesh_scale )
 
-    # # Create a grid comensurate with SCII
-    # # Constants
-    # a = 5.43          # Lattice constant in Ångstroms
-    # ecutoff = 65.0/2  # Kinetic energy cutoff in Ha
+    ## Create a grid comensurate with SCII
 
-    # mesh_scale = 4
-    a = 5.43
-    ecutoff = 65.0/2#(ecutoff + 5) / 2 #??
+    ## TODO Come up with a better way to determine the cutoff
+    ecutoff = ecutoff + 5#65.0/2#(ecutoff + 5) / 2 #??
 
     miller_list_pc_raw  = [0;0;0]
 
@@ -491,9 +487,12 @@ function prepare_u_matrixes(path_to_in::String, natoms::Int, sc_size::Int, k_mes
         for ip in 1:(k_mesh)^3
             if all(isapprox.(tras,[0.0,0.0,0.0], atol = 1e-15)) &&
             all(isapprox.(rot, [[1.0,0.0,0.0] [0.0,1.0,0.0] [0.0,0.0,1.0]], atol = 1e-15))
-                # _, ψₚ = parse_fortan_bin(path_to_in*"/group_$(symmetries.ineq_atoms_list[ind])/tmp/scf.save/wfc1.dat")
-                ψₚ_list = load(path_to_in*"/group_$(symmetries.ineq_atoms_list[ind])/g_list_sc_$ip.jld2")
-                ψₚ = [ψₚ_list["wfc$iband"] for iband in 1:length(ψₚ_list)]
+                if k_mesh == 1
+                     _, ψₚ = parse_fortan_bin(path_to_in*"/group_$(symmetries.ineq_atoms_list[ind])/tmp/scf.save/wfc1.dat")
+                else
+                    ψₚ_list = load(path_to_in*"/group_$(symmetries.ineq_atoms_list[ind])/g_list_sc_$ip.jld2")
+                    ψₚ = [ψₚ_list["wfc$iband"] for iband in 1:length(ψₚ_list)]
+                end
             else
                 ψₚ0_real = ψₚ0_real_list[symmetries.ineq_atoms_list[ind]]
                 miller1 = miller_list[symmetries.ineq_atoms_list[ind]]

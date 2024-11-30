@@ -11,23 +11,26 @@ end
 function prepare_model(model::ModelQE)
     # save_potential(model.path_to_calc*"displacements/", model.Ndispalce, model.sc_size, model.mpi_ranks)
 
-    a          =  5.43052 #??
-    ecutoff    = model.scf_parameters[:ecutwfc]
-    mesh_scale = model.k_mesh * model.sc_size
+    if model.k_mesh != 1
+        if model.use_symm == true
+            @error "Symmetry usage is not implemented for supercell calculations with kpoints"
+        end
 
-    # miller_map = create_unified_Grid(model.path_to_calc*"displacements/", a, ecutoff, mesh_scale)
-    # prepare_wave_functions_undisp(model.path_to_calc*"displacements/",miller_map, model.sc_size; k_mesh=model.k_mesh)# path_to_calc=path_to_calc,kcw_chanel=kcw_chanel
-    # prepare_wave_functions_disp(model.path_to_calc*"displacements/", miller_map, model.Ndispalce, model.k_mesh;)
+        #additioanl data for creating unified grid
+        data = ase_io.read(model.path_to_calc*"displacements/scf_0/scf.in")
+        a = data.cell.get_bravais_lattice().a
+        ecutoff    = model.scf_parameters[:ecutwfc]
+        mesh_scale = model.k_mesh * model.sc_size
+
+        miller_map = create_unified_Grid(model.path_to_calc*"displacements/", a, ecutoff, mesh_scale)
+        prepare_wave_functions_undisp(model.path_to_calc*"displacements/",miller_map, model.sc_size; k_mesh=model.k_mesh)# path_to_calc=path_to_calc,kcw_chanel=kcw_chanel
+        prepare_wave_functions_disp(model.path_to_calc*"displacements/", miller_map, model.Ndispalce, model.k_mesh;)
+    else
+        prepare_wave_functions_undisp(model.path_to_calc*"displacements/", model.sc_size)
+    end
 
     prepare_phonons_data(model.path_to_calc*"displacements/",model.unitcell, model.abs_disp, model.sc_size, model.k_mesh, model.use_symm, model.Ndispalce)
 end
-
-# function prepare_model(model::ModelQE)
-#     save_potential(model.path_to_calc*"displacements/", model.Ndispalce, model.sc_size, model.mpi_ranks)
-#     prepare_wave_functions_undisp(model.path_to_calc*"displacements/", model.sc_size; k_mesh=model.k_mesh)# path_to_calc=path_to_calc,kcw_chanel=kcw_chanel
-#     prepare_wave_functions_disp(model.path_to_calc*"displacements/",model.Ndispalce, model.sc_size, model.k_mesh;)
-#     prepare_phonons_data(model.path_to_calc*"displacements/",model.unitcell, model.abs_disp, model.sc_size, model.use_symm, model.Ndispalce)
-# end
 
 function prepare_model(model::ModelKCW)
     prepare_wave_functions_undisp(model.path_to_calc*"displacements/", model.sc_size)
@@ -270,15 +273,15 @@ function electron_phonon(path_to_in::String, abs_disp, Nat, ik, iq, sc_size, k_m
                         # else
                         #     result += Uk[k,j]* conj(Uq[k,i]) * ϵₚ[k]
                         # end
-                        println(k,' ',ip, ' ',ϵₚ[ip][k], ' ',Uk[ip, k,j]* conj(Uq[ip, k,i]), ' ', result)
-                        println(k,' ',ip, ' ', ϵₚₘ[ip][k], ' ',Ukₘ[ip, k,j]* conj(Uqₘ[ip, k,i]), ' ', result)
+                        # println(k,' ',ip, ' ',ϵₚ[ip][k], ' ',Uk[ip, k,j]* conj(Uq[ip, k,i]), ' ', result)
+                        # println(k,' ',ip, ' ', ϵₚₘ[ip][k], ' ',Ukₘ[ip, k,j]* conj(Uqₘ[ip, k,i]), ' ', result)
                     end
                 end
 
                 braket[i,j] = result/2.0
             end
-            println("_____________________________________________________________")
-            exit(3)
+            # println("_____________________________________________________________")
+            # exit(3)
         end
 
 
