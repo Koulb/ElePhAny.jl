@@ -4,12 +4,12 @@ function parse_frozen_params(path_to_json)
     frozen_params_default = Dict(
         "path_to_calc" =>  pwd()*"/",
         "abs_disp" => 1e-3,
-        "mpi_ranks" => 1,
-        "mesh" => 2,
+        "mpi_ranks" => 8,
+        "sc_size" => 2,
         "Ndispalce" => 12
     )
 
-    frozen_params_new = JSON3.read("frozen_params.json", Dict{String, Any})
+    frozen_params_new = JSON3.read(path_to_json, Dict{String, Any})
 
     for (key, value) in frozen_params_new
         if !haskey(frozen_params_default, key)
