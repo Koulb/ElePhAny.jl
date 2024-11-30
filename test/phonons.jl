@@ -53,6 +53,7 @@ end
   abs_disp  = 0.001
   sc_size      = 2
   a = 5.43052  # in Angstrom
+  use_sym = false
 
   unitcell = Dict(
       :symbols =>  pylist(["Si", "Si"]),
@@ -63,7 +64,7 @@ end
       :masses => pylist([28.08550, 28.08550])
   )
 
-  ElectronPhonon.dislpaced_unitecells(path_tst_data, unitcell,abs_disp, sc_size)
+  ElectronPhonon.dislpaced_unitecells(path_tst_data, unitcell,abs_disp, sc_size, use_sym)
 
   phonon_params = ElectronPhonon.phonopy.load(path_tst_data*"phonopy_params.yaml")
   phonon_params_check = ElectronPhonon.phonopy.load(path_tst_xml)
@@ -84,7 +85,9 @@ end
   path_tst_xml  = "test_data/phonopy_params.yaml"
   path_tst_group = "test_data/displacements/group_1/"
   abs_disp  = 0.001
-  sc_size      = 2
+  sc_size   = 2
+  k_mesh    = 1
+  use_sym   = false
   Ndispalce = 12
   a = 5.43052  # in Angstrom
 
@@ -104,7 +107,7 @@ end
     forces[i_disp,:,:] = force * (-1)^(i_disp) # to have different forces
   end
 
-  ElectronPhonon.prepare_phonons_data(path_tst_data, unitcell,abs_disp, sc_size, forces; save_dynq=false)
+  ElectronPhonon.prepare_phonons_data(path_tst_data, unitcell,abs_disp, sc_size, k_mesh, use_sym, forces; save_dynq=false)
   # Delete created files
   rm(path_tst_data*"sc_size.conf")
   rm(path_tst_data*"phonopy.yaml")

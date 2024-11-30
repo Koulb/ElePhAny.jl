@@ -21,8 +21,11 @@ end
     path_tst_data = "test_data/"
     path_to_qe = ""
     sc_size = 2
+    k_mesh  = 1
     Ndispalce = 12
     mpi_ranks = 1
+    use_symm = false
+
     ik = 2   #[0.0 0.0 0.5]
     iq = 3   #[0.0 0.5 0.0]
     abs_disp = 0.001
@@ -30,6 +33,7 @@ end
     global_logger(ConsoleLogger(Warn))
 
     unitcell = Dict(
+        :symbols =>  pylist(["Si", "Si"]),
         :scaled_positions => pylist([(0, 0, 0), (0.75, 0.75, 0.75)]),
         :masses => pylist([28.08550, 28.08550])
     )
@@ -38,13 +42,22 @@ end
         :nbnd => 4
     )
 
-    model = create_model(path_tst_data, abs_disp, path_to_qe, mpi_ranks, sc_size, Ndispalce, unitcell, scf_parameters)
+    model = create_model(path_to_calc = path_tst_data,
+                         abs_disp = abs_disp,
+                         path_to_qe = path_to_qe,
+                         mpi_ranks = mpi_ranks,
+                         sc_size = sc_size,
+                         k_mesh = k_mesh,
+                         Ndispalce = Ndispalce,
+                         unitcell = unitcell,
+                         scf_parameters = scf_parameters,
+                         use_symm = use_symm)
 
     electrons = ElectronPhonon.load_electrons(model)
     phonons = ElectronPhonon.load_phonons(model)
 
     brakets = ElectronPhonon.electron_phonon(model, ik, iq, electrons, phonons; save_epw = true) #save_epw = true
-    brakets_test = [-0.027596679111611726 + 0.06331498639687654im, 0.0020688309462811513 + 0.011649138869732529im]
+    brakets_test = [-0.08929173722566114 + 0.01718059867889217im, 0.04280449975955811 + 0.015614864644048581im]
 
     @test isapprox(brakets[1][2][3,4], brakets_test[1]; atol=ElectronPhonon.toleranse_tests)
     @test isapprox(brakets[2][1][4,3], brakets_test[2]; atol=ElectronPhonon.toleranse_tests)
@@ -57,6 +70,8 @@ end
     sc_size = 2
     Ndispalce = 12
     mpi_ranks = 1
+    k_mesh = 1
+    use_symm = false
     ik = 2   #[0.0 0.0 0.5]
     iq = 3   #[0.0 0.5 0.0]
     abs_disp = 0.001
@@ -64,6 +79,7 @@ end
     global_logger(ConsoleLogger(Warn))
 
     unitcell = Dict(
+        :symbols =>  pylist(["Si", "Si"]),
         :scaled_positions => pylist([(0, 0, 0), (0.75, 0.75, 0.75)]),
         :masses => pylist([28.08550, 28.08550])
     )
@@ -72,7 +88,16 @@ end
         :nbnd => 4
     )
 
-    model = create_model(path_tst_data, abs_disp, path_to_qe, mpi_ranks, sc_size, Ndispalce, unitcell, scf_parameters)
+    model = create_model(path_to_calc = path_tst_data,
+                         abs_disp = abs_disp,
+                         path_to_qe = path_to_qe,
+                         mpi_ranks = mpi_ranks,
+                         sc_size = sc_size,
+                         k_mesh = k_mesh,
+                         Ndispalce = Ndispalce,
+                         unitcell = unitcell,
+                         scf_parameters = scf_parameters,
+                         use_symm = use_symm)
 
     electrons = ElectronPhonon.load_electrons(model)
     phonons = ElectronPhonon.load_phonons(model)
