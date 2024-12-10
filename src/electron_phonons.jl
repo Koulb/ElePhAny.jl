@@ -224,6 +224,7 @@ function electron_phonon(path_to_in::String, abs_disp, Nat, ik, iq, sc_size, k_m
         # u_m_trace_check = conj(transpose(Ukₘ))*Ukₘ
 
         # for i in 1:nbands
+        #     println("Uk trace check [$i, $i] = ", u_trace_check[i,i])
         #   if real(u_trace_check[i,i]) < 0.999999 ||  real(u_m_trace_check[i,i]) < 0.999999
         #         @warn "Uk trace check [$i, $i] = ", u_trace_check[i,i]
         #         @warn "Uk_m trace check [$i, $i] = ", u_m_trace_check[i,i]
@@ -373,7 +374,7 @@ function electron_phonon(path_to_in::String, abs_disp, Nat, ik, iq, sc_size, k_m
         symm_elph = zeros(ComplexF64,(nbands, nbands, length(ωₐᵣᵣ)))#gˢʸᵐᵢⱼₘ_ₐᵣᵣ
         elph = deepcopy(gᵢⱼₘ_ₐᵣᵣ)
 
-        thr = 1e-4
+        thr = 0.1#1e-4
         # symm through phonons
         for iph1 in 1:length(ωₐᵣᵣ)
             ω₁ = ωₐᵣᵣ[iph1]

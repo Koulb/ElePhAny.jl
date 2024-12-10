@@ -38,14 +38,15 @@ using Comonicon
     frozen_params = parse_frozen_params(frozen_params_file)
     unitcell, scf_parameters = parse_qe_in(qe_in_file)
 
-    model = create_model(frozen_params["path_to_calc"],
-                         frozen_params["abs_disp"],
-                         frozen_params["path_to_qe"],
-                         frozen_params["mpi_ranks"],
-                         frozen_params["mesh"],
-                         frozen_params["Ndispalce"],
-                         unitcell,
-                         scf_parameters)
+    model = create_model(path_to_calc = frozen_params["path_to_calc"],
+                         abs_disp = frozen_params["abs_disp"],
+                         path_to_qe = frozen_params["path_to_qe"],
+                         mpi_ranks = frozen_params["mpi_ranks"],
+                         sc_size  = frozen_params["sc_size"],
+                         k_mesh  = frozen_params["k_mesh"],
+                         Ndispalce = frozen_params["Ndispalce"],
+                         unitcell = unitcell,
+                         scf_parameters = scf_parameters)
 
     if create_disp
         create_disp_calc(model; from_scratch = from_scratch)

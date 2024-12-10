@@ -17,7 +17,7 @@ function isapprox(a::Union{Py, PyArray}, b::Union{Py, PyArray}; atol=ElectronPho
     return result
 end
 
-@testset "Reading the scf.in file to create the model" begin
+@testset "Reading the scf.in file to create inputs for the model" begin
     path_to_scf = "test_data/displacements/scf_0/scf.in"
     unitcell, scf_parameters = ElectronPhonon.parse_qe_in(path_to_scf)
 
@@ -103,4 +103,26 @@ end
         @test all(result)
     end
 
+end
+
+
+@testset "Creating of the model instance from scf.in and frozen_params.json" begin
+    path_to_scf = "test_data/displacements/scf_0/scf.in"
+    unitcell, scf_parameters = ElectronPhonon.parse_qe_in(path_to_scf)
+
+    path_to_json = "test_data/frozen_params.json"
+    frozen_params = ElectronPhonon.parse_frozen_params(path_to_json)
+
+    model = create_model(path_to_calc = frozen_params["path_to_calc"],
+                         abs_disp = frozen_params["abs_disp"],
+                         path_to_qe = frozen_params["path_to_qe"],
+                         mpi_ranks = frozen_params["mpi_ranks"],
+                         sc_size  = frozen_params["sc_size"],
+                         k_mesh  = frozen_params["k_mesh"],
+                         Ndispalce = frozen_params["Ndispalce"],
+                         unitcell = unitcell,
+                         scf_parameters = scf_parameters)
+
+    #Test that model instance is propely created
+    @test model.abs_disp == 1e-3
 end
