@@ -135,19 +135,39 @@ function wf_pc_to_sc(wfc, sc_size)
     return wfc_sc
 end
 
-function determine_fft_grid(path_to_file::String)
-    #Determine the fft grid
-    scf_file = open(path_to_file, "r")
-    fft_line = ""
-    for line in eachline(scf_file)
-        if contains(line, "FFT dimensions:")
-            fft_line = line
-            break
-        end
-    end
-    close(scf_file)
+function determine_fft_grid(path_to_file::String; use_xml::Bool = false)
+    Nxyz = 0
+    if use_xml
+        # Parse the XML file
+        doc = EzXML.readxml(path_to_file)
 
-    Nxyz = parse(Int64, split(fft_line)[8][1:end-1])
+        # Navigate to the `fft_grid` node
+        fft_grid_node = findfirst("/qes:espresso/output/basis_set/fft_grid", root(doc))
+
+        if fft_grid_node === nothing
+            error("fft_grid section not found in the XML file.")
+        end
+
+        # # Extract the attributes
+        nr1 = parse(Int, fft_grid_node["nr1"])
+        nr2 = parse(Int, fft_grid_node["nr2"])
+        nr3 = parse(Int, fft_grid_node["nr3"])
+
+        Nxyz = nr1
+    else
+        scf_file = open(path_to_file, "r")
+        fft_line = ""
+        for line in eachline(scf_file)
+            if contains(line, "FFT dimensions:")
+                fft_line = line
+                break
+            end
+        end
+        close(scf_file)
+
+        Nxyz = parse(Int64, split(fft_line)[8][1:end-1])
+    end
+
     return Nxyz
 end
 
@@ -412,7 +432,8 @@ function prepare_wave_functions_disp(path_to_in::String, ik::Int, Ndisplace::Int
         miller, evc_list_sc = parse_fortan_bin(path_to_data*"tmp/scf.save/wfc$ik.dat")
         N_evc = size(evc_list_sc)[1]
         N_g   = length(evc_list_sc[1])
-        N = determine_fft_grid(path_to_data*"scf.out")
+        N = determine_fft_grid(path_to_data*"tmp/scf.save/data-file-schema.xml"; use_xml = true)
+        println("N = $N")
 
         wave_function_result = Array{ComplexF64, 4}(undef, N_evc, N, N, N)
         evc_list_phase = Array{ComplexF64, 2}(undef, N_evc, N_g)
@@ -450,7 +471,7 @@ function prepare_u_matrixes(path_to_in::String, natoms::Int, sc_size::Int, k_mes
 
     Ndisplace_nosym = 6 * natoms
 
-    N_fft = determine_fft_grid(path_to_in*"group_1/scf.out")
+    N_fft = determine_fft_grid(path_to_in*"group_1/tmp/scf.save/data-file-schema.xml"; use_xml = true)
     ψₚ0_list = []
     ψₚ0_real_list = []
     miller_list = []

@@ -65,7 +65,7 @@ function check_symmetries(path_to_calc, unitcell, sc_size, abs_disp)
     return Symmetries(ineq_atoms_list, trans_list, rot_list)
 end
 
-function check_symmetries!(model::ModelQE)
+function check_symmetries!(model::AbstractModel)
     symmetries = check_symmetries(model.path_to_calc, model.unitcell, model.sc_size, model.abs_disp)
     natoms = length(pyconvert(Vector{Vector{Float64}}, model.unitcell[:scaled_positions]))
 

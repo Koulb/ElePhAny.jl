@@ -35,6 +35,7 @@ mutable struct ModelKCW <: AbstractModel
     unitcell::Dict
     scf_parameters::Dict
     use_symm::Bool
+    symmetries::Symmetries
 end
 
 function create_model(;path_to_calc::String = "./",
@@ -68,7 +69,27 @@ function create_model_kcw(path_to_calc::String,
                           scf_parameters::Dict,
                           use_symm::Bool)
 
-    return ModelKCW(path_to_calc, spin_channel, abs_disp, path_to_qe, mpi_ranks, sc_size, k_mesh, Ndispalce, unitcell, scf_parameters, use_symm)
+    return ModelKCW(path_to_calc, spin_channel, abs_disp, path_to_qe, mpi_ranks, sc_size, k_mesh, Ndispalce, unitcell, scf_parameters, use_symm, symmetries)
+end
+
+function create_model_kcw(;path_to_calc::String = "./",
+    spin_channel::String = "up",
+    abs_disp::Float64    = 1e-3,
+    path_to_qe::String   = "./",
+    mpi_ranks::Int       = 1,
+    sc_size::Int         = 2,
+    k_mesh::Int          = 1,
+    Ndispalce::Int       = 0,
+    unitcell::Dict       = Dict(),
+    scf_parameters::Dict = Dict(),
+    use_symm::Bool       = false,
+    symmetries::Symmetries = Symmetries([],[],[]))
+
+    if use_symm && k_mesh > 1
+        @error "Symmetry usage is not implemented for supercell calculations with kpoints"
+    end
+
+    return ModelKCW(path_to_calc, spin_channel, abs_disp, path_to_qe, mpi_ranks, sc_size, k_mesh, Ndispalce, unitcell, scf_parameters, use_symm, symmetries)
 end
 
 struct Electrons <: AbstractElectrons

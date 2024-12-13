@@ -278,7 +278,6 @@ function create_disp_calc!(model::ModelQE; from_scratch = false)
     end
 end
 
-
 function create_disp_calc(model::ModelKCW; from_scratch = false)
     # Clean the folder if nescessary     # Will it work ??
     if (from_scratch && isdir(model.path_to_calc * "displacements"))
@@ -317,12 +316,13 @@ function create_disp_calc(model::ModelKCW; from_scratch = false)
 
     file =  model.path_to_calc * "unperturbed/wannier/nscf.pwo"
     command = `cp $file $path_to_scf/scf.out`
+    println(command)
     run(command);
 
-    command = `$(model.path_to_qe)/W90/utility/ksc_size.pl $(model.sc_size) $(model.sc_size) $(model.sc_size)`
+    command = `$(model.path_to_qe)/W90/utility/kmesh.pl $(model.sc_size) $(model.sc_size) $(model.sc_size)`
     run(pipeline(command, stdout="$path_to_scf/kpoints.dat", stderr="$path_to_scf/ksc_sizeerr.txt"))
 
-    dislpaced_unitecells(model.path_to_calc*"displacements/", model.unitcell, model.abs_disp, model.sc_size)
+    dislpaced_unitecells(model.path_to_calc*"displacements/", model.unitcell, model.abs_disp, model.sc_size, model.use_symm)
 
     for i_disp in 1:model.Ndispalce
         dir_name =  model.path_to_calc * "displacements/group_$(i_disp)/tmp/scf.save"
@@ -346,6 +346,34 @@ function create_disp_calc(model::ModelKCW; from_scratch = false)
             println(command)
         catch; end
     end
+
+    return model.Ndispalce
+end
+
+function create_disp_calc!(model::ModelKCW; from_scratch = false)
+    # Clean the folder if nescessary
+    if (from_scratch && isdir(model.path_to_calc * "displacements"))
+        run(`rm -rf $(model.path_to_calc)/displacements`)
+    end
+    command = `mkdir $(model.path_to_calc)/displacements`
+    try
+        run(command);
+        println(command)
+    catch; end
+
+    if model.use_symm
+        check_symmetries!(model)
+    else
+        model.Ndispalce = 6 * length(pyconvert(Vector{Vector{Float64}}, model.unitcell[:scaled_positions]))
+        println("No symmetries used")
+        println("Number of displacements: $(model.Ndispalce)")
+    end
+
+    Ndispalce = create_disp_calc(model)
+    if Ndispalce != model.Ndispalce
+        @error "Inconsistend amount of displacement between phonopy ($Ndispalce) and symmetries calcuation ($(model.Ndisplace)) "
+    end
+
 end
 
 function run_scf(path_to_in::String, mpi_ranks::Int = 0)
