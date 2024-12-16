@@ -246,7 +246,9 @@ function create_disp_calc(path_to_in::String, path_to_qe::String, unitcell, scf_
         nscf_parameters[:calculation] = "nscf"
         nscf_parameters[:nbnd]= scf_parameters[:nbnd]*sc_size^3#+2*sc_size^3 #need to understand how I provide aditional states to keep the projectability satisfied
         create_scf_calc(path_to_in*dir_name*"nscf.in",unitcells_disp[i_disp], nscf_parameters)
-        include_kpoins(path_to_in*"group_$i_disp/nscf.in", path_to_in*"scf_0/kpoints_sc.dat")
+        if k_mesh != 1
+            include_kpoins(path_to_in*"group_$i_disp/nscf.in", path_to_in*"scf_0/kpoints_sc.dat")
+        end
     end
 
     return Ndispalce
