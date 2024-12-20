@@ -2,3 +2,7 @@ Manifest.toml
 *.ipynb
 *.CondaPkg
 temp/*
+
+#Examples
+example/old/*
+*displacements*

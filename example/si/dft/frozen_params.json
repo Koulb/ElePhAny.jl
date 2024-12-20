@@ -1,0 +1,7 @@
+    {
+    "abs_disp" : 1e-3 ,
+    "path_to_qe":"/home/apolyukhin/Soft/sourse/q-e/",
+    "mpi_ranks" : 8,
+    "sc_size" : 2,
+    "use_symm" : false
+    }

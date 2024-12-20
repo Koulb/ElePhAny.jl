@@ -1,0 +1,59 @@
+
+{"workflow": {
+    "task": "singlepoint",
+    "functional": "ki",
+    "base_functional": "pbe",
+    "eps_inf": "auto",
+    "method": "dfpt",
+    "mp_correction": false,
+    "init_orbitals": "mlwfs",
+    "alpha_guess": 0.077,
+    "orbital_groups": [0, 0, 0, 0, 1, 2, 2, 2, 2, 2],
+    "pseudo_library": "pseudo_dojo_standard",
+    "from_scratch": true
+}, 
+"atoms": {
+    "cell_parameters": {
+        "periodic": true,
+        "ibrav": 2,
+        "celldms": {"1": 10.262195563743724}
+    },
+    "atomic_positions": {
+        "units": "crystal",
+        "positions": [["Si", 0.00, 0.00, 0.00],
+                      ["Si", 0.75, 0.75, 0.75]]
+    }
+},
+"kpoints": {
+    "grid":   [2, 2, 2],
+    "offset": [0, 0, 0],
+    "offset_nscf": [0.25, 0.25, 0.25],
+    "path": "GX"
+},
+"calculator_parameters": {
+    "ecutwfc": 60.0,
+    "pw": {
+        "system": {
+            "nbnd": 20,
+            "ecutwfc": 60.0
+        },
+        "electrons":{
+            "diagonalization": "david",
+            "mixing_beta" : 0.7,
+            "conv_thr": 1e-13
+        }
+    },
+    "l_alpha_corr": true,
+    "w90": {
+        "bands_plot": true,
+        "projections": [[{"fsite": [0.0, 0.0, 0.0], "ang_mtm": "sp3"}],
+                        [{"fsite": [0.0, 0.0, 0.0], "ang_mtm": "s"},
+                         {"fsite": [0.0, 0.0, 0.0], "ang_mtm": "d"}]],
+        "dis_froz_max": 10.8,
+        "dis_win_max": 21.0
+    },
+    "ui": {
+        "smooth_int_factor": 2
+    }
+}
+}
