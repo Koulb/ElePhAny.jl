@@ -525,9 +525,9 @@ end
 
 function run_disp_calc(model::ModelKCW)
     # Change to the specified directory
-
+    path_to_in = model.path_to_calc
     println("Running unperturbed:")
-    run_scf_cluster(path_to_in*"scf_0/")
+    run_scf_cluster(path_to_in*"unperturbed/")
 
     # Get a number of displacements
     for i_disp in 1:model.Ndispalce
