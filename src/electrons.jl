@@ -1,4 +1,4 @@
-using JLD2, DelimitedFiles, EzXML, StaticArrays
+using JLD2, DelimitedFiles, EzXML, StaticArrays, JSON3
 
 const Vec3{T} = SVector{3,T} where {T}
 const Mat3{T} = SMatrix{3,3,T,9} where {T}
@@ -280,76 +280,67 @@ function create_disp_calc!(model::ModelQE; from_scratch = false)
     end
 end
 
+function create_perturbed_kcw(pristine_data, unitcell)
+    for (index, positions) in enumerate(unitcell[:scaled_positions])
+        pristine_data["atoms"]["atomic_positions"]["positions"][index][2:end] = pyconvert(Vector{Float64}, positions)
+    end
+    return pristine_data
+end
+
 function create_disp_calc(model::ModelKCW; from_scratch = false)
-    # Clean the folder if nescessary     # Will it work ??
-    if (from_scratch && isdir(model.path_to_calc * "displacements"))
-        run(`rm -rf $(model.path_to_calc)/displacements`)
+    #Check is model.path_to_calc contains koopmans.json and koopmans_sc.json files
+    if !isfile(model.path_to_calc*"koopmans.json")
+        @error "No koopmans.json file found in $(model.path_to_calc)"
     end
-    command = `mkdir displacements`
+
+    if !isfile(model.path_to_calc*"koopmans_sc.json")
+        @error "No koopmans_sc.json file found in $(model.path_to_calc)"
+    end
+
+    command = `mkdir $(model.path_to_calc)/unperturbed`
     try
         run(command);
         println(command)
     catch; end
 
-    path_to_scf = model.path_to_calc * "displacements/scf_0"
-    path_to_wfc_out = path_to_scf*"/tmp/scf.save"
-
-    if (!isdir(path_to_scf))
-        command = `mkdir -p $path_to_wfc_out`
-        run(command);
-        println(command)
-    end
-
-    command = `mkdir $(model.path_to_calc)displacements/epw $(model.path_to_calc)displacements/elph_elements`
+    command = `cp $(model.path_to_calc)/run.sh $(model.path_to_calc)/unperturbed`
     try
         run(command);
         println(command)
     catch; end
 
-    for ind in range(1, model.sc_size^3)
-        file =  model.path_to_calc * "unperturbed/TMP/kc_kcw.save/wfc$(model.spin_channel)$(ind).dat"
-        command = `cp $file $path_to_wfc_out/wfc$(ind).dat`
+    command = `cp $(model.path_to_calc)/koopmans.json $(model.path_to_calc)/unperturbed`
+    try
         run(command);
+        println(command)
+    catch; end
+
+    path_to_in = model.path_to_calc * "displacements/"
+    unitcells_disp = dislpaced_unitecells(path_to_in, model.unitcell, model.abs_disp, model.sc_size, model.use_symm)
+    Ndispalce = size(unitcells_disp)[1]
+
+    for i_disp in 1:Ndispalce
+        dir_name = "perturbed"*string(i_disp)*"/"
+        command = `mkdir $dir_name`
+        command_cp = `cp ./run.sh $dir_name`
+
+        try
+            run(command);
+            println(command)
+
+            run(command_cp);
+            println(command_cp)
+        catch; end
+
+        #Read json file
+        #pristine_data = JSON3.read("koopmans_sc.json", Dict{String, Any})
+        pristine_data = JSON3.read(model.path_to_calc*"koopmans_sc.json", Dict{String, Any})
+        perturbed_data =  create_perturbed_kcw(pristine_data, unitcells_disp[i_disp])
+        #save json file
+        JSON3.write(model.path_to_calc*dir_name*"koopmans_sc.json", perturbed_data)
     end
 
-    file =  model.path_to_calc * "unperturbed/TMP/kc_kcw.save/data-file-schema.xml"
-    command = `cp $file $path_to_wfc_out/`
-    run(command);
-
-    file =  model.path_to_calc * "unperturbed/wannier/nscf.pwo"
-    command = `cp $file $path_to_scf/scf.out`
-    println(command)
-    run(command);
-
-    command = `$(model.path_to_qe)/W90/utility/kmesh.pl $(model.sc_size) $(model.sc_size) $(model.sc_size)`
-    run(pipeline(command, stdout="$path_to_scf/kpoints.dat", stderr="$path_to_scf/ksc_sizeerr.txt"))
-
-    dislpaced_unitecells(model.path_to_calc*"displacements/", model.unitcell, model.abs_disp, model.sc_size, model.use_symm)
-
-    for i_disp in 1:model.Ndispalce
-        dir_name =  model.path_to_calc * "displacements/group_$(i_disp)/tmp/scf.save"
-        command = `mkdir -p $dir_name`
-        try
-            run(command);
-            println(command)
-        catch; end
-
-        file =  model.path_to_calc * "perturbed$(i_disp)/TMP/kc_kcw.save/wfc$(model.spin_channel)1.dat"
-        command = `ln -s $(file) $(dir_name)/wfc1.dat`
-        try
-            run(command);
-            println(command)
-        catch; end
-
-        file =  model.path_to_calc * "perturbed$(i_disp)/TMP/kc_kcw.save/data-file-schema.xml"
-        command = `ln -s $(file) $(dir_name)/data-file-schema.xml`
-        try
-            run(command);
-            println(command)
-        catch; end
-    end
-
-    return model.Ndispalce
+    return Ndispalce
 end
 
 function create_disp_calc!(model::ModelKCW; from_scratch = false)
@@ -512,8 +503,6 @@ function run_disp_nscf_calc(path_to_in::String, Ndispalce::Int, mpi_ranks::Int =
 
         catch; end
 
-
-
         if(isfile(path_to_in*dir_name*"run_nscf.sh"))
             command = `sbatch run_nscf.sh`
             println(command)
@@ -532,6 +521,90 @@ function run_disp_nscf_calc(path_to_in::String, Ndispalce::Int, mpi_ranks::Int =
     end
 
     return true
+end
+
+function run_disp_calc(model::ModelKCW)
+    # Change to the specified directory
+
+    println("Running unperturbed:")
+    run_scf_cluster(path_to_in*"scf_0/")
+
+    # Get a number of displacements
+    for i_disp in 1:model.Ndispalce
+        println("Running perturbed # $i_disp:")
+        dir_name = "perturbed"*string(i_disp)*"/"
+        run_scf_cluster(path_to_in*dir_name)
+    end
+
+    return true
+end
+
+function prepare_kcw_data(model::ModelKCW)
+    command = `mkdir displacements`
+    try
+        run(command);
+        println(command)
+    catch; end
+
+    path_to_scf = model.path_to_calc * "displacements/scf_0"
+    path_to_wfc_out = path_to_scf*"/tmp/scf.save"
+
+    if (!isdir(path_to_scf))
+        command = `mkdir -p $path_to_wfc_out`
+        run(command);
+        println(command)
+    end
+
+    command = `mkdir $(model.path_to_calc)displacements/epw $(model.path_to_calc)displacements/elph_elements`
+    try
+        run(command);
+        println(command)
+    catch; end
+
+    for ind in range(1, model.sc_size^3)
+        file =  model.path_to_calc * "unperturbed/TMP/kc_kcw.save/wfc$(model.spin_channel)$(ind).dat"
+        command = `cp $file $path_to_wfc_out/wfc$(ind).dat`
+        run(command);
+    end
+
+    file =  model.path_to_calc * "unperturbed/TMP/kc_kcw.save/data-file-schema.xml"
+    command = `cp $file $path_to_wfc_out/`
+    run(command);
+
+    file =  model.path_to_calc * "unperturbed/wannier/nscf.pwo"
+    command = `cp $file $path_to_scf/scf.out`
+    println(command)
+    run(command);
+
+    command = `$(model.path_to_qe)/W90/utility/kmesh.pl $(model.sc_size) $(model.sc_size) $(model.sc_size)`
+    run(pipeline(command, stdout="$path_to_scf/kpoints.dat", stderr="$path_to_scf/ksc_sizeerr.txt"))
+
+    dislpaced_unitecells(model.path_to_calc*"displacements/", model.unitcell, model.abs_disp, model.sc_size, model.use_symm)
+
+    for i_disp in 1:model.Ndispalce
+        dir_name =  model.path_to_calc * "displacements/group_$(i_disp)/tmp/scf.save"
+        command = `mkdir -p $dir_name`
+        try
+            run(command);
+            println(command)
+        catch; end
+
+        file =  model.path_to_calc * "perturbed$(i_disp)/TMP/kc_kcw.save/wfc$(model.spin_channel)1.dat"
+        command = `ln -s $(file) $(dir_name)/wfc1.dat`
+        try
+            run(command);
+            println(command)
+        catch; end
+
+        file =  model.path_to_calc * "perturbed$(i_disp)/TMP/kc_kcw.save/data-file-schema.xml"
+        command = `ln -s $(file) $(dir_name)/data-file-schema.xml`
+        try
+            run(command);
+            println(command)
+        catch; end
+    end
+
+    return model.Ndispalce
 end
 
 

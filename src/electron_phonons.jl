@@ -1,12 +1,14 @@
 using LinearAlgebra, Printf, YAML, Plots, Base.Threads
 
 
-function run_calculations(model)
+function run_calculations(model::ModelQE)
     # Electrons calculation
     run_disp_calc(model.path_to_calc*"displacements/", model.Ndispalce, model.mpi_ranks)
     run_nscf_calc(model.path_to_calc*"displacements/", model.mpi_ranks)
     run_disp_nscf_calc(model.path_to_calc*"displacements/", model.Ndispalce, model.mpi_ranks)
 end
+
+run_calculations(model::ModelKCW) = run_disp_calc(model)
 
 function prepare_model(model::ModelQE)
     # save_potential(model.path_to_calc*"displacements/", model.Ndispalce, model.sc_size, model.mpi_ranks)
@@ -33,6 +35,7 @@ function prepare_model(model::ModelQE)
 end
 
 function prepare_model(model::ModelKCW)
+    prepare_kcw_data(model)
     prepare_wave_functions_undisp(model.path_to_calc*"displacements/", model.sc_size)
 end
 
