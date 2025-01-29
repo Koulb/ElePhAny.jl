@@ -21,7 +21,7 @@ using Comonicon
 
 # /home/apolyukhin/.julia/bin/epjl
 
-@main function epjl(; qe_in_file::String="scf.in",
+Comonicon.@main function epjl(; qe_in_file::String="scf.in",
                       frozen_params_file::String="frozen_params.json",
                       create_disp::Bool=false,
                       from_scratch::Bool=false,
