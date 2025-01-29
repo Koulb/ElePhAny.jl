@@ -25,8 +25,8 @@ using Comonicon
                       frozen_params_file::String="frozen_params.json",
                       create_disp::Bool=false,
                       from_scratch::Bool=false,
-                      run_calculations::Bool=false,
-                      prepare_model::Bool=false,
+                      run_calc::Bool=false,
+                      prepare::Bool=false,
                       load_data::Bool=false,
                       ep_calculations::Bool=false,
                       save_epw::Bool=false,
@@ -37,28 +37,30 @@ using Comonicon
     #read frozen_params.json and parse it
     frozen_params = parse_frozen_params(frozen_params_file)
     unitcell, scf_parameters = parse_qe_in(qe_in_file)
+    sc_size  = frozen_params["sc_size"]
 
     model = create_model(path_to_calc = frozen_params["path_to_calc"],
                          abs_disp = frozen_params["abs_disp"],
                          path_to_qe = frozen_params["path_to_qe"],
                          mpi_ranks = frozen_params["mpi_ranks"],
-                         sc_size  = frozen_params["sc_size"],
+                         sc_size  = sc_size,
                          k_mesh  = frozen_params["k_mesh"],
                          Ndispalce = frozen_params["Ndispalce"],
+                         use_symm = frozen_params["use_symm"],
                          unitcell = unitcell,
                          scf_parameters = scf_parameters)
 
     if create_disp
-        create_disp_calc(model; from_scratch = from_scratch)
+        create_disp_calc!(model; from_scratch = from_scratch)
     end
 
-    if run_calculations
+    if run_calc
         run_calculations(model)
     end
 
     local electrons, phonons
 
-    if prepare_model
+    if prepare
         prepare_model(model)
         electrons = create_electrons(model)
         phonons = create_phonons(model)

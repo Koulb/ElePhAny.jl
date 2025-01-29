@@ -43,6 +43,6 @@ export parse_qe_in, parse_frozen_params
 include("io.jl")
 
 #cli
-# include("cli/main.jl")
+include("cli/main.jl")
 
 end

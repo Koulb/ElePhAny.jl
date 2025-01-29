@@ -3,5 +3,6 @@
     "path_to_qe":"/home/apolyukhin/Soft/sourse/q-e/",
     "mpi_ranks" : 8,
     "sc_size" : 2,
-    "use_symm" : false
+    "k_mesh" : 1,
+    "use_symm" : true
     }
