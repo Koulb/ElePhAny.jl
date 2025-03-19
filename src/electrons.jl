@@ -137,6 +137,50 @@ function create_scf_calc(path_to_scf::String, unitcell, scf_parameters)
     ase_io.write(path_to_scf,atoms; scf_parameters...)
 end
 
+function generate_kpoints(n1::Int, n2::Int, n3::Int; omit_weight::Bool=false, out_file::String="")
+    # Validate inputs
+    if n1 <= 0
+        println("n1 must be >0")
+        return
+    end
+    if n2 <= 0
+        println("n2 must be >0")
+        return
+    end
+    if n3 <= 0
+        println("n3 must be >0")
+        return
+    end
+
+    totpts = n1 * n2 * n3
+
+    # Open file if needed, otherwise use stdout
+    io = stdout
+    if out_file != ""
+        io = open(out_file, "w")
+    end
+
+    if !omit_weight
+        println(io, "K_POINTS crystal")
+        println(io, totpts)
+        for x in 0:(n1-1), y in 0:(n2-1), z in 0:(n3-1)
+            @printf(io, "%16.12f%16.12f%16.12f%16.8e\n", x/n1, y/n2, z/n3, 1.0/totpts)
+        end
+    else
+        @printf(io, "mp_grid = %6d %6d %6d\n", n1, n2, n3)
+        println(io, "begin kpoints")
+        for x in 0:(n1-1), y in 0:(n2-1), z in 0:(n3-1)
+            @printf(io, "%16.12f%16.12f%16.12f\n", x/n1, y/n2, z/n3)
+        end
+        println(io, "end kpoints")
+    end
+
+    # Close file if it was opened
+    if out_file != ""
+        close(io)
+    end
+end
+
 function include_kpoins(path_to_nscf::String, paht_to_kpts::String)
     # Change the kpoints without ASE (not implemented yet)
     file = open(paht_to_kpts, "r")
@@ -188,13 +232,16 @@ function create_disp_calc(path_to_in::String, path_to_qe::String, unitcell, scf_
         println(command)
     catch; end
 
-    command = `$(path_to_qe)/W90/utility/kmesh.pl $(k_mesh*sc_size) $(k_mesh*sc_size) $(k_mesh*sc_size)`
-    println(command)
-    run(pipeline(command, stdout=path_to_in*"/scf_0/kpoints.dat", stderr=path_to_in*"/scf_0/ksc_sizeerr.txt"))
+    generate_kpoints(k_mesh*sc_size, k_mesh*sc_size, k_mesh*sc_size; out_file=path_to_in*"scf_0/kpoints.dat")
+    generate_kpoints(sc_size, sc_size, sc_size; out_file=path_to_in*"scf_0/kpoints_sc.dat")
+    
+    # command = `$(path_to_qe)/W90/utility/kmesh.pl $(k_mesh*sc_size) $(k_mesh*sc_size) $(k_mesh*sc_size)`
+    # println(command)
+    # run(pipeline(command, stdout=path_to_in*"/scf_0/kpoints.dat", stderr=path_to_in*"/scf_0/ksc_sizeerr.txt"))
 
-    command = `$(path_to_qe)/W90/utility/kmesh.pl $sc_size $sc_size $sc_size`
-    println(command)
-    run(pipeline(command, stdout=path_to_in*"/scf_0/kpoints_sc.dat", stderr=path_to_in*"/scf_0/ksc_sizeerr.txt"))
+    # command = `$(path_to_qe)/W90/utility/kmesh.pl $sc_size $sc_size $sc_size`
+    # println(command)
+    # run(pipeline(command, stdout=path_to_in*"/scf_0/kpoints_sc.dat", stderr=path_to_in*"/scf_0/ksc_sizeerr.txt"))
 
     nscf_parameters       = deepcopy(scf_parameters)
 
@@ -576,8 +623,9 @@ function prepare_kcw_data(model::ModelKCW)
     println(command)
     run(command);
 
-    command = `$(model.path_to_qe)/W90/utility/kmesh.pl $(model.sc_size) $(model.sc_size) $(model.sc_size)`
-    run(pipeline(command, stdout="$path_to_scf/kpoints.dat", stderr="$path_to_scf/ksc_sizeerr.txt"))
+    generate_kpoints(model.sc_size, model.sc_size, model.sc_size; out_file="$path_to_scf/kpoints.dat")
+    # command = `$(model.path_to_qe)/W90/utility/kmesh.pl $(model.sc_size) $(model.sc_size) $(model.sc_size)`
+    # run(pipeline(command, stdout="$path_to_scf/kpoints.dat", stderr="$path_to_scf/ksc_sizeerr.txt"))
 
     dislpaced_unitecells(model.path_to_calc*"displacements/", model.unitcell, model.abs_disp, model.sc_size, model.use_symm)
 
