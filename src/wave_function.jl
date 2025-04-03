@@ -447,16 +447,12 @@ end
 
 function prepare_wave_functions_undisp(path_to_in::String, ik::Int, sc_size::Int)
     file_path=path_to_in*"/scf_0/"
-
-    if sc_size > 1
-        @info "Tranforming wave functions to R space:"
-        prepare_wave_functions_to_R(file_path;ik=ik)
-        @info "Unfolding wave functions to supercell:"
-        prepare_unfold_to_sc(file_path,sc_size,ik)
-        @info "Tranforming wave functions to G space:"
-        prepare_wave_functions_to_G(path_to_in;ik=ik)
-    end
-
+    @info "Tranforming wave functions to R space:"
+    prepare_wave_functions_to_R(file_path;ik=ik)
+    @info "Unfolding wave functions to supercell:"
+    prepare_unfold_to_sc(file_path,sc_size,ik)
+    @info "Tranforming wave functions to G space:"
+    prepare_wave_functions_to_G(path_to_in;ik=ik)
 end
 
 function prepare_wave_functions_undisp(path_to_in::String, sc_size::Int; k_mesh::Int = 1)
