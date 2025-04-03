@@ -1,4 +1,4 @@
-using LinearAlgebra, Printf, YAML, Plots, Base.Threads
+using LinearAlgebra, YAML, Plots, Base.Threads
 
 
 function run_calculations(model::ModelQE)

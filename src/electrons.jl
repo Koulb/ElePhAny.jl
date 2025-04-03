@@ -1,4 +1,4 @@
-using JLD2, DelimitedFiles, EzXML, StaticArrays, JSON3
+using JLD2, DelimitedFiles, Printf, EzXML, StaticArrays, JSON3
 
 const Vec3{T} = SVector{3,T} where {T}
 const Mat3{T} = SMatrix{3,3,T,9} where {T}
@@ -234,7 +234,7 @@ function create_disp_calc(path_to_in::String, path_to_qe::String, unitcell, scf_
 
     generate_kpoints(k_mesh*sc_size, k_mesh*sc_size, k_mesh*sc_size; out_file=path_to_in*"scf_0/kpoints.dat")
     generate_kpoints(sc_size, sc_size, sc_size; out_file=path_to_in*"scf_0/kpoints_sc.dat")
-    
+
     # command = `$(path_to_qe)/W90/utility/kmesh.pl $(k_mesh*sc_size) $(k_mesh*sc_size) $(k_mesh*sc_size)`
     # println(command)
     # run(pipeline(command, stdout=path_to_in*"/scf_0/kpoints.dat", stderr=path_to_in*"/scf_0/ksc_sizeerr.txt"))
