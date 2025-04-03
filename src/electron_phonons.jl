@@ -13,11 +13,11 @@ run_calculations(model::ModelKCW) = run_disp_calc(model)
 function prepare_model(model::ModelQE)
     # save_potential(model.path_to_calc*"displacements/", model.Ndispalce, model.sc_size, model.mpi_ranks)
 
-    if model.k_mesh != 1 && model.sc_size != 1
-        if model.use_symm == true
-            @error "Symmetry usage is not implemented for supercell calculations with kpoints"
-        end
+    if model.use_symm == true && model.k_mesh != 1
+        @error "Symmetry usage is not implemented for supercell calculations with kpoints"
+    end
 
+    if model.k_mesh != 1 && model.sc_size != 1
         #additioanl data for creating unified grid
         data = ase_io.read(model.path_to_calc*"displacements/scf_0/scf.in")
         a = data.cell.get_bravais_lattice().a
@@ -332,7 +332,7 @@ function electron_phonon(path_to_in::String, abs_disp, Nat, ik, iq, sc_size, k_m
         εₐᵣᵣ = εₐᵣᵣ_ₗᵢₛₜ[iq]
 
         #DEBUG WITH QE OUTPUT##
-        # ωₐᵣᵣ, εₐᵣᵣ = parse_qe_ph(path_to_in*"scf_0/dyn1")
+        ωₐᵣᵣ, εₐᵣᵣ = parse_qe_ph(path_to_in*"scf_0/dyn1")
         #DEBUG WITH QE OUTPUT##
         gᵢⱼₘ_ₐᵣᵣ = Array{ComplexF64, 3}(undef, (nbands, nbands, length(ωₐᵣᵣ)))
 
