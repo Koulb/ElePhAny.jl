@@ -233,7 +233,7 @@ function create_disp_calc(path_to_in::String, path_to_qe::String, unitcell, scf_
     catch; end
 
     generate_kpoints(k_mesh*sc_size, k_mesh*sc_size, k_mesh*sc_size; out_file=path_to_in*"scf_0/kpoints.dat")
-    generate_kpoints(sc_size, sc_size, sc_size; out_file=path_to_in*"scf_0/kpoints_sc.dat")
+    generate_kpoints(k_mesh, k_mesh, k_mesh; out_file=path_to_in*"scf_0/kpoints_sc.dat")
 
     # command = `$(path_to_qe)/W90/utility/kmesh.pl $(k_mesh*sc_size) $(k_mesh*sc_size) $(k_mesh*sc_size)`
     # println(command)

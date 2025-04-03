@@ -302,7 +302,7 @@ end
 
 #Block with new implementation of Folding/Unfolding
 
-function is_within_cutoff(hi, ki, li, kpt, cutoff_radius)
+function is_within_cutoff(hi, ki, li, kpt, cutoff_radius)#Only for FCC for now
     h = hi + kpt[1]
     k = ki + kpt[2]
     l = li + kpt[3]
@@ -512,6 +512,7 @@ function prepare_u_matrixes(path_to_in::String, natoms::Int, sc_size::Int, k_mes
     ψₚ0_list = []
     ψₚ0_real_list = []
     miller_list = []
+    # nbnds = length(load(path_to_in*"/scf_0/g_list_sc_1.jld2"))
 
     for (ind, _) in enumerate(unique(symmetries.ineq_atoms_list))
         println("Preparing wave functions for group_$ind:")
@@ -520,9 +521,10 @@ function prepare_u_matrixes(path_to_in::String, natoms::Int, sc_size::Int, k_mes
         push!(ψₚ0_list, ψₚ0)
         push!(ψₚ0_real_list, ψₚ0_real)
         push!(miller_list, miller1)
+        print("ind = $ind")
     end
+    nbnds = length(parse_wf(path_to_in*"/scf_0/tmp/scf.save/wfc1")[2])
 
-    nbnds = length(load(path_to_in*"/scf_0/g_list_sc_1.jld2"))
     println("nbnds = $nbnds")
 
     println("Preparing u matrixes:")
@@ -542,14 +544,17 @@ function prepare_u_matrixes(path_to_in::String, natoms::Int, sc_size::Int, k_mes
 
         Uₚₖᵢⱼ = zeros(ComplexF64, k_mesh^3, (k_mesh*sc_size)^3, nbnds*sc_size^3, nbnds)
 
+        #TODO in the case of sc_size =1, k_mesh !=1, need to read from dat files wf
+        #TODO acooint for symmetries in the s =1, k != 1 case
+
         for ip in 1:(k_mesh)^3
             if all(isapprox.(tras,[0.0,0.0,0.0], atol = 1e-15)) &&
             all(isapprox.(rot, [[1.0,0.0,0.0] [0.0,1.0,0.0] [0.0,0.0,1.0]], atol = 1e-15))
-                if k_mesh == 1
-                     _, ψₚ = parse_wf(path_to_in*"/group_$(symmetries.ineq_atoms_list[ind])/tmp/scf.save/wfc1")
-                else
+                if k_mesh != 1 && sc_size != 1
                     ψₚ_list = load(path_to_in*"/group_$(symmetries.ineq_atoms_list[ind])/g_list_sc_$ip.jld2")
                     ψₚ = [ψₚ_list["wfc$iband"] for iband in 1:length(ψₚ_list)]
+                else
+                     _, ψₚ = parse_wf(path_to_in*"/group_$(symmetries.ineq_atoms_list[ind])/tmp/scf.save/wfc$ip")
                 end
             else
                 ψₚ0_real = ψₚ0_real_list[symmetries.ineq_atoms_list[ind]]
@@ -560,10 +565,18 @@ function prepare_u_matrixes(path_to_in::String, natoms::Int, sc_size::Int, k_mes
             end
 
             for ik in 1:(sc_size*k_mesh)^3
-                ψkᵤ_list = load(path_to_in*"/scf_0/g_list_sc_$ik.jld2")
-                ψkᵤ = [ψkᵤ_list["wfc$iband"] for iband in 1:length(ψkᵤ_list)]
+                if sc_size != 1
+                    ψkᵤ_list = load(path_to_in*"/scf_0/g_list_sc_$ik.jld2")
+                    ψkᵤ = [ψkᵤ_list["wfc$iband"] for iband in 1:length(ψkᵤ_list)]
+                else
+                    _, ψkᵤ = parse_wf(path_to_in*"scf_0/tmp/scf.save/wfc$ik")
+                end
 
-                Uₚₖᵢⱼ[ip, ik, :, :] = calculate_braket(ψₚ, ψkᵤ)
+                if sc_size == 1 && ik != ip #orthogonality in unitcell at different k-points
+                    Uₚₖᵢⱼ[ip, ik, :, :] .= 0.0
+                else
+                    Uₚₖᵢⱼ[ip, ik, :, :] = calculate_braket(ψₚ, ψkᵤ)
+                end
                 @info ("idisp = $(ind), ik = $ik")
             end
 
