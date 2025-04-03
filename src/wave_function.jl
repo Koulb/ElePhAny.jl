@@ -1,6 +1,47 @@
-using FortranFiles, LinearAlgebra, Base.Threads, ProgressMeter, JLD2, FFTW
+using FortranFiles, LinearAlgebra, Base.Threads, ProgressMeter, JLD2, FFTW, HDF5
 
-function parse_fortan_bin(file_path::String)
+function parse_wf(path::String)
+    evc_list = []
+    miller = []
+
+    #check if path*".dat" or path*".hdf5" exists
+    if isfile(path*".dat")
+        miller, evc_list = parse_fortran_bin(path*".dat")
+    elseif isfile(path*".hdf5")
+        miller, evc_list = parse_hdf(path*".hdf5")
+    else
+        error("File not found: $path")
+    end
+    return miller, evc_list
+end
+
+function parse_hdf(path::String)
+    evc_list = []
+    miller = []
+
+    miller, evc_list = h5open(path, "r") do f
+        fkeys = collect(keys(f))
+        miller_key = fkeys[1]
+        evc_key = fkeys[2]
+        data = read(f)
+        miller = data[miller_key]
+
+        evc_list_raw = data[evc_key]
+        nbands = size(data[evc_key], 2)
+        evc_list = []
+        for ind in 1:nbands
+            evc_real = evc_list_raw[1:2:end, ind]
+            evc_imag = evc_list_raw[2:2:end, ind]
+            push!(evc_list, evc_real .+ im * evc_imag)
+        end
+
+        (miller,evc_list)
+    end
+
+    return miller, evc_list
+end
+
+function parse_fortran_bin(file_path::String)
     f = FortranFile(file_path)
     ik, xkx, xky, xkz, ispin = read(f, (Int32,5))
     ngw, igwx, npol, nbnd = read(f, (Int32,4))
@@ -228,8 +269,8 @@ function wf_phase!(path_to_in::String, wfc::AbstractArray{ComplexF64, 4}, sc_siz
 end
 
 function prepare_wave_functions_to_R(path_to_in::String; ik::Int=1)
-    file_path = path_to_in*"/tmp/scf.save/wfc$ik.dat"
-    miller, evc_list = parse_fortan_bin(file_path)
+    file_path = path_to_in*"/tmp/scf.save/wfc$ik"
+    miller, evc_list = parse_wf(file_path)
 
     N = determine_fft_grid(path_to_in*"/scf.out")
 
@@ -248,7 +289,7 @@ end
 function prepare_wave_functions_to_G(path_to_in::String; ik::Int=1)
     wfc_list = load(path_to_in*"/scf_0/wfc_list_phase_$ik.jld2")
     Nxyz = size(wfc_list["wfc1"], 1)
-    miller_sc, _ = parse_fortan_bin(path_to_in*"/group_1/tmp/scf.save/wfc1.dat")
+    miller_sc, _ = parse_wf(path_to_in*"/group_1/tmp/scf.save/wfc1")
 
     g_list = Dict()
     for (key, wfc) in wfc_list
@@ -358,7 +399,7 @@ function get_unfolded_wf(miller_final_map, miller_pc_ik, wfc_pc_ik, K_init, mesh
 end
 
 function prepare_wave_functions_undisp(path_to_in::String, miller_final_map, ik::Int, mesh_scale::Int)
-    miller_pc_ik, wfc_pc_ik =  ElectronPhonon.parse_fortan_bin(path_to_in*"scf_0/tmp/scf.save/wfc$(ik).dat")
+    miller_pc_ik, wfc_pc_ik =  ElectronPhonon.parse_wf(path_to_in*"scf_0/tmp/scf.save/wfc$(ik)")
     K = ElectronPhonon.determine_q_point(path_to_in*"scf_0", ik; sc_size = mesh_scale)
     wfc_pc_ik1_unf = get_unfolded_wf(miller_final_map,miller_pc_ik, wfc_pc_ik, K, mesh_scale)
 
@@ -380,7 +421,7 @@ end
 
 function prepare_wave_functions_disp(path_to_in::String, miller_final_map, ik::Int, Ndisplace::Int, mesh_scale::Int)
     @threads for ind in 1:Ndisplace
-        miller_sc_ik, wfc_sc_ik =  ElectronPhonon.parse_fortan_bin(path_to_in*"group_$ind/tmp/scf.save/wfc$(ik).dat")
+        miller_sc_ik, wfc_sc_ik =  ElectronPhonon.parse_wf(path_to_in*"group_$ind/tmp/scf.save/wfc$(ik)")
         K = ElectronPhonon.determine_q_point(path_to_in*"scf_0", ik; sc_size = mesh_scale, use_sc = true)
         wfc_sc_ik1_unf = get_unfolded_wf(miller_final_map, miller_sc_ik, wfc_sc_ik, K, mesh_scale)
 
@@ -429,7 +470,7 @@ function prepare_wave_functions_disp(path_to_in::String, ik::Int, Ndisplace::Int
 
     @threads for ind in 1:Ndisplace
         path_to_data = path_to_in*"group_$ind/"
-        miller, evc_list_sc = parse_fortan_bin(path_to_data*"tmp/scf.save/wfc$ik.dat")
+        miller, evc_list_sc = parse_wf(path_to_data*"tmp/scf.save/wfc$ik")
         N_evc = size(evc_list_sc)[1]
         N_g   = length(evc_list_sc[1])
         N = determine_fft_grid(path_to_data*"tmp/scf.save/data-file-schema.xml"; use_xml = true)
@@ -478,7 +519,7 @@ function prepare_u_matrixes(path_to_in::String, natoms::Int, sc_size::Int, k_mes
 
     for (ind, _) in enumerate(unique(symmetries.ineq_atoms_list))
         println("Preparing wave functions for group_$ind:")
-        miller1, ψₚ0 = parse_fortan_bin(path_to_in*"/group_$ind/tmp/scf.save/wfc1.dat")
+        miller1, ψₚ0 = parse_wf(path_to_in*"/group_$ind/tmp/scf.save/wfc1")
         ψₚ0_real = [wf_from_G(miller1, evc, N_fft) for evc in ψₚ0]
         push!(ψₚ0_list, ψₚ0)
         push!(ψₚ0_real_list, ψₚ0_real)
@@ -509,7 +550,7 @@ function prepare_u_matrixes(path_to_in::String, natoms::Int, sc_size::Int, k_mes
             if all(isapprox.(tras,[0.0,0.0,0.0], atol = 1e-15)) &&
             all(isapprox.(rot, [[1.0,0.0,0.0] [0.0,1.0,0.0] [0.0,0.0,1.0]], atol = 1e-15))
                 if k_mesh == 1
-                     _, ψₚ = parse_fortan_bin(path_to_in*"/group_$(symmetries.ineq_atoms_list[ind])/tmp/scf.save/wfc1.dat")
+                     _, ψₚ = parse_wf(path_to_in*"/group_$(symmetries.ineq_atoms_list[ind])/tmp/scf.save/wfc1")
                 else
                     ψₚ_list = load(path_to_in*"/group_$(symmetries.ineq_atoms_list[ind])/g_list_sc_$ip.jld2")
                     ψₚ = [ψₚ_list["wfc$iband"] for iband in 1:length(ψₚ_list)]

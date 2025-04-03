@@ -26,9 +26,9 @@ using Test, JLD2, Glob, Logging, ElectronPhonon
 end
 
 @testset "Test parsing wavefunctions from binaries of QE" begin
-    path_tst_data = "test_data/displacements/scf_0/tmp/scf.save/wfc1.dat"
+    path_tst_data = "test_data/displacements/scf_0/tmp/scf.save/wfc1"
 
-    _, evc_list = ElectronPhonon.parse_fortan_bin(path_tst_data)
+    _, evc_list = ElectronPhonon.parse_wf(path_tst_data)
     norm11 = abs(ElectronPhonon.calculate_braket(evc_list[1], evc_list[1]))
     norm12 = abs(ElectronPhonon.calculate_braket(evc_list[1], evc_list[2]))
 
@@ -36,10 +36,10 @@ end
     @test isapprox(norm12, 0.0; atol=ElectronPhonon.toleranse_tests)
 end
 
-@testset "Test parsing wavefunctions from binaries of QE" begin
-    path_tst_data = "test_data/displacements/scf_0/tmp/scf.save/wfc1.dat"
+@testset "Test parsing wavefunctions from HDF5 of QE" begin
+    path_tst_data = "test_data/displacements/scf_0/tmp/scf.save/hdf5/wfc1"
 
-    _, evc_list = ElectronPhonon.parse_fortan_bin(path_tst_data)
+    _, evc_list = ElectronPhonon.parse_wf(path_tst_data)
     norm11 = abs(ElectronPhonon.calculate_braket(evc_list[1], evc_list[1]))
     norm12 = abs(ElectronPhonon.calculate_braket(evc_list[1], evc_list[2]))
 
@@ -48,10 +48,10 @@ end
 end
 
 @testset "Test transforming wavefunction to real space" begin
-    path_tst_data = "test_data/displacements/scf_0/tmp/scf.save/wfc1.dat"
+    path_tst_data = "test_data/displacements/scf_0/tmp/scf.save/wfc1"
     Nxyz = 36
 
-    miller, evc_list = ElectronPhonon.parse_fortan_bin(path_tst_data)
+    miller, evc_list = ElectronPhonon.parse_wf(path_tst_data)
     wfc_list = [ElectronPhonon.wf_from_G(miller, evc, Nxyz) for evc in evc_list]
 
     norm11 = abs(ElectronPhonon.calculate_braket_real(wfc_list[1], wfc_list[1]))
@@ -62,8 +62,8 @@ end
 end
 
 @testset "Test transforming wavefunction to real space with slow fft" begin
-    path_tst_data = "test_data/displacements/scf_0/tmp/scf.save/wfc1.dat"
-    miller, evc_list = ElectronPhonon.parse_fortan_bin(path_tst_data)
+    path_tst_data = "test_data/displacements/scf_0/tmp/scf.save/wfc1"
+    miller, evc_list = ElectronPhonon.parse_wf(path_tst_data)
     Nxyz = 20
 
     wfc_list = [ElectronPhonon.wf_from_G_slow(miller, evc, Nxyz) for evc in evc_list]
@@ -76,10 +76,10 @@ end
 end
 
 @testset "Test transforming wavefunction back to reciprocal space" begin
-    path_tst_data = "test_data/displacements/scf_0/tmp/scf.save/wfc1.dat"
+    path_tst_data = "test_data/displacements/scf_0/tmp/scf.save/wfc1"
     Nxyz = 36
 
-    miller, evc_list = ElectronPhonon.parse_fortan_bin(path_tst_data)
+    miller, evc_list = ElectronPhonon.parse_wf(path_tst_data)
     wfc_list = [ElectronPhonon.wf_from_G(miller, evc, Nxyz) for evc in evc_list]
     evc_list_new = [ElectronPhonon.wf_to_G(miller, wfc, Nxyz) for wfc in wfc_list]
 
@@ -91,10 +91,10 @@ end
 end
 
 @testset "Test unfolding wavefunctions in supercell" begin
-    path_tst_data = "test_data/displacements/scf_0/tmp/scf.save/wfc1.dat"
+    path_tst_data = "test_data/displacements/scf_0/tmp/scf.save/wfc1"
     Nxyz = 36
 
-    miller, evc_list = ElectronPhonon.parse_fortan_bin(path_tst_data)
+    miller, evc_list = ElectronPhonon.parse_wf(path_tst_data)
     wfc_list = [ElectronPhonon.wf_from_G(miller, evc, Nxyz) for evc in evc_list]
     wfc_list_sc = [ElectronPhonon.wf_pc_to_sc(wfc, 2) for wfc in wfc_list]
 
@@ -117,7 +117,7 @@ end
     ik = 2
 
     Nxyz = ElectronPhonon.determine_fft_grid(path_tst_data * "scf.out")
-    miller, evc_list = ElectronPhonon.parse_fortan_bin(path_tst_data * "tmp/scf.save/wfc2.dat")
+    miller, evc_list = ElectronPhonon.parse_wf(path_tst_data * "tmp/scf.save/wfc2")
     wfc_list = [ElectronPhonon.wf_from_G(miller, evc, Nxyz) for evc in evc_list]
     q_point = ElectronPhonon.determine_q_point(path_tst_data, ik)
     phase = ElectronPhonon.determine_phase(q_point, Nxyz)
@@ -136,8 +136,8 @@ end
     sc_size = 2
     Nxyz = ElectronPhonon.determine_fft_grid(path_tst_data * "scf_0/scf.out")
 
-    miller, evc_list = ElectronPhonon.parse_fortan_bin(path_tst_data * "/scf_0/tmp/scf.save/wfc$ik.dat")
-    miller_sc, _ = ElectronPhonon.parse_fortan_bin(path_tst_data * "/group_1/tmp/scf.save/wfc1.dat")
+    miller, evc_list = ElectronPhonon.parse_wf(path_tst_data * "/scf_0/tmp/scf.save/wfc$ik")
+    miller_sc, _ = ElectronPhonon.parse_wf(path_tst_data * "/group_1/tmp/scf.save/wfc1")
 
     wfc_list = [ElectronPhonon.wf_from_G(miller, evc, Nxyz) for evc in evc_list]
     wfc_list_sc = [ElectronPhonon.wf_pc_to_sc(wfc, sc_size) for wfc in wfc_list]
