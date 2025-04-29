@@ -10,7 +10,7 @@ function parse_wf(path::String)
     elseif isfile(path*".hdf5")
         miller, evc_list = parse_hdf(path*".hdf5")
     else
-        error("File not found: $path")
+        error("File not found: $path"*".dat or $path"*".hdf5")
     end
     return miller, evc_list
 end
