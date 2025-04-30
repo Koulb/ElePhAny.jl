@@ -1,5 +1,22 @@
 using FortranFiles, LinearAlgebra, Base.Threads, ProgressMeter, JLD2, FFTW, HDF5
 
+"""
+    parse_wf(path::String)
+
+Parses a wave function file specified by `path`.
+The function checks for the existence of either a `.dat` or `.hdf5` file with the given base path.
+Returns a tuple `(miller, evc_list)` containing the Miller indices and the eigenvector coefficients.
+
+# Arguments
+- `path::String`: The base path (without extension) to the wave function file.
+
+# Returns
+- `miller`: Miller indices 3xNG.
+- `evc_list`: List of eigenvector coefficients parsed from the file NbandsxNg.
+
+# Throws
+- An error if neither a `.dat` nor a `.hdf5` file is found at the specified path.
+"""
 function parse_wf(path::String)
     evc_list = []
     miller = []
@@ -15,6 +32,18 @@ function parse_wf(path::String)
     return miller, evc_list
 end
 
+"""
+    parse_hdf(path::String) -> (miller, evc_list)
+
+Parse an HDF5 file at the given `path` to extract Miller indices and eigenvector coefficients.
+
+# Arguments
+- `path::String`: The file path to the HDF5 file.
+
+# Returns
+- `miller`: Array containing Miller indices.
+- `evc_list`: Vector of complex eigenvector coefficients, where each element corresponds to a band.
+"""
 function parse_hdf(path::String)
     evc_list = []
     miller = []
@@ -41,6 +70,18 @@ function parse_hdf(path::String)
     return miller, evc_list
 end
 
+"""
+    parse_fortran_bin(path::String) -> (miller, evc_list)
+
+Parse an Fortran biniary file at the given `path` to extract Miller indices and eigenvector coefficients.
+
+# Arguments
+- `path::String`: The file path to the wfc#.dat file.
+
+# Returns
+- `miller`: Array containing Miller indices.
+- `evc_list`: Vector of complex eigenvector coefficients, where each element corresponds to a band.
+"""
 function parse_fortran_bin(file_path::String)
     f = FortranFile(file_path)
     ik, xkx, xky, xkz, ispin = read(f, (Int32,5))
@@ -56,6 +97,23 @@ function parse_fortran_bin(file_path::String)
     return miller, evc_list
 end
 
+"""
+    wf_from_G(miller::Matrix{Int32}, evc::Vector{ComplexF64}, Nxyz::Integer) -> Array{ComplexF64, 3}
+
+Constructs a real-space wave function from its plane-wave expansion coefficients in reciprocal space.
+
+# Arguments
+- `miller::Matrix{Int32}`: A 3×N matrix where each column represents a Miller index (reciprocal lattice vector) for a plane wave component.
+- `evc::Vector{ComplexF64}`: A vector of complex coefficients corresponding to each Miller index, representing the amplitude and phase of each plane wave.
+- `Nxyz::Integer`: The size of the cubic grid in each spatial dimension (assumes a cubic box of size Nxyz × Nxyz × Nxyz).
+
+# Returns
+- `wave_function::Array{ComplexF64, 3}`: The reconstructed wave function in real space, represented as a 3D array of complex values.
+
+# Details
+- The function maps Miller indices to the appropriate indices in a reciprocal space grid, fills in the provided coefficients, and then performs an inverse FFT (using `bfft` after `ifftshift`) to obtain the real-space wave function.
+- The Miller indices are shifted and wrapped to fit within the grid dimensions.
+"""
 function wf_from_G(miller::Matrix{Int32}, evc::Vector{ComplexF64}, Nxyz::Integer)
     reciprocal_space_grid = zeros(ComplexF64, Nxyz, Nxyz, Nxyz)
     # Determine the shift needed to map Miller indices to grid indices
@@ -75,6 +133,19 @@ function wf_from_G(miller::Matrix{Int32}, evc::Vector{ComplexF64}, Nxyz::Integer
     return wave_function
 end
 
+"""
+    wf_from_G_slow(miller::Matrix{Int32}, evc::Vector{ComplexF64}, Nxyz::Integer) -> Array{ComplexF64,3}
+
+Constructs a real-space wave function on a 3D grid from its plane-wave expansion coefficients withot FFT.
+
+# Arguments
+- `miller::Matrix{Int32}`: A matrix where each column represents a reciprocal lattice vector (Miller indices) for the plane-wave basis.
+- `evc::Vector{ComplexF64}`: The expansion coefficients (eigenvector components) corresponding to each plane-wave basis vector.
+- `Nxyz::Integer`: The number of grid points along each spatial dimension (assumes a cubic grid).
+
+# Returns
+- `wave_function::Array{ComplexF64,3}`: The computed wave function values on a 3D grid of size `(Nxyz, Nxyz, Nxyz)`.
+"""
 function wf_from_G_slow(miller::Matrix{Int32}, evc::Vector{ComplexF64}, Nxyz::Integer)
     x = range(0, 1-1/Nxyz, Nxyz)
     y = range(0, 1-1/Nxyz, Nxyz)
@@ -100,6 +171,26 @@ function wf_from_G_slow(miller::Matrix{Int32}, evc::Vector{ComplexF64}, Nxyz::In
     return wave_function
 end
 
+"""
+    wf_from_G_list(miller::Matrix{Int32}, evc_list::AbstractArray{Any}, Nxyz::Integer) -> Array{ComplexF64, 4}
+
+Constructs the real-space wave function from a list of plane-wave coefficients and their corresponding Miller indices.
+
+# Arguments
+- `miller::Matrix{Int32}`: A 3×N matrix where each column contains the Miller indices (G-vectors) for a plane wave.
+- `evc_list::AbstractArray{Any}`: A list (or array) of Nbands wave-functions' coefficients corresponding to each G-vector.
+- `Nxyz::Integer`: The size of the cubic grid in each spatial direction.
+
+# Returns
+- `wave_function::Array{ComplexF64, 4}`: A 4D array of complex values representing the wave function in real space, with dimensions `(N_evc, Nxyz, Nxyz, Nxyz)`, where `N_evc` is the number of eigenvector coefficients.
+
+# Description
+This function maps the plane-wave coefficients onto a reciprocal space grid according to their Miller indices, applies an inverse FFT shift, and then performs an inverse FFT to obtain the real-space wave function. The function is parallelized over the Miller index list for efficiency.
+
+# Notes
+- The Miller indices are shifted to map correctly onto the FFT grid.
+- The function assumes a cubic grid and that the Miller indices are provided in the correct format.
+"""
 function wf_from_G_list(miller::Matrix{Int32}, evc_list::AbstractArray{Any}, Nxyz::Integer)
     evc_matrix = permutedims(hcat(evc_list...))
     N_evc = size(evc_matrix)[1]
@@ -125,6 +216,23 @@ function wf_from_G_list(miller::Matrix{Int32}, evc_list::AbstractArray{Any}, Nxy
     return wave_function
 end
 
+"""
+    wf_to_G(miller::Matrix{Int32}, wfc, Nxyz::Integer) -> Vector{ComplexF64}
+
+Transforms a wave function `wfc` from real space to G-space using the provided Miller indices.
+
+# Arguments
+- `miller::Matrix{Int32}`: A 3×N matrix where each column represents a Miller index (G-vector) in reciprocal space.
+- `wfc`: The wave function Nxyz×Nxyz×Nxyz in real space, assumed to be a 3D array compatible with FFT operations.
+- `Nxyz::Integer`: The size of the FFT grid along each dimension (assumed cubic).
+
+# Returns
+- `evc_sc::Vector{ComplexF64}`: The wave function coefficients in G-space, normalized.
+
+# Notes
+- The function applies an FFT and fftshift to the input wave function, then extracts the coefficients corresponding to the provided Miller indices.
+- The output is normalized such that its norm is 1.
+"""
 function wf_to_G(miller::Matrix{Int32}, wfc, Nxyz::Integer)
     Nevc = size(miller, 2)
 
@@ -145,6 +253,22 @@ function wf_to_G(miller::Matrix{Int32}, wfc, Nxyz::Integer)
 end
 
 
+"""
+    wf_to_G_list(miller::Matrix{Int32}, wfc::AbstractArray{ComplexF64, 4}, Nxyz::Integer) -> Matrix{ComplexF64}
+
+Transforms a list of real-space wave functions `wfc` into a list of G-space wave functions.
+
+# Arguments
+- `miller::Matrix{Int32}`: A 3×Ng matrix where each column represents the Miller indices (G-vector components) for which the plane-wave coefficients are to be extracted.
+- `wfc::AbstractArray{ComplexF64, 4}`: The real-space wave function array with dimensions (Nbands, Nx, Ny, Nz), where Nevc is the number of eigenvectors (bands), and Nx, Ny, Nz are the grid sizes in each spatial direction.
+- `Nxyz::Integer`: The size of the FFT grid in each spatial direction (assumed cubic).
+
+# Returns
+- `evc_sc::Matrix{ComplexF64}`: A matrix of size (Nbands, NG), where each column contains the plane-wave coefficients for the corresponding G-vector from `miller`.
+
+# Notes
+- The function assumes that the FFT grid is cubic (Nx = Ny = Nz = Nxyz).
+"""
 function wf_to_G_list(miller::Matrix{Int32}, wfc::AbstractArray{ComplexF64, 4}, Nxyz::Integer)
     Ng = size(miller, 2)
     Nevc = size(wfc, 1)
@@ -171,11 +295,35 @@ function wf_to_G_list(miller::Matrix{Int32}, wfc::AbstractArray{ComplexF64, 4}, 
     return evc_sc
 end
 
+"""
+    wf_pc_to_sc(wfc, sc_size)
+
+Expands a wave function `wfc` defined in a primitive cell to a supercell of size `sc_size × sc_size × sc_size`.
+
+# Arguments
+- `wfc`: The wave function array defined in the primitive cell.
+- `sc_size`: The size of the supercell along each spatial dimension.
+
+# Returns
+- `wfc_sc`: The wave function array repeated to fill the supercell.
+"""
 function wf_pc_to_sc(wfc, sc_size)
     wfc_sc = repeat(wfc, outer=(sc_size, sc_size, sc_size))
     return wfc_sc
 end
 
+"""
+    determine_fft_grid(path_to_file::String; use_xml::Bool = false) -> Int
+
+Determines the FFT grid size (`Nxyz`) from a given file.
+
+# Arguments
+- `path_to_file::String`: Path to the file containing FFT grid information. This can be either an XML file or a plain text output file.
+- `use_xml::Bool = false`: If `true`, parses the file as an XML file; otherwise, parses it as a plain text file.
+
+# Returns
+- `Nxyz::Int`: The FFT grid size along the first dimension.
+"""
 function determine_fft_grid(path_to_file::String; use_xml::Bool = false)
     Nxyz = 0
     if use_xml
@@ -212,6 +360,18 @@ function determine_fft_grid(path_to_file::String; use_xml::Bool = false)
     return Nxyz
 end
 
+"""
+    determine_phase(q_point, Nxyz)
+
+Compute the phase factor `exp(2im * π * dot(r, q_point))` on a 3D grid of size `Nxyz × Nxyz × Nxyz`.
+
+# Arguments
+- `q_point::AbstractVector`: A 3-element vector representing the q-point in reciprocal space.
+- `Nxyz::Int`: The number of grid points along each spatial dimension.
+
+# Returns
+- `exp_factor::Array{Complex{Float64},3}`: A 3D array of complex phase factors evaluated at each grid point.
+"""
 function determine_phase(q_point, Nxyz)
     x = range(0, 1-1/Nxyz, Nxyz)
     y = range(0, 1-1/Nxyz, Nxyz)
@@ -235,6 +395,30 @@ function determine_phase(q_point, Nxyz)
     return exp_factor
 end
 
+"""
+    prepare_unfold_to_sc(path_to_in::String, sc_size::Int, ik::Int)
+
+Prepares and saves the unfolded wave functions for a supercell calculation.
+
+# Arguments
+- `path_to_in::String`: Path to the input directory containing required files.
+- `sc_size::Int`: Supercell size multiplier.
+- `ik::Int`: Index of the k-point to process.
+
+# Description
+This function performs the following steps:
+1. Determines the q-point vector for the specified k-point.
+2. Calculates the phase factor for the q-point and FFT grid.
+3. Loads the list of wave functions from a JLD2 file.
+4. For each wave function:
+    - Converts it from primitive cell to supercell representation.
+    - Applies the calculated phase factor.
+    - Stores the processed wave function in a new dictionary.
+5. Saves the processed wave functions to a new JLD2 file with a modified filename.
+
+# Output
+Saves the processed wave functions with phase factors applied to a file named `wfc_list_phase_$ik.jld2` in the specified input directory.
+"""
 function prepare_unfold_to_sc(path_to_in::String, sc_size::Int, ik::Int)
     Nxyz = determine_fft_grid(path_to_in*"/scf.out") * sc_size
     q_vector = determine_q_point(path_to_in, ik; sc_size = sc_size)
@@ -255,6 +439,18 @@ function prepare_unfold_to_sc(path_to_in::String, sc_size::Int, ik::Int)
     save(path_to_in*"wfc_list_phase_$ik.jld2",wfc_list)
 end
 
+"""
+    wf_phase!(path_to_in::String, wfc::AbstractArray{ComplexF64, 4}, sc_size::Int, ik::Int)
+
+Applies a phase factor to an array of complex wave functions  `wfc` in-place, based on the specified supercell size and k-point index.
+
+# Arguments
+- `path_to_in::String`: Path to the input directory containing SCF calculation outputs.
+- `wfc::AbstractArray{ComplexF64, 4}`: 4D array Nbands × Nxyz × Nxyz × Nxyz representing the wave functions to be modified.
+- `sc_size::Int`: Supercell size multiplier.
+- `ik::Int`: Index of the k-point for which the phase factor is determined.
+
+"""
 function wf_phase!(path_to_in::String, wfc::AbstractArray{ComplexF64, 4}, sc_size::Int, ik::Int)
     Nxyz = determine_fft_grid(path_to_in*"/scf_0/scf.out") * sc_size
     q_vector = determine_q_point(path_to_in*"/scf_0/", ik; sc_size = 1, use_sc = true)
@@ -268,6 +464,18 @@ function wf_phase!(path_to_in::String, wfc::AbstractArray{ComplexF64, 4}, sc_siz
     return nothing
 end
 
+"""
+    prepare_wave_functions_to_R(path_to_in::String; ik::Int=1)
+
+Prepares and saves wave functions in real space for a given k-point index.
+
+# Arguments
+- `path_to_in::String`: Path to the input directory containing calculation results.
+- `ik::Int=1`: (Optional) Index of the k-point to process. Defaults to 1.
+
+# Output
+Saves a dictionary of wave functions to a file named `wfc_list_<ik>.jld2` in the specified input directory.
+"""
 function prepare_wave_functions_to_R(path_to_in::String; ik::Int=1)
     file_path = path_to_in*"/tmp/scf.save/wfc$ik"
     miller, evc_list = parse_wf(file_path)
@@ -286,6 +494,22 @@ function prepare_wave_functions_to_R(path_to_in::String; ik::Int=1)
     GC.gc()
 end
 
+"""
+    prepare_wave_functions_to_G(path_to_in::String; ik::Int=1)
+
+Loads wave function in real space from a specified directory, transforms them to G-space and saves the resulting data.
+
+# Arguments
+- `path_to_in::String`: Path to the input directory containing the wave function files.
+- `ik::Int=1`: (Optional) Index of the k-point to process.
+
+# Description
+This function:
+1. Loads the wave function list for the specified k-point from a JLD2 file.
+2. Determines the grid size and Miller indices by parsing a reference wave function file.
+3. Transforms each wave function in the list to G-space using `wf_to_G`.
+4. Saves the resulting dictionary of G-space wave functions to a new JLD2 file.
+"""
 function prepare_wave_functions_to_G(path_to_in::String; ik::Int=1)
     wfc_list = load(path_to_in*"/scf_0/wfc_list_phase_$ik.jld2")
     Nxyz = size(wfc_list["wfc1"], 1)
@@ -301,7 +525,6 @@ function prepare_wave_functions_to_G(path_to_in::String; ik::Int=1)
 end
 
 #Block with new implementation of Folding/Unfolding
-
 function is_within_cutoff(hi, ki, li, kpt, cutoff_radius)#Only for FCC for now
     h = hi + kpt[1]
     k = ki + kpt[2]
@@ -445,6 +668,20 @@ end
 #End of block
 
 
+"""
+    prepare_wave_functions_undisp(path_to_in::String, ik::Int, sc_size::Int)
+
+Prepares wave functions for further calculations by performing the following steps:
+
+1. Transforms wave functions to real (R) space for the specified k-point.
+2. Unfolds the wave functions to the supercell of given size.
+3. Transforms the wave functions back to reciprocal (G) space.
+
+# Arguments
+- `path_to_in::String`: Path to the input directory containing wave function data.
+- `ik::Int`: Index of the k-point to process.
+- `sc_size::Int`: Size of the supercell for unfolding.
+"""
 function prepare_wave_functions_undisp(path_to_in::String, ik::Int, sc_size::Int)
     file_path=path_to_in*"/scf_0/"
     @info "Tranforming wave functions to R space:"
@@ -462,6 +699,27 @@ function prepare_wave_functions_undisp(path_to_in::String, sc_size::Int; k_mesh:
     end
 end
 
+"""
+    prepare_wave_functions_disp(path_to_in::String, ik::Int, Ndisplace::Int, sc_size::Int, k_mesh::Int)
+
+Prepares and processes wave functions for a set of displaced structures in a supercell calculation.
+
+# Arguments
+- `path_to_in::String`: Path to the input directory containing data for each displacement group.
+- `ik::Int`: Index of the k-point for which the wave functions are prepared.
+- `Ndisplace::Int`: Number of displacement groups to process.
+- `sc_size::Int`: Size of the supercell (number of unit cells along one dimension).
+- `k_mesh::Int`: Number of k-points in the mesh (currently unused in the function).
+
+# Description
+For each displacement group, this function:
+1. Parses the wave function coefficients from the corresponding data files.
+2. Processes the wave functions in chunks to manage memory usage:
+    - Converts G-space coefficients to real-space wave functions.
+    - Applies phase factor.
+    - Converts the corrected wave functions back to G-space.
+3. Saves the phase-corrected wave function coefficients to a JLD2 file for each displacement group.
+"""
 function prepare_wave_functions_disp(path_to_in::String, ik::Int, Ndisplace::Int, sc_size::Int, k_mesh::Int)
 
     @threads for ind in 1:Ndisplace
@@ -495,6 +753,16 @@ function prepare_wave_functions_disp(path_to_in::String, ik::Int, Ndisplace::Int
     end
 end
 
+"""
+    prepare_wave_functions_disp(path_to_in::String, Ndisplace::Int, sc_size::Int, k_mesh::Int)
+A wrapper function that calls another method of `prepare_wave_functions_disp` with an additional k-point index argument.
+
+# Arguments
+- `path_to_in::String`: Path to the input directory or file.
+- `Ndisplace::Int`: Number of displacements to consider.
+- `sc_size::Int`: Size of the supercell.
+- `k_mesh::Int`: Number of k-points along each reciprocal lattice direction.
+"""
 function prepare_wave_functions_disp(path_to_in::String, Ndisplace::Int, sc_size::Int, k_mesh::Int)
     for ik in 1:(k_mesh)^3
         prepare_wave_functions_disp(path_to_in,ik, Ndisplace, sc_size, k_mesh)
@@ -502,6 +770,31 @@ function prepare_wave_functions_disp(path_to_in::String, Ndisplace::Int, sc_size
     end
 end
 
+"""
+    prepare_u_matrixes(path_to_in::String, natoms::Int, sc_size::Int, k_mesh::Int; symmetries::Symmetries = Symmetries([], [], []), save_matrixes::Bool=true)
+
+Prepares and computes the U and V matrix lists for electron-phonon calculations by processing wave functions and applying symmetry operations.
+
+# Arguments
+- `path_to_in::String`: Path to the input directory containing wave function files and symmetry information.
+- `natoms::Int`: Number of atoms in the unit cell.
+- `sc_size::Int`: Supercell size.
+- `k_mesh::Int`: Number of k-points along each reciprocal lattice direction.
+- `symmetries::Symmetries`: (Optional) Symmetry operations, including lists of translations, rotations, and inequivalent atoms. Defaults to empty symmetry (no symmetries applied).
+- `save_matrixes::Bool`: (Optional) Whether to save the resulting U and V matrices to disk. Defaults to `true`.
+
+# Returns
+- `U_list::Vector`: List of U matrices, each corresponding to a displacement or symmetry operation.
+- `V_list::Vector`: List of V matrices, each corresponding to a displacement or symmetry operation.
+
+# Description
+This function:
+- Loads and processes wave functions for each symmetry-inequivalent atom group.
+- Applies symmetry operations (translations and rotations) to the wave functions as needed.
+- Computes overlap (braket) matrices between displaced and undisturbed wave functions for all relevant k-points and bands.
+- Organizes the results into U and V lists, alternating between them based on the displacement index.
+- Optionally saves the U and V lists to `.jld2` files in the specified directory.
+"""
 function prepare_u_matrixes(path_to_in::String, natoms::Int, sc_size::Int, k_mesh::Int; symmetries::Symmetries = Symmetries([], [], []), save_matrixes::Bool=true)
     U_list = []
     V_list = []
@@ -600,6 +893,18 @@ function prepare_u_matrixes(path_to_in::String, natoms::Int, sc_size::Int, k_mes
     return U_list, V_list
 end
 
+"""
+    calculate_braket_real(bra::Array{Complex{Float64}, 3}, ket::Array{Complex{Float64}, 3}) -> Complex{Float64}
+
+Calculates the normalized inner product ⟨bra|ket⟩ between two 3D complex-valued arrays `bra` and `ket`.
+
+# Arguments
+- `bra::Array{Complex{Float64}, 3}`: The "bra" vector, represented as a 3D array of complex numbers.
+- `ket::Array{Complex{Float64}, 3}`: The "ket" vector, represented as a 3D array of complex numbers.
+
+# Returns
+- `Complex{Float64}`: The normalized inner product ⟨bra|ket⟩, computed as the sum over all elements of `conj(bra[i]) * ket[i]`, divided by the total number of elements.
+"""
 function calculate_braket_real(bra::Array{Complex{Float64}, 3}, ket::Array{Complex{Float64}, 3})
     Nxyz = size(ket, 1)^3
     result = zero(Complex{Float64})
@@ -612,6 +917,18 @@ function calculate_braket_real(bra::Array{Complex{Float64}, 3}, ket::Array{Compl
     return result
 end
 
+"""
+    calculate_braket_real(bras::Dict{String, Array{Complex{Float64}, 3}}, kets::Dict{String, Array{Complex{Float64}, 3}}) -> Array{Complex{Float64}, 2}
+
+Compute the matrix of real-valued inner product ⟨bra|ket⟩ values between sets of "bra" and "ket" wave functions.
+
+# Arguments
+- `bras`: A dictionary mapping string identifiers to 3-dimensional arrays of complex numbers, representing the "bra" wave functions.
+- `kets`: A dictionary mapping string identifiers to 3-dimensional arrays of complex numbers, representing the "ket" wave functions.
+
+# Returns
+- A 2D array of complex numbers where the element at position `(i, j)` contains the result of `calculate_braket_real` applied to the `i`-th bra and `j`-th ket.
+"""
 function calculate_braket_real(bras::Dict{String, Array{Complex{Float64}, 3}}, kets::Dict{String, Array{Complex{Float64}, 3}})
     result = zeros(Complex{Float64}, length(bras), length(kets))
 
@@ -624,6 +941,18 @@ function calculate_braket_real(bras::Dict{String, Array{Complex{Float64}, 3}}, k
     return result
 end
 
+"""
+    calculate_braket(bra::Array{Complex{Float64}}, ket::Array{Complex{Float64}}) -> Complex{Float64}
+
+Computes the inner product ⟨bra|ket⟩ between two complex-valued vectors.
+
+# Arguments
+- `bra::Array{Complex{Float64}}`: The "bra" vector (conjugate transpose).
+- `ket::Array{Complex{Float64}}`: The "ket" vector.
+
+# Returns
+- `Complex{Float64}`: The resulting inner product as a complex number.
+"""
 function calculate_braket(bra::Array{Complex{Float64}}, ket::Array{Complex{Float64}})
     Nevc = length(bra)
     result = zero(Complex{Float64})
@@ -635,6 +964,19 @@ function calculate_braket(bra::Array{Complex{Float64}}, ket::Array{Complex{Float
     return result
 end
 
+"""
+    calculate_braket(bras, kets)
+
+Compute the matrix of inner products ⟨bra|ket⟩ between two collections of quantum states.
+
+# Arguments
+- `bras`: A collection (e.g., array or vector) of bra vectors (quantum states).
+- `kets`: A collection (e.g., array or vector) of ket vectors (quantum states).
+
+# Returns
+- A matrix of complex numbers where the element at position (i, j) is the inner product between `bras[i]` and `kets[j]`.
+
+"""
 function calculate_braket(bras, kets)
     result = zeros(Complex{Float64}, length(bras), length(kets))
 
