@@ -13,21 +13,21 @@ run_calculations(model::ModelKCW) = run_disp_calc(model)
 function prepare_model(model::ModelQE)
     # save_potential(model.path_to_calc*"displacements/", model.Ndispalce, model.sc_size, model.mpi_ranks)
 
-    if model.use_symm == true && model.k_mesh != 1
+    if model.use_symm == true && all(model.k_mesh .!= 1)
         @error "Symmetry usage is not implemented for supercell calculations with kpoints"
     end
 
-    if model.k_mesh != 1 && model.sc_size != 1
+    if all(model.k_mesh .!= 1) && all(model.sc_size .!= 1)
         #additioanl data for creating unified grid
         data = ase_io.read(model.path_to_calc*"displacements/scf_0/scf.in")
         a = data.cell.get_bravais_lattice().a
         ecutoff    = model.scf_parameters[:ecutwfc]
-        mesh_scale = model.k_mesh * model.sc_size
+        mesh_scale = model.k_mesh .* model.sc_size
 
         miller_map = create_unified_Grid(model.path_to_calc*"displacements/", a, ecutoff, mesh_scale)
         prepare_wave_functions_undisp(model.path_to_calc*"displacements/",miller_map, model.sc_size; k_mesh=model.k_mesh)# path_to_calc=path_to_calc,kcw_chanel=kcw_chanel
         prepare_wave_functions_disp(model.path_to_calc*"displacements/", miller_map, model.Ndispalce, model.k_mesh;)
-    elseif  model.k_mesh == 1  && model.sc_size != 1
+    elseif  all(model.k_mesh .== 1)  && all(model.sc_size .!= 1)
         prepare_wave_functions_undisp(model.path_to_calc*"displacements/", model.sc_size)
     end
 
@@ -254,8 +254,8 @@ function electron_phonon(path_to_in::String, abs_disp, Nat, ik, iq, sc_size, k_m
                 result = 0.0#(i==j && ik==ikq ? -ϵkᵤ[i] : 0.0)#0.0##TODO: check this iq or ikq
                 # println(i, ' ', j, ' ', result)
 
-                for k in 1:nbands*sc_size^3
-                    for ip in 1:k_mesh^3
+                for k in 1:nbands*sc_size[1]*sc_size[2]*sc_size[3]
+                    for ip in 1:k_mesh[1]*k_mesh[2]*k_mesh[3]
                     # ip = 1
                         result += Uk[ip, k, j]* conj(Uq[ip, k,i]) * ϵₚ[ip][k]
                         result -= Ukₘ[ip, k, j]* conj(Uqₘ[ip, k,i]) * ϵₚₘ[ip][k]
@@ -289,7 +289,7 @@ function electron_phonon(path_to_in::String, abs_disp, Nat, ik, iq, sc_size, k_m
         end
 
 
-        push!(braket_list, transpose(conj(braket))*scale*(sc_size)^3)
+        push!(braket_list, transpose(conj(braket))*scale*sc_size[1]*sc_size[2]*sc_size[3])
 
     end
     # println("Braket list unrotated")

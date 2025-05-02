@@ -1,6 +1,6 @@
 using BlockArrays, LinearAlgebra
 
-function determine_q_point(path_to_in, iq; sc_size=1, use_sc = false)
+function determine_q_point(path_to_in, iq; sc_size=[1,1,1], use_sc = false)
     file = open(joinpath(path_to_in,"kpoints.dat"), "r")
     if use_sc
         file = open(joinpath(path_to_in,"kpoints_sc.dat"), "r")
@@ -50,7 +50,7 @@ function dislpaced_unitecells(path_to_save, unitcell, abs_disp, sc_size, use_sym
                                                              scaled_positions=unitcell[:scaled_positions],
                                                              masses=unitcell[:masses])
 
-    phonon = phonopy.Phonopy(unitcell_phonopy, is_symmetry=use_symm, supercell_matrix=pylist([[sc_size, 0, 0], [0, sc_size, 0], [0, 0, sc_size]]))
+    phonon = phonopy.Phonopy(unitcell_phonopy, is_symmetry=use_symm, supercell_matrix=pylist([[sc_size[1], 0, 0], [0, sc_size[2], 0], [0, 0, sc_size[3]]]))
     phonon.generate_displacements(distance=abs_disp)
     supercells_data = phonon.supercells_with_displacements
     supercells = []
@@ -71,7 +71,7 @@ end
 function collect_forces(path_to_in::String, unitcell, sc_size, Ndispalce)
   # Get a number of displacements
   # files = readdir(path_to_in; join=true)
-  number_atoms = length(unitcell[:symbols])*sc_size^3
+  number_atoms = length(unitcell[:symbols])*sc_size[1]*sc_size[2]*sc_size[3]
   forces = Array{Float64}(undef, Ndispalce, number_atoms, 3)
 
     for i_disp in 1:Ndispalce
@@ -85,7 +85,7 @@ function collect_forces(path_to_in::String, unitcell, sc_size, Ndispalce)
     return forces
 end
 
-function save_dyn_matirx(path_to_in::String, sc_size::Int)
+function save_dyn_matirx(path_to_in::String, sc_size::Vec3{Int})
     #saving the dynamic matrix
     path_to_dyn = path_to_in*"dyn_mat"
     command = `mkdir $path_to_dyn`
@@ -104,7 +104,7 @@ function save_dyn_matirx(path_to_in::String, sc_size::Int)
     masses = pyconvert(Vector{Float64},phonon_params.masses)
     #phonon_params.symmetrize_force_constants()
 
-    for iq in 1:sc_size^3
+    for iq in 1:sc_size[1]*sc_size[2]*sc_size[3]
         # dyn_mat = reduce(hcat,phonons["phonon"][iq]["dynamical_matrix"])'# hcat(...)
         # dyn_mat = dyn_mat[:,1:2:end] + 1im*dyn_mat[:,2:2:end]
 
@@ -149,7 +149,7 @@ function prepare_phonons_data(path_to_in::String, unitcell, abs_disp, sc_size, k
 
     phonon = phonopy.Phonopy(unitcell_phonopy,
                              is_symmetry=use_symm,
-                             supercell_matrix=pylist([[sc_size, 0, 0], [0, sc_size, 0], [0, 0, sc_size]]),
+                             supercell_matrix=pylist([[sc_size[1], 0, 0], [0, sc_size[2], 0], [0, 0, sc_size[3]]]),
                              calculator="qe",
                              factor=pwscf_to_cm1)#from internal units to Thz and then to cm-1
 
@@ -166,13 +166,13 @@ function prepare_phonons_data(path_to_in::String, unitcell, abs_disp, sc_size, k
     #Dumb way of using phonopy since api gives diffrent result
     current_directory = pwd()
 
-    command = `phonopy -c phonopy_params.yaml --dim="$(sc_size*k_mesh) $(sc_size*k_mesh) $(sc_size*k_mesh)" --eigvecs --factor $pwscf_to_cm1 -p sc_size.conf`
+    command = `phonopy -c phonopy_params.yaml --dim="$(sc_size[1]*k_mesh[1]) $(sc_size[2]*k_mesh[2]) $(sc_size[3]*k_mesh[3])" --eigvecs --factor $pwscf_to_cm1 -p sc_size.conf`
     file_name = "sc_size.conf"
 
     content = ""
     qpoint = determine_q_point(path_to_in*"scf_0/",1)
     content = "QPOINTS = $(qpoint[1]) $(qpoint[2]) $(qpoint[3])"
-    for iq in 2:(sc_size*k_mesh)^3
+    for iq in 2:sc_size[1]*k_mesh[1] * sc_size[2]*k_mesh[2] * sc_size[3]*k_mesh[3]
         qpoint = determine_q_point(path_to_in*"scf_0/",iq)
         content = content*" $(qpoint[1]) $(qpoint[2]) $(qpoint[3])"
     end
@@ -244,7 +244,7 @@ function parse_qe_ph(path_to_dyn)
     return [ωₐᵣᵣ_ₚₕ, εₐᵣᵣ_ₚₕ]
 end
 
-function prepare_phonons(path_to_in::String, sc_size::Int)
+function prepare_phonons(path_to_in::String, sc_size::Vec3{Int})
 
     local phonon_params
 
@@ -281,7 +281,7 @@ function prepare_phonons(path_to_in::String, sc_size::Int)
 
     save(path_to_in * "scf_0/m_arr.jld2", "m_arr", mₐᵣᵣ)
 
-    for iq in 1:sc_size^3
+    for iq in 1:sc_size[1]*sc_size[2]*sc_size[3]
         εₐᵣᵣ = Array{ComplexF64, 3}(undef, (1, 3*Nat, 3*Nat))
         ωₐᵣᵣ = Array{Float64, 2}(undef, (1, 3*Nat))
 
@@ -311,14 +311,14 @@ function prepare_phonons(path_to_in::String, sc_size::Int)
     return M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ
 end
 
-function create_phonons(path_to_in::String, sc_size::Int)
+function create_phonons(path_to_in::String, sc_size::Vec3{Int})
     M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ = prepare_phonons(path_to_in, sc_size)
 
     return Phonons(M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ)
 end
 
 function create_phonons(model::AbstractModel)
-    sc_size = model.k_mesh * model.sc_size
+    sc_size = model.k_mesh .* model.sc_size
     M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ = prepare_phonons(model.path_to_calc*"displacements/", sc_size)
 
     return Phonons(M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ)

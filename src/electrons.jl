@@ -232,8 +232,8 @@ function create_disp_calc(path_to_in::String, path_to_qe::String, unitcell, scf_
         println(command)
     catch; end
 
-    generate_kpoints(k_mesh*sc_size, k_mesh*sc_size, k_mesh*sc_size; out_file=path_to_in*"scf_0/kpoints.dat")
-    generate_kpoints(k_mesh, k_mesh, k_mesh; out_file=path_to_in*"scf_0/kpoints_sc.dat")
+    generate_kpoints(k_mesh[1]*sc_size[1], k_mesh[2]*sc_size[2], k_mesh[3]*sc_size[3]; out_file=path_to_in*"scf_0/kpoints.dat")
+    generate_kpoints(k_mesh[1], k_mesh[2], k_mesh[3]; out_file=path_to_in*"scf_0/kpoints_sc.dat")
 
     # command = `$(path_to_qe)/W90/utility/kmesh.pl $(k_mesh*sc_size) $(k_mesh*sc_size) $(k_mesh*sc_size)`
     # println(command)
@@ -247,9 +247,9 @@ function create_disp_calc(path_to_in::String, path_to_qe::String, unitcell, scf_
 
     #Case of hybrids
     if haskey(scf_parameters, :nqx1)
-        nscf_parameters[:nqx1] = sc_size*k_mesh
-        nscf_parameters[:nqx2] = sc_size*k_mesh
-        nscf_parameters[:nqx3] = sc_size*k_mesh
+        nscf_parameters[:nqx1] = sc_size[1]*k_mesh[1]
+        nscf_parameters[:nqx2] = sc_size[2]*k_mesh[2]
+        nscf_parameters[:nqx3] = sc_size[3]*k_mesh[3]
     end
 
     pop!(nscf_parameters, :nbnd)
@@ -286,14 +286,14 @@ function create_disp_calc(path_to_in::String, path_to_qe::String, unitcell, scf_
         nscf_parameters       = deepcopy(scf_parameters)
 
         pop!(nscf_parameters, :nbnd)
-        nscf_parameters[:kpts]= pytuple((k_mesh, k_mesh, k_mesh))
+        nscf_parameters[:kpts]= pytuple((k_mesh[1], k_mesh[2], k_mesh[3]))
         create_scf_calc(path_to_in*dir_name*"scf.in",unitcells_disp[i_disp], nscf_parameters)
 
         #create nscf calculation as well
         nscf_parameters[:calculation] = "nscf"
-        nscf_parameters[:nbnd]= scf_parameters[:nbnd]*sc_size^3#+2*sc_size^3 #need to understand how I provide aditional states to keep the projectability satisfied
+        nscf_parameters[:nbnd]= scf_parameters[:nbnd]*sc_size[1]*sc_size[2]*sc_size[3]#+2*sc_size^3 #need to understand how I provide aditional states to keep the projectability satisfied
         create_scf_calc(path_to_in*dir_name*"nscf.in",unitcells_disp[i_disp], nscf_parameters)
-        if k_mesh != 1
+        if k_mesh[1] != 1 $$ k_mesh[2] != 1 $$ k_mesh[3] != 1
             include_kpoins(path_to_in*"group_$i_disp/nscf.in", path_to_in*"scf_0/kpoints_sc.dat")
         end
     end
@@ -608,7 +608,7 @@ function prepare_kcw_data(model::ModelKCW)
         println(command)
     catch; end
 
-    for ind in range(1, model.sc_size^3)
+    for ind in range(1, model.sc_size[1]*model.sc_size[2]*model.sc_size[3])
         file =  model.path_to_calc * "unperturbed/TMP/kc_kcw.save/wfc$(model.spin_channel)$(ind).dat"
         command = `cp $file $path_to_wfc_out/wfc$(ind).dat`
         run(command);
@@ -764,7 +764,7 @@ function save_potential(path_to_in::String, Ndispalce, sc_size, mpi_ranks)
 
         if sc_size > 1 &&  dir_name == "scf_0/"
             Upot_pc, = read_potential(path_to_in*dir_name*"Vks",skiprows=1)
-            Upot_sc = repeat(Upot_pc, outer=(sc_size, sc_size, sc_size))
+            Upot_sc = repeat(Upot_pc, outer=(sc_size[1], sc_size[2], sc_size[3]))
             save(path_to_in*dir_name*"Vks.jld2", "Upot_sc", Upot_sc)
         end
         #Need to check consistency between python and julia potential (lot or ?)
@@ -859,7 +859,7 @@ function prepare_eigenvalues(path_to_in::String, natoms::Int; Ndisplace::Int = 6
     return ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list
 end
 
-function create_electrons(path_to_in::String, natoms::Int, sc_size::Int, k_mesh::Int)
+function create_electrons(path_to_in::String, natoms::Int, sc_size::Vec3{Int}, k_mesh::Vec3{Int})
     U_list, V_list = prepare_u_matrixes(path_to_in, natoms, sc_size, k_mesh)
     ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list = prepare_eigenvalues(path_to_in, natoms)
 

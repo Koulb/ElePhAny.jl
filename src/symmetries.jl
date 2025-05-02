@@ -3,7 +3,7 @@ function check_symmetries(path_to_calc, unitcell, sc_size, abs_disp)
     cell=pylist(pyconvert(Array,unitcell[:cell])./bohr_to_ang),#Should be in Bohr, hence conversion
     scaled_positions=unitcell[:scaled_positions],
     masses=unitcell[:masses])
-    supercell_matrix=pylist([[sc_size, 0, 0], [0, sc_size, 0], [0, 0, sc_size]])
+    supercell_matrix=pylist([[sc_size[1], 0, 0], [0, sc_size[2], 0], [0, 0, sc_size[3]]])
 
     phonon_symm = phonopy.Phonopy(unitcell_phonopy,supercell_matrix=supercell_matrix)
     phonon_nosymm = phonopy.Phonopy(unitcell_phonopy, is_symmetry=false,supercell_matrix=supercell_matrix)
