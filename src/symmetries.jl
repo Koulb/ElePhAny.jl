@@ -1,3 +1,24 @@
+"""
+    check_symmetries(path_to_calc, unitcell, sc_size, abs_disp)
+
+Checks the symmetries of atomic displacements in a crystal structure using Phonopy.
+
+# Arguments
+- `path_to_calc::String`: Path to the calculation directory where displacement files will be saved.
+- `unitcell::Dict`: Dictionary containing unit cell information with keys:
+    - `:symbols`: Atomic symbols.
+    - `:cell`: Lattice vectors.
+    - `:scaled_positions`: Atomic positions in scaled coordinates.
+    - `:masses`: Atomic masses.
+- `sc_size::Int`: Size of the supercell (applied equally along all axes).
+- `abs_disp::Float64`: Magnitude of the atomic displacement to generate.
+
+# Returns
+- `Symmetries`: An object containing:
+    - List of inequivalent atom indices.
+    - List of translation vectors for each symmetry operation.
+    - List of rotation matrices for each symmetry operation.
+"""
 function check_symmetries(path_to_calc, unitcell, sc_size, abs_disp)
     unitcell_phonopy = phonopy.structure.atoms.PhonopyAtoms(;symbols=unitcell[:symbols],
     cell=pylist(pyconvert(Array,unitcell[:cell])./bohr_to_ang),#Should be in Bohr, hence conversion
@@ -65,6 +86,14 @@ function check_symmetries(path_to_calc, unitcell, sc_size, abs_disp)
     return Symmetries(ineq_atoms_list, trans_list, rot_list)
 end
 
+"""
+    check_symmetries!(model::AbstractModel)
+
+Checks the symmetries of the given `model` and updates its symmetry-related fields in-place.
+
+# Arguments
+- `model::AbstractModel`: The model object containing calculation path, unit cell, supercell size, and displacement information.
+"""
 function check_symmetries!(model::AbstractModel)
     symmetries = check_symmetries(model.path_to_calc, model.unitcell, model.sc_size, model.abs_disp)
     natoms = length(pyconvert(Vector{Vector{Float64}}, model.unitcell[:scaled_positions]))
@@ -79,14 +108,19 @@ function check_symmetries!(model::AbstractModel)
     end
 end
 
+"""
+    fold_component(x, eps=5e-3)
+
+Folds the input value `x` into the interval `[0, 1)` within a tolerance `eps`.
+
+If `x` is greater than or equal to `1 - eps`, repeatedly subtracts 1 until `x` falls within the interval.
+If `x` is less than `0 - eps`, repeatedly adds 1 until `x` falls within the interval.
+
+# Arguments
+- `x`: The value to be folded.
+- `eps`: (optional) Tolerance for the interval boundaries. Default is `5e-3`.
+"""
 function fold_component(x, eps=5e-3)
-    """
-    This routine folds number with given accuracy, so it would be inside the section from 0 to 1 .
-
-        Returns:
-            :x: folded number
-
-    """
     if x >= 1 - eps
         while x >= 1 - eps
             x = x - 1
@@ -99,14 +133,22 @@ function fold_component(x, eps=5e-3)
     return x
 end
 
+"""
+    rotate_grid(N1, N2, N3, rot, tras)
+
+Maps a 3D grid of points onto itself under a given rotation and translation, returning a mapping of indices.
+
+# Arguments
+- `N1::Int`: Number of grid points along the first axis.
+- `N2::Int`: Number of grid points along the second axis.
+- `N3::Int`: Number of grid points along the third axis.
+- `rot::AbstractMatrix`: 3x3 rotation matrix to apply to each grid point.
+- `tras::AbstractVector`: 3-element translation vector to apply after rotation (in fractional coordinates).
+
+# Returns
+- `mapp::Vector{Int}`: A vector containing the mapped linear indices for each grid point after applying the rotation and translation.
+"""
 function rotate_grid(N1, N2, N3, rot, tras)
-    """
-    This routine change the grid according to given rotation and translation.
-
-        Returns:
-            :mapp (list): list of indexes of transformed grid
-
-    """
     mapp = []
     for k in 0:N3-1
         for j in 0:N2-1
@@ -135,14 +177,22 @@ function rotate_grid(N1, N2, N3, rot, tras)
     return mapp
 end
 
+"""
+    rotate_deriv(N1, N2, N3, mapp, ff)
+
+Rotate a 3D array `ff` according to a mapping array `mapp` and the specified dimensions `N1`, `N2`, `N3`.
+
+# Arguments
+- `N1::Int`: Size of the first dimension.
+- `N2::Int`: Size of the second dimension.
+- `N3::Int`: Size of the third dimension.
+- `mapp::Vector{Int}`: Mapping array that specifies the new indices for rotation. Each entry maps a linear index in the original array to a new position.
+- `ff::Array{ComplexF64,3}`: The original 3D array to be rotated.
+
+# Returns
+- `ff_rot::Array{ComplexF64,3}`: The rotated 3D array.
+"""
 function rotate_deriv(N1, N2, N3, mapp, ff)
-    """
-    This routine rotate the derivative according to the given grid.
-
-        Returns:
-            :ff_rot (np.array): array containing values of the derivative on a new frid
-
-    """
     ff_rot = zeros(ComplexF64, N1, N2, N3)
     ind = 1
     for k in 0:N3-1

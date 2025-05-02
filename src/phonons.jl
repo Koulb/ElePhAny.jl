@@ -1,5 +1,19 @@
 using BlockArrays, LinearAlgebra
 
+"""
+    determine_q_point(path_to_in, iq; sc_size=1, use_sc=false)
+
+Determines the q-point from a k-points file.
+
+# Arguments
+- `path_to_in::AbstractString`: Path to the directory containing the k-points files.
+- `iq::Integer`: Index of the q-point to retrieve (1-based).
+- `sc_size::Number=1`: Scaling factor for the q-point (default is 1).
+- `use_sc::Bool=false`: If `true`, use the supercell k-points file (`kpoints_sc.dat`); otherwise, use the regular k-points file (`kpoints.dat`).
+
+# Returns
+- `Vector{Float64}`: The q-point at index `iq`, scaled by `sc_size`.
+"""
 function determine_q_point(path_to_in, iq; sc_size=1, use_sc = false)
     file = open(joinpath(path_to_in,"kpoints.dat"), "r")
     if use_sc
@@ -11,6 +25,19 @@ function determine_q_point(path_to_in, iq; sc_size=1, use_sc = false)
     return qpoints[iq].*sc_size
 end
 
+"""
+    determine_q_point_cart(path_to_in, ik)
+
+Extracts the Cartesian coordinates of the `ik`-th k-point from a Quantum ESPRESSO `scf.out` file located in the specified directory.
+
+# Arguments
+- `path_to_in::String`: Path to the directory containing the `scf.out` file.
+- `ik::Int`: Index of the k-point to extract (1-based).
+
+# Returns
+- `Vector{Float64}`: A vector of length 3 containing the Cartesian coordinates of the specified k-point.
+
+"""
 function determine_q_point_cart(path_to_in,ik)
     file = open(path_to_in*"/scf.out","r")
     lines = readlines(file)
@@ -33,7 +60,17 @@ function determine_q_point_cart(path_to_in,ik)
     return result
 end
 
-# functon for reading forces from xml
+"""
+    read_forces_xml(path_to_xml::String) -> Matrix{Float64}
+
+Reads atomic forces from a Quantum ESPRESSO XML output file.
+
+# Arguments
+- `path_to_xml::String`: Path to the XML file containing the forces data.
+
+# Returns
+- `Matrix{Float64}`: A matrix of size (N_atoms, 3), where each row corresponds to the force vector (in Hartree/Bohr) acting on an atom.
+"""
 function read_forces_xml(path_to_xml::String)
     doc = readxml(path_to_xml)
     output = findfirst("/qes:espresso/output", root(doc))
@@ -44,6 +81,21 @@ function read_forces_xml(path_to_xml::String)
     return forces_matrix
 end
 
+"""
+    dislpaced_unitecells(path_to_save, unitcell, abs_disp, sc_size, use_symm)
+
+Generates supercells with atomic displacements for phonon calculations using Phonopy.
+
+# Arguments
+- `path_to_save::String`: Path where the Phonopy parameter file (`phonopy_params.yaml`) will be saved.
+- `unitcell::Dict`: Dictionary describing the unit cell. Must contain keys `:symbols`, `:cell`, `:scaled_positions`, and `:masses`.
+- `abs_disp::Float64`: Magnitude of the atomic displacement (in Angstroms).
+- `sc_size::Int`: Size of the supercell (applied equally along all three axes).
+- `use_symm::Bool`: Whether to use symmetry operations in generating displacements.
+
+# Returns
+- `supercells::Vector{Dict}`: A vector of dictionaries, each representing a supercell with displaced atoms. Each dictionary contains keys `:symbols`, `:cell`, `:scaled_positions`, and `:masses`.
+"""
 function dislpaced_unitecells(path_to_save, unitcell, abs_disp, sc_size, use_symm)
     unitcell_phonopy = phonopy_structure_atoms.PhonopyAtoms(;symbols=unitcell[:symbols],
                                                              cell=pylist(pyconvert(Array,unitcell[:cell])./bohr_to_ang),#Should be in Bohr, hence conversion
@@ -68,6 +120,20 @@ function dislpaced_unitecells(path_to_save, unitcell, abs_disp, sc_size, use_sym
     return supercells
 end
 
+"""
+    collect_forces(path_to_in::String, unitcell, sc_size, Ndispalce)
+
+Collects atomic forces from a series of displacement calculations.
+
+# Arguments
+- `path_to_in::String`: Path to the directory containing displacement calculation results.
+- `unitcell`: Data structure containing information about the unit cell, including atomic symbols.
+- `sc_size`: Integer specifying the size of the supercell (number of unit cells along one dimension).
+- `Ndispalce`: Number of displacement calculations (i.e., number of displaced configurations).
+
+# Returns
+- `forces::Array{Float64, 3}`: 3D array of shape `(Ndispalce, number_atoms, 3)` containing the forces for each displacement and atom.
+"""
 function collect_forces(path_to_in::String, unitcell, sc_size, Ndispalce)
   # Get a number of displacements
   # files = readdir(path_to_in; join=true)
@@ -85,6 +151,23 @@ function collect_forces(path_to_in::String, unitcell, sc_size, Ndispalce)
     return forces
 end
 
+"""
+    save_dyn_matirx(path_to_in::String, sc_size::Int) -> Bool
+
+Saves the dynamical matrices for a supercell of size `sc_size^3` to disk.
+
+# Arguments
+- `path_to_in::String`: Path to the input directory containing phonopy files (e.g., `phonopy_params.yaml`).
+- `sc_size::Int`: The size of the supercell along one dimension (total number of q-points is `sc_size^3`).
+
+# Description
+For each q-point in the supercell:
+- Loads phonon parameters using Phonopy.
+- Computes the dynamical matrix at the q-point.
+- Applies phase and mass factors to construct the dynamical matrix in QE gage.
+- Saves the resulting matrix to a file in a newly created `dyn_mat` subdirectory.
+
+"""
 function save_dyn_matirx(path_to_in::String, sc_size::Int)
     #saving the dynamic matrix
     path_to_dyn = path_to_in*"dyn_mat"
@@ -134,12 +217,56 @@ function save_dyn_matirx(path_to_in::String, sc_size::Int)
     return true
 end
 
+"""
+    prepare_phonons_data(path_to_in::String, unitcell, abs_disp, sc_size, k_mesh, use_symm, Ndispalce::Int64; save_dynq=true)
+
+Prepares phonon data by collecting forces and processing them for further calculations.
+
+# Arguments
+- `path_to_in::String`: Path to the input directory or file containing force data.
+- `unitcell`: The unit cell structure or object.
+- `abs_disp`: Absolute displacement value(s) used for phonon calculations.
+- `sc_size`: Supercell size or dimensions.
+- `k_mesh`: k-point mesh for Brillouin zone sampling.
+- `use_symm`: Boolean or flag indicating whether to use symmetry operations.
+- `Ndispalce::Int64`: Number of displacements to consider.
+- `save_dynq` (optional): Whether to save the dynamical matrix (`true` by default).
+
+# Returns
+- The processed phonon data, ready for further analysis or calculations.
+
+"""
 function prepare_phonons_data(path_to_in::String, unitcell, abs_disp, sc_size, k_mesh, use_symm, Ndispalce::Int64; save_dynq=true)
     #Get the forces
     forces = collect_forces(path_to_in, unitcell, sc_size, Ndispalce)
     prepare_phonons_data(path_to_in, unitcell, abs_disp, sc_size, k_mesh, use_symm, forces; save_dynq=save_dynq)
 end
 
+"""
+    prepare_phonons_data(path_to_in::String, unitcell, abs_disp, sc_size, k_mesh, use_symm, forces::Array{Float64}; save_dynq=true)
+
+Prepares phonon calculation data using Phonopy and Quantum ESPRESSO.
+
+# Arguments
+- `path_to_in::String`: Path to the input directory where files will be read/written.
+- `unitcell`: Dictionary containing unit cell information, including `:symbols`, `:cell`, and `:scaled_positions`.
+- `abs_disp`: Absolute displacement value for generating phonon displacements.
+- `sc_size`: Integer specifying the size of the supercell.
+- `k_mesh`: Integer specifying the k-point mesh size.
+- `use_symm`: Boolean indicating whether to use symmetry in phonon calculations.
+- `forces::Array{Float64}`: Array of forces to be set in the phonon object.
+- `save_dynq` (optional, default=`true`): Whether to save the dynamical matrix after calculation.
+
+# Description
+This function:
+- Converts unit cell parameters to the appropriate units and format for Phonopy.
+- Initializes a Phonopy object with the given unit cell, supercell size, and symmetry settings.
+- Produces and optionally symmetrizes the force constants.
+- Saves Phonopy parameters to a YAML file.
+- Constructs and writes a configuration file for further phonon calculations.
+- Runs the Phonopy command-line tool to compute phonon properties.
+- Optionally saves the dynamical matrix.
+"""
 function prepare_phonons_data(path_to_in::String, unitcell, abs_disp, sc_size, k_mesh, use_symm, forces::Array{Float64}; save_dynq=true)
     #This conversions Julia to Python are getting me worried
     unitcell[:cell] = pylist(pyconvert(Array,unitcell[:cell])./bohr_to_ang)#Should be in Bohr, hence conversion
@@ -180,7 +307,6 @@ function prepare_phonons_data(path_to_in::String, unitcell, abs_disp, sc_size, k
     content = content*" \nWRITEDM = .TRUE."
     #content = content*" \nFC_SYMMETRY = .TRUE."
 
-
     file = open(path_to_in*file_name, "w")
     write(file, content)
     close(file)
@@ -198,7 +324,23 @@ function prepare_phonons_data(path_to_in::String, unitcell, abs_disp, sc_size, k
 end
 
 
-#Parse phonons eigenvalues and eigenvectors from qe output
+"""
+    parse_qe_ph(path_to_dyn)
+
+Parses a Quantum ESPRESSO `.dyn` file to extract phonon frequencies and eigenvectors.
+
+# Arguments
+- `path_to_dyn::AbstractString`: Path to the `.dyn` file generated by Quantum ESPRESSO.
+
+# Returns
+- `Vector`: A two-element vector containing:
+    1. `ωₐᵣᵣ_ₚₕ::Array{Float64,2}`: Transposed array of phonon frequencies.
+    2. `εₐᵣᵣ_ₚₕ::Array{ComplexF64,3}`: 3D array of phonon eigenvectors.
+
+# Description
+The function reads the specified `.dyn` file, extracts the section between lines marked by a special separator, and parses the phonon frequencies and eigenvectors. The frequencies are extracted from every third line, while the eigenvectors are parsed from the remaining lines. The eigenvectors are assembled into a complex 3D array, where the real and imaginary parts are interleaved in the file.
+
+"""
 function parse_qe_ph(path_to_dyn)
     #Read file and save lines between special line
     special_line = "**************************************************************************"
@@ -244,6 +386,28 @@ function parse_qe_ph(path_to_dyn)
     return [ωₐᵣᵣ_ₚₕ, εₐᵣᵣ_ₚₕ]
 end
 
+"""
+    prepare_phonons(path_to_in::String, sc_size::Int)
+
+Prepares and processes phonon data for a given system.
+
+# Arguments
+- `path_to_in::String`: Path to the input directory containing phonopy and phonon calculation files.
+- `sc_size::Int`: Size of the supercell (used to determine the number of q-points).
+
+# Outputs
+- `M_phonon`: Array of transformation matrices for each atom, used to convert between Cartesian and phonon displacement bases.
+- `ωₐᵣᵣ_ₗᵢₛₜ`: List of phonon frequency arrays for each q-point.
+- `εₐᵣᵣ_ₗᵢₛₜ`: List of phonon eigenvector arrays for each q-point.
+- `mₐᵣᵣ`: Array of atomic masses.
+
+# Side Effects
+Saves the following files in the `scf_0` subdirectory of `path_to_in`:
+- `M_phonon.jld2`: Contains the transformation matrices.
+- `m_arr.jld2`: Contains the atomic masses.
+- `omega_arr_list.jld2`: Contains the list of phonon frequencies.
+- `eps_arr_list.jld2`: Contains the list of phonon eigenvectors.
+"""
 function prepare_phonons(path_to_in::String, sc_size::Int)
 
     local phonon_params
@@ -311,12 +475,38 @@ function prepare_phonons(path_to_in::String, sc_size::Int)
     return M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ
 end
 
+"""
+    create_phonons(path_to_in::String, sc_size::Int) -> Phonons
+
+Creates a `Phonons` object by preparing phonon data.
+
+# Arguments
+- `path_to_in::String`: Path to the input file containing phonon data.
+- `sc_size::Int`: Supercell size parameter used for phonon preparation.
+
+# Returns
+- `Phonons`: An instance of the `Phonons` type containing the mass matrix, frequency array, eigenvector array, and mass array.
+
+"""
 function create_phonons(path_to_in::String, sc_size::Int)
     M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ = prepare_phonons(path_to_in, sc_size)
 
     return Phonons(M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ)
 end
 
+"""
+    create_phonons(model::AbstractModel) -> Phonons
+
+Creates a `Phonons` object for the given `model`.
+This function prepares the phonon data by calculating the supercell size, loading phonon matrices,
+frequencies, eigenvectors, and atomic masses from the specified displacement calculation directory.
+
+# Arguments
+- `model::AbstractModel`: The model containing information about the k-point mesh, supercell size, and path to displacement calculations.
+
+# Returns
+- `Phonons`: An object containing the phonon matrix, frequency arrays, eigenvector arrays, and atomic mass array.
+"""
 function create_phonons(model::AbstractModel)
     sc_size = model.k_mesh * model.sc_size
     M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ = prepare_phonons(model.path_to_calc*"displacements/", sc_size)
@@ -324,6 +514,19 @@ function create_phonons(model::AbstractModel)
     return Phonons(M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ)
 end
 
+"""
+    load_phonons(model::AbstractModel) -> Phonons
+
+Loads phonon-related data from disk for the given `model` and returns a `Phonons` object.
+
+# Arguments
+- `model::AbstractModel`: The model containing the path to the calculation directory.
+
+# Returns
+- `Phonons`: An object containing the loaded phonon mass matrix (`M_phonon`),
+list of phonon frequencies (`ωₐᵣᵣ_ₗᵢₛₜ`), list of phonon eigenvectors (`εₐᵣᵣ_ₗᵢₛₜ`),
+and atomic masses (`mₐᵣᵣ`).
+"""
 function load_phonons(model::AbstractModel)
     M_phonon   = load(model.path_to_calc * "displacements/scf_0/M_phonon.jld2")["M_phonon"]
     ωₐᵣᵣ_ₗᵢₛₜ  = load(model.path_to_calc * "displacements/scf_0/omega_arr_list.jld2")["omega_arr_list"]

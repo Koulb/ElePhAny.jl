@@ -417,7 +417,7 @@ This function performs the following steps:
 5. Saves the processed wave functions to a new JLD2 file with a modified filename.
 
 # Output
-Saves the processed wave functions with phase factors applied to a file named `wfc_list_phase_$ik.jld2` in the specified input directory.
+Saves the processed wave functions with phase factors applied to a file named `wfc_list_phase_ik.jld2` in the specified input directory.
 """
 function prepare_unfold_to_sc(path_to_in::String, sc_size::Int, ik::Int)
     Nxyz = determine_fft_grid(path_to_in*"/scf.out") * sc_size

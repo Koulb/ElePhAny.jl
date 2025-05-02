@@ -1,5 +1,16 @@
 using JSON3
 
+"""
+    parse_frozen_params(path_to_json)
+
+Parses a JSON file containing parameters for a frozen phonon calculation and merges them with default values.
+
+# Arguments
+- `path_to_json::AbstractString`: Path to the JSON file containing parameter overrides.
+
+# Returns
+- `Dict{String, Any}`: A dictionary with the merged parameters, where defaults are used unless overridden by the JSON file.
+"""
 function parse_frozen_params(path_to_json)
     frozen_params_default = Dict(
         "path_to_calc" =>  pwd()*"/",
@@ -24,6 +35,25 @@ end
 
 const NeedleType = Union{AbstractString, AbstractChar, Regex}
 
+"""
+    parse_qe_in(path_to_scf::String)
+
+Parses a Quantum ESPRESSO SCF input file and extracts structural and calculation parameters.
+
+# Arguments
+- `path_to_scf::String`: Path to the Quantum ESPRESSO SCF input file.
+
+# Returns
+- `unitcell::Dict`: A dictionary containing unit cell information:
+    - `:symbols`: Chemical symbols of the atoms.
+    - `:cell`: Lattice vectors of the unit cell.
+    - `:scaled_positions`: Atomic positions in fractional coordinates.
+    - `:masses`: Atomic masses.
+- `scf_parameters::Dict`: A dictionary containing parsed SCF calculation parameters, including:
+    - `:format`: The format of the input file (set to `"espresso-in"`).
+    - `:crystal_coordinates`: Boolean indicating if crystal coordinates are used.
+    - Additional parameters parsed from the input file.
+"""
 function parse_qe_in(path_to_scf::String)
     ase_data = ase_io.read(path_to_scf)
 
@@ -42,6 +72,16 @@ function parse_qe_in(path_to_scf::String)
     return unitcell, scf_parameters
 end
 
+"""
+    getfirst(f::Function, A)
+
+Returns the first element `el` in the collection `A` for which the predicate function `f(el)` returns `true`.
+If no such element is found, returns `nothing`.
+
+# Arguments
+- `f::Function`: A predicate function that takes an element of `A` and returns a `Bool`.
+- `A`: A collection to search through.
+"""
 function getfirst(f::Function, A)
     for el in A
         if f(el)
@@ -50,6 +90,19 @@ function getfirst(f::Function, A)
     end
 end
 
+"""
+    parse_file(f::AbstractString, parse_funcs::Vector{<:Pair{NeedleType, Any}}; out = Dict{Symbol, Any}())
+
+Parses the file at path `f` line by line, applying parsing functions specified in `parse_funcs` to lines that match given patterns.
+
+# Arguments
+- `f::AbstractString`: Path to the file to be parsed.
+- `parse_funcs::Vector{<:Pair{NeedleType, Any}}`: A vector of pairs, where each pair consists of a pattern (`NeedleType`) to search for in each line, and a parsing function to apply when the pattern is found. The parsing function should accept three arguments: the output dictionary, the current line, and the file handle.
+- `out::Dict{Symbol, Any}` (optional): An output dictionary to store parsed results. Defaults to an empty dictionary.
+
+# Returns
+- `Dict{Symbol, Any}`: The dictionary containing parsed results.
+"""
 function parse_file(f::AbstractString, parse_funcs::Vector{<:Pair{NeedleType, Any}}; out = Dict{Symbol, Any}())
     lc = 0
     open(f, "r") do file
@@ -75,6 +128,18 @@ function parse_file(f::AbstractString, parse_funcs::Vector{<:Pair{NeedleType, An
     return out
 end
 
+"""
+    parse_file(f::AbstractString, args...; kwargs...)
+
+Opens the file specified by the path `f` in read mode and passes the resulting file handle,
+along with any additional positional (`args...`) and keyword arguments (`kwargs...`), to
+the inner `parse_file` method for further processing.
+
+# Arguments
+- `f::AbstractString`: The path to the file to be parsed.
+- `args...`: Additional positional arguments to be forwarded to the inner `parse_file` method.
+- `kwargs...`: Additional keyword arguments to be forwarded to the inner `parse_file` method.
+"""
 function parse_file(f::AbstractString, args...; kwargs...)
     open(f, "r") do file
         parse_file(file, args...;kwargs...)

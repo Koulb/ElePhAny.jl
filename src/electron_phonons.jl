@@ -1,6 +1,22 @@
 using LinearAlgebra, YAML, Plots, Base.Threads
 
 
+"""
+    run_calculations(model::ModelQE)
+
+Performs a series of calculations for a given `ModelQE` instance related to electron and phonon interactions.
+
+# Arguments
+- `model::ModelQE`: The model containing calculation parameters and paths.
+
+# Description
+This function runs the following calculations in sequence:
+1. Electron displacement calculations using `run_disp_calc`.
+2. Non-self-consistent field (NSCF) calculations using `run_nscf_calc`.
+3. Displacement NSCF calculations using `run_disp_nscf_calc`.
+
+All calculations are performed in the directory specified by `model.path_to_calc * "displacements/"`, using the number of displacements (`model.Ndispalce`) and MPI ranks (`model.mpi_ranks`) specified in the model.
+"""
 function run_calculations(model::ModelQE)
     # Electrons calculation
     run_disp_calc(model.path_to_calc*"displacements/", model.Ndispalce, model.mpi_ranks)
@@ -10,6 +26,21 @@ end
 
 run_calculations(model::ModelKCW) = run_disp_calc(model)
 
+"""
+    prepare_model(model::ModelQE)
+
+Prepares the model for electron-phonon calculations based on the provided `ModelQE` object.
+
+# Arguments
+- `model::ModelQE`: The model configuration containing calculation parameters, paths, and settings.
+
+# Description
+This function performs the following steps:
+- Checks for unsupported combinations of symmetry and k-point mesh in supercell calculations.
+- For calculations with both k-point mesh and supercell size greater than 1, reads structural data, computes a unified grid, and prepares undistorted and distorted wave functions.
+- For calculations with only supercell size greater than 1 (and k-point mesh equal to 1), prepares undistorted wave functions.
+- Prepares phonon data for all cases.
+"""
 function prepare_model(model::ModelQE)
     # save_potential(model.path_to_calc*"displacements/", model.Ndispalce, model.sc_size, model.mpi_ranks)
 
@@ -34,6 +65,16 @@ function prepare_model(model::ModelQE)
     prepare_phonons_data(model.path_to_calc*"displacements/",model.unitcell, model.abs_disp, model.sc_size, model.k_mesh, model.use_symm, model.Ndispalce)
 end
 
+"""
+    prepare_model(model::ModelKCW)
+
+Prepares the given `ModelKCW` model for further calculations. This function performs the following steps:
+1. Calls `prepare_kcw_data(model)` to set up necessary data for the model.
+2. Calls `prepare_wave_functions_undisp` with the path to the displacement calculations and the supercell size to prepare wave functions without displacements.
+
+# Arguments
+- `model::ModelKCW`: The model object containing all necessary parameters and paths for preparation.
+"""
 function prepare_model(model::ModelKCW)
     prepare_kcw_data(model)
     prepare_wave_functions_undisp(model.path_to_calc*"displacements/", model.sc_size)
@@ -72,6 +113,25 @@ function check_calculations(path_to_calc, Ndisp)
 end
 
 
+"""
+    electron_phonon_qe(path_to_in::String, ik::Int, iq::Int, mpi_ranks::Int, path_to_qe::String)
+
+Runs a Quantum ESPRESSO phonon calculation for electron-phonon coupling at specified k- and q-points.
+
+# Arguments
+- `path_to_in::String`: Path to the input directory containing calculation files.
+- `ik::Int`: Index of the k-point to use.
+- `iq::Int`: Index of the q-point to use.
+- `mpi_ranks::Int`: Number of MPI ranks (processes) to use for parallel execution.
+- `path_to_qe::String`: Path to the Quantum ESPRESSO installation or executable directory.
+
+# Description
+This function:
+- Changes the working directory to the specified input directory.
+- Constructs a dictionary of input parameters for the `ph.x` Quantum ESPRESSO module.
+- Writes the input file `ph.in` for the phonon calculation.
+- Executes the `ph.x` program using MPI, redirecting output and error streams to files.
+"""
 function electron_phonon_qe(path_to_in::String, ik::Int, iq::Int, mpi_ranks::Int, path_to_qe::String)
     dir_name = "scf_0/"
     current_directory = pwd()
@@ -120,10 +180,36 @@ function electron_phonon_qe(path_to_in::String, ik::Int, iq::Int, mpi_ranks::Int
     cd(current_directory)
 end
 
+"""
+    electron_phonon_qe(model::ModelQE, ik::Int, iq::Int)
+
+Computes electron-phonon coupling using  Quantum ESPRESSO for a given model.
+
+# Arguments
+- `model::ModelQE`: The Quantum ESPRESSO model containing calculation parameters and paths.
+- `ik::Int`: Index of the k-point.
+- `iq::Int`: Index of the q-point.
+
+# Returns
+- The result of the electron-phonon coupling calculation for the specified k-point and q-point.
+"""
 function electron_phonon_qe(model::ModelQE, ik::Int, iq::Int)
     electron_phonon_qe(model.path_to_calc*"displacements/", ik, iq, model.mpi_ranks, model.path_to_qe)
 end
 
+"""
+    find_degenerate(energies, thr=1e-3)
+
+Groups nearly degenerate energy levels within a given threshold.
+
+# Arguments
+- `energies::AbstractVector{<:Real}`: A vector of energy values, assumed to be sorted.
+- `thr::Real=1e-3`: Threshold for considering two energies as degenerate (default: `1e-3`).
+
+# Returns
+- `ineq_ener::Vector{<:Real}`: Vector of unique (inequivalent) energies, each representing a group of degenerate states.
+- `eq_states::Vector{Vector{Int}}`: A vector of vectors, where each subvector contains the indices of `energies` that are degenerate with the corresponding entry in `ineq_ener`.
+"""
 function find_degenerate(energies, thr=1e-3)
     ineq_ener = [energies[1]]
     eq_states = [[1]]
@@ -140,6 +226,20 @@ function find_degenerate(energies, thr=1e-3)
     return ineq_ener, eq_states
 end
 
+
+"""
+    parse_ph(file_name, nbands, nfreq)
+
+Parse electron-phonon matrix elements from a ph.out file.
+
+# Arguments
+- `file_name::AbstractString`: Path to the input file containing electron-phonon data.
+- `nbands::Int`: Number of electronic bands.
+- `nfreq::Int`: Number of phonon frequencies.
+
+# Returns
+- `elph_dfpt::Array{ComplexF64,3}`: A 3D array of size `(nbands, nbands, nfreq)` containing the parsed electron-phonon matrix elements (in meV).
+"""
 function parse_ph(file_name, nbands, nfreq)
     file = open(file_name, "r")
     # Initialize a flag to check if word is found
@@ -171,14 +271,14 @@ function parse_ph(file_name, nbands, nfreq)
     return elph_dfpt
 end
 
-function load_wf_debug(path_to_in::String)
 
+function load_wf_debug(path_to_in::String)
     wfc_list = Dict()
     for iband in 1:32
-        wfc_re, = read_potential(path_to_in*"wfun_$(iband)_1_re";skiprows=1)
-        wfc_im, = read_potential(path_to_in*"wfun_$(iband)_1_im";skiprows=1)
+        wfc_re, = read_potential(path_to_in*"wfun_$(iband)_1_re"; skiprows=1)
+        wfc_im, = read_potential(path_to_in*"wfun_$(iband)_1_im"; skiprows=1)
 
-        wfc = wfc_re + 1im * wfc_im
+        wfc = wfc_re .+ 1im .* wfc_im
         wfc_list["wfc$iband"] = wfc
     end
 
@@ -196,6 +296,61 @@ function load_wf_u_debug(path_to_in::String, ik)
 end
 
 
+"""
+    electron_phonon(
+        path_to_in::String,
+        abs_disp,
+        Nat,
+        ik,
+        iq,
+        sc_size,
+        k_mesh,
+        ϵkᵤ_list,
+        ϵₚ_list,
+        ϵₚₘ_list,
+        k_list,
+        U_list,
+        V_list,
+        M_phonon,
+        ωₐᵣᵣ_ₗᵢₛₜ,
+        εₐᵣᵣ_ₗᵢₛₜ,
+        mₐᵣᵣ;
+        save_epw::Bool=false
+    )
+
+Compute electron-phonon matrix elements using the frozen-phonon approach.
+
+# Arguments
+- `path_to_in::String`: Path to the input calculation directory.
+- `abs_disp`: Absolute displacement used in frozen-phonon calculations.
+- `Nat`: Number of atoms in the unit cell.
+- `ik`: Index of the k-point.
+- `iq`: Index of the q-point.
+- `sc_size`: Supercell size.
+- `k_mesh`: Number of k-points in the mesh.
+- `ϵkᵤ_list`: List of eigenvalues for each k-point.
+- `ϵₚ_list`: List of perturbed eigenvalues for positive displacement.
+- `ϵₚₘ_list`: List of perturbed eigenvalues for negative displacements.
+- `k_list`: List of k-points.
+- `U_list`: List of braket matrices for positive displacements.
+- `V_list`: List of braket matrices for negative displacements.
+- `M_phonon`: List of phonon rotation matrices for each atom.
+- `ωₐᵣᵣ_ₗᵢₛₜ`: List of phonon frequencies for each q-point.
+- `εₐᵣᵣ_ₗᵢₛₜ`: List of phonon eigenvectors for each q-point.
+- `mₐᵣᵣ`: List of atomic masses.
+- `save_epw::Bool=false`: If `true`, saves the rotated braket list for EPW.
+
+# Returns
+- If `save_epw` is `true`, returns the rotated braket list (`braket_list_rotated`).
+- Otherwise, returns the symmetrized electron-phonon matrix elements (`symm_elph`).
+
+# Description
+This function computes the electron-phonon coupling matrix elements by evaluating the overlap ("braket")
+between electronic states perturbed by atomic displacements.
+The calculation is performed for each atom and Cartesian direction, and the results are rotated into the phonon eigenmode basis.
+The function also symmetrizes the resulting matrix elements over phonon and electronic states and compares them with DFPT
+results if available.
+"""
 function electron_phonon(path_to_in::String, abs_disp, Nat, ik, iq, sc_size, k_mesh, ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list , U_list, V_list, M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ; save_epw::Bool=false)
     # cd(path_to_in)
 
@@ -253,7 +408,6 @@ function electron_phonon(path_to_in::String, abs_disp, Nat, ik, iq, sc_size, k_m
             for j in 1:nbands
                 result = 0.0#(i==j && ik==ikq ? -ϵkᵤ[i] : 0.0)#0.0##TODO: check this iq or ikq
                 # println(i, ' ', j, ' ', result)
-
                 for k in 1:nbands*sc_size^3
                     for ip in 1:k_mesh^3
                     # ip = 1
@@ -287,10 +441,7 @@ function electron_phonon(path_to_in::String, abs_disp, Nat, ik, iq, sc_size, k_m
             # println("_____________________________________________________________")
             # exit(3)
         end
-
-
         push!(braket_list, transpose(conj(braket))*scale*(sc_size)^3)
-
     end
     # println("Braket list unrotated")
     # println(scale*sc_size^3)
@@ -360,7 +511,7 @@ function electron_phonon(path_to_in::String, abs_disp, Nat, ik, iq, sc_size, k_m
                         end
                         gᵢⱼₘ_ₐᵣᵣ[i,j,iph] = gᵢⱼₘ/ev_to_ry
                         data = [iph, ω/cm1_to_Thz, real(gᵢⱼₘ)/ev_to_ry, imag(gᵢⱼₘ)/ev_to_ry]
-                        #@printf("  %5d  %10.6f  %10.6f   %10.6f\n", data...)
+                        # @printf("  %5d  %10.6f  %10.6f   %10.6f\n", data...)
                         # @printf(io, "  %5d  %10.6f  %10.10f   %10.10f\n", data...)
                     end
                     #@printf("____________________________________________\n")
@@ -474,6 +625,20 @@ function electron_phonon(path_to_in::String, abs_disp, Nat, ik, iq, sc_size, k_m
 
 end
 
+"""
+    plot_ep_coupling(path_to_in::String, ik::Int, iq::Int; nbnd_max=-1)
+
+Reads electron-phonon coupling data from a specified file, generates a scatter plot comparing two coupling values, and saves the plot as a PNG image.
+
+# Arguments
+- `path_to_in::String`: Path to the input directory containing the `out/comparison_$(ik)_$(iq).txt` file.
+- `ik::Int`: Index of the k-point used in the filename.
+- `iq::Int`: Index of the q-point used in the filename.
+- `nbnd_max::Int` (optional; default: -1): If greater than 0, only data with band indices less than `nbnd_max` are included.
+
+# Returns
+- `(x, y)`: Two arrays of `Float64` containing DFPT and FP data.
+"""
 function plot_ep_coupling(path_to_in::String, ik::Int, iq::Int; nbnd_max=-1)
     # Initialize empty arrays for x and y
     x = Float64[]
@@ -518,10 +683,43 @@ function plot_ep_coupling(path_to_in::String, ik::Int, iq::Int; nbnd_max=-1)
     return x, y
 end
 
+"""
+    plot_ep_coupling(model::ModelQE, ik::Int=0, iq::Int=0; nbnd_max=-1)
+
+Plots the electron-phonon coupling for a given `ModelQE` instance.
+
+# Arguments
+- `model::ModelQE`: The model containing electron-phonon calculation data.
+- `ik::Int=0`: Index of the k-point to plot (default is 0).
+- `iq::Int=0`: Index of the q-point to plot (default is 0).
+
+# Keyword Arguments
+- `nbnd_max::Int=-1`: Maximum number of bands to include in the plot (default is -1, which may indicate all bands).
+"""
 function plot_ep_coupling(model::ModelQE, ik::Int=0, iq::Int=0; nbnd_max=-1)
     plot_ep_coupling(model.path_to_calc*"displacements/", ik, iq; nbnd_max=nbnd_max)
 end
 
+"""
+    electron_phonon(path_to_in::String, abs_disp, natoms, ik, iq, sc_size, electrons::AbstractElectrons, phonons::AbstractPhonons; save_epw::Bool=false, path_to_calc="", kcw_chanel="")
+
+High-level interface for computing electron-phonon interactions when Electrons and Phonons are provided.
+
+# Arguments
+- `path_to_in::String`: Path to the input file or directory.
+- `abs_disp`: Absolute displacement parameter (type depends on context).
+- `natoms`: Number of atoms in the system.
+- `ik`: Index of the k-point.
+- `iq`: Index of the q-point.
+- `sc_size`: Supercell size.
+- `electrons::AbstractElectrons`: Object containing electronic structure data.
+- `phonons::AbstractPhonons`: Object containing phonon data.
+
+# Keyword Arguments
+- `save_epw::Bool=false`: Whether to save the EPW (Electron-Phonon Wannier) data.
+- `path_to_calc=""`: Optional path to calculation directory.
+- `kcw_chanel=""`: Optional kcw channel specification.
+"""
 function electron_phonon(path_to_in::String, abs_disp, natoms, ik, iq, sc_size, electrons::AbstractElectrons, phonons::AbstractPhonons; save_epw::Bool=false, path_to_calc="",kcw_chanel="")
     ϵkᵤ_list = electrons.ϵkᵤ_list
     ϵₚ_list = electrons.ϵₚ_list
@@ -538,6 +736,26 @@ function electron_phonon(path_to_in::String, abs_disp, natoms, ik, iq, sc_size, 
 
 end
 
+"""
+    electron_phonon(model::AbstractModel, ik, iq, electrons::AbstractElectrons, phonons::AbstractPhonons; save_epw::Bool=false, path_to_calc="", kcw_chanel="")
+
+Compute electron-phonon coupling properties for the given model, electron, and phonon objects.
+
+# Arguments
+- `model::AbstractModel`: The model containing system parameters and calculation paths.
+- `ik`: Index or identifier for the electron k-point.
+- `iq`: Index or identifier for the phonon q-point.
+- `electrons::AbstractElectrons`: Object containing electronic structure data (eigenvalues, k-points, etc.).
+- `phonons::AbstractPhonons`: Object containing phonon properties (modes, frequencies, etc.).
+
+# Keyword Arguments
+- `save_epw::Bool=false`: Whether to save the electron-phonon Wannier (EPW) data.
+- `path_to_calc::String=""`: Path to the calculation directory (overrides model's path if provided).
+- `kcw_chanel::String=""`: Optional spin chanel for KCW ("up" has KI functional and "down" has DFT).
+
+# Description
+This function prepares and calls the lower-level electron-phonon coupling calculation using the provided model, electron, and phonon data. It extracts relevant properties from the `electrons` and `phonons` objects and passes them, along with model and calculation parameters, to the core computation routine.
+"""
 function electron_phonon(model::AbstractModel, ik, iq, electrons::AbstractElectrons, phonons::AbstractPhonons; save_epw::Bool=false, path_to_calc="",kcw_chanel="")
     ϵkᵤ_list = electrons.ϵkᵤ_list
     ϵₚ_list = electrons.ϵₚ_list

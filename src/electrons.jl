@@ -3,8 +3,29 @@ using JLD2, DelimitedFiles, Printf, EzXML, StaticArrays, JSON3
 const Vec3{T} = SVector{3,T} where {T}
 const Mat3{T} = SMatrix{3,3,T,9} where {T}
 
+"""
+    read_qe_xml(filename::AbstractString)
+
+Reads and parses a Quantum ESPRESSO XML output file, extracting structural and electronic information.
+
+# Arguments
+- `filename::AbstractString`: Path to the Quantum ESPRESSO XML file.
+
+# Returns
+A named tuple containing:
+- `lattice::Mat3`: The lattice vectors in Angstroms.
+- `atom_positions::Vector{Vec3{Float64}}`: Atomic positions in fractional coordinates.
+- `atom_labels::Vector{String}`: Atomic species labels.
+- `recip_lattice::Mat3`: Reciprocal lattice vectors in 1/Angstrom.
+- `kpoints::Vector{Vec3{Float64}}`: List of k-points in fractional coordinates.
+- `n_electrons::Float64`: Number of electrons.
+- `fermi_energy::Float64`: Fermi energy in eV.
+- `alat::Float64`: Lattice parameter in Angstroms.
+- `eigenvalues_up::Vector{Vector{Float64}}` and `eigenvalues_dn::Vector{Vector{Float64}}`:
+    (If spin-polarized) Eigenvalues for spin-up and spin-down bands, in eV.
+- `eigenvalues::Vector{Vector{Float64}}`: (If not spin-polarized) Eigenvalues for each band, in eV.
+"""
 function read_qe_xml(filename::AbstractString)
-    # Taken from Wannier.jl package for now
     # from qe/Modules/constants.f90
     Bohr_QE = 0.529177210903
     BOHR_RADIUS_ANGS = Bohr_QE  # Angstrom
@@ -129,6 +150,16 @@ function read_qe_xml(filename::AbstractString)
     return (; results..., eigenvalues)
 end
 
+"""
+    create_scf_calc(path_to_scf::String, unitcell, scf_parameters)
+
+Creates a self-consistent field (SCF) calculation input for Quantum ESPRESSO.
+
+# Arguments
+- `path_to_scf::String`: The file path where the SCF input file will be written.
+- `unitcell`: The unit cell parameters or structure information, passed as keyword arguments to `ase.Atoms`.
+- `scf_parameters`: Parameters for the SCF calculation, passed as keyword arguments to `ase_io.write`.
+"""
 function create_scf_calc(path_to_scf::String, unitcell, scf_parameters)
     # Create the cell
     atoms  = pycall(ase.Atoms;unitcell...)
@@ -137,6 +168,24 @@ function create_scf_calc(path_to_scf::String, unitcell, scf_parameters)
     ase_io.write(path_to_scf,atoms; scf_parameters...)
 end
 
+"""
+    generate_kpoints(n1::Int, n2::Int, n3::Int; omit_weight::Bool=false, out_file::String="")
+
+Generates a Monkhorst-Pack grid of k-points for a crystal structure.
+
+# Arguments
+- `n1::Int`: Number of k-points along the first reciprocal lattice direction. Must be > 0.
+- `n2::Int`: Number of k-points along the second reciprocal lattice direction. Must be > 0.
+- `n3::Int`: Number of k-points along the third reciprocal lattice direction. Must be > 0.
+
+# Keyword Arguments
+- `omit_weight::Bool=false`: If `false`, outputs k-points with weights in Quantum ESPRESSO format. If `true`, outputs only the k-point coordinates in a custom format.
+- `out_file::String=""`: If provided, writes the output to the specified file. Otherwise, prints to standard output.
+
+# Output
+- If `omit_weight` is `false`, prints or writes the k-points in Quantum ESPRESSO format, including weights.
+- If `omit_weight` is `true`, prints or writes the k-points in a custom format without weights (W90 style).
+"""
 function generate_kpoints(n1::Int, n2::Int, n3::Int; omit_weight::Bool=false, out_file::String="")
     # Validate inputs
     if n1 <= 0
@@ -181,6 +230,16 @@ function generate_kpoints(n1::Int, n2::Int, n3::Int; omit_weight::Bool=false, ou
     end
 end
 
+"""
+    include_kpoins(path_to_nscf::String, paht_to_kpts::String)
+
+Replaces the K_POINTS section in a Quantum ESPRESSO input file with new k-points from a separate file.
+
+# Arguments
+- `path_to_nscf::String`: Path to the NSCF input file to be modified.
+- `paht_to_kpts::String`: Path to the file containing new k-points.
+
+"""
 function include_kpoins(path_to_nscf::String, paht_to_kpts::String)
     # Change the kpoints without ASE (not implemented yet)
     file = open(paht_to_kpts, "r")
@@ -208,6 +267,34 @@ function include_kpoins(path_to_nscf::String, paht_to_kpts::String)
     close(file)
 end
 
+"""
+    create_disp_calc(path_to_in::String, path_to_qe::String, unitcell, scf_parameters, abs_disp, sc_size, k_mesh, use_symm; from_scratch = false)
+
+Set up the directory structure and input files for a displacement calculation, used in electron-phonon coupling workflows.
+
+# Arguments
+- `path_to_in::String`: Path to the working directory where calculations will be set up.
+- `path_to_qe::String`: Path to the Quantum ESPRESSO installation or utilities.
+- `unitcell`: The unit cell structure object.
+- `scf_parameters`: Dictionary of parameters for the self-consistent field (SCF) calculation.
+- `abs_disp`: Magnitude of atomic displacements to apply.
+- `sc_size`: Supercell size (integer).
+- `k_mesh`: Number of k-points in each direction for the k-point mesh.
+- `use_symm`: Boolean or flag to indicate whether to use symmetry in generating displacements.
+- `from_scratch` (optional): If `true`, cleans and recreates the displacement directory. Default is `false`.
+
+# Description
+This function:
+- Creates a directory structure for displacement calculations.
+- Generates k-point files for SCF and NSCF calculations.
+- Prepares input files for SCF and NSCF calculations for the undistorted and displaced structures.
+- Copies necessary scripts (e.g., `run.sh`) into calculation directories.
+- Handles special cases for hybrid functionals (e.g., `nqx1`, `nqx2`, `nqx3`).
+- Returns the number of displaced structures generated.
+
+# Returns
+- `Ndispalce::Int`: The number of displaced structures (and corresponding calculation groups) created.
+"""
 function create_disp_calc(path_to_in::String, path_to_qe::String, unitcell, scf_parameters, abs_disp, sc_size, k_mesh, use_symm; from_scratch = false)
     # Change to the specified directory
     cd(path_to_in)
@@ -302,6 +389,24 @@ function create_disp_calc(path_to_in::String, path_to_qe::String, unitcell, scf_
 end
 
 
+"""
+    create_disp_calc!(model::ModelQE; from_scratch = false)
+
+Prepares the displacement calculation environment for a given `ModelQE` instance.
+This function manages the setup of the directory structure required for displacement calculations,
+optionally cleaning up any existing data if `from_scratch` is set to `true`.
+
+# Arguments
+- `model::ModelQE`: The model object containing calculation parameters and paths.
+- `from_scratch::Bool=false`: If `true`, removes the existing `displacements` directory before creating a new one.
+
+# Behavior
+- Cleans the `displacements` directory if `from_scratch` is `true`.
+- Creates a new `displacements` directory if it does not exist.
+- If `model.use_symm` is `true`, checks and applies symmetries to reduce the number of displacements.
+- Calls `create_disp_calc` to generate the required displacement calculations.
+- Verifies consistency between the number of displacements calculated by Phonopy and the symmetry calculation.
+"""
 function create_disp_calc!(model::ModelQE; from_scratch = false)
     # Clean the folder if nescessary
     if (from_scratch && isdir(model.path_to_calc * "displacements"))
@@ -327,6 +432,14 @@ function create_disp_calc!(model::ModelQE; from_scratch = false)
     end
 end
 
+"""
+    create_perturbed_kcw(pristine_data, unitcell)
+
+Updates the atomic positions in the `pristine_data` dictionary with the scaled positions from the `unitcell`.
+
+# Returns
+- The updated `pristine_data` dictionary with atomic positions replaced by the corresponding scaled positions from `unitcell`.
+"""
 function create_perturbed_kcw(pristine_data, unitcell)
     for (index, positions) in enumerate(unitcell[:scaled_positions])
         pristine_data["atoms"]["atomic_positions"]["positions"][index][2:end] = pyconvert(Vector{Float64}, positions)
@@ -334,6 +447,30 @@ function create_perturbed_kcw(pristine_data, unitcell)
     return pristine_data
 end
 
+"""
+    create_disp_calc(model::ModelKCW; from_scratch = false)
+
+Creates displacement calculations for a given `ModelKCW` object by preparing directories and input files for each displaced structure.
+
+# Arguments
+- `model::ModelKCW`: The model containing calculation parameters and paths.
+- `from_scratch::Bool=false`: (Optional) If true, forces recreation of displacement calculations from scratch.
+
+# Description
+This function:
+1. Checks for the existence of required files (`koopmans.json` and `koopmans_sc.json`) in the model's calculation path.
+2. Creates an `unperturbed` directory and copies necessary files (`run.sh`, `koopmans.json`) into it.
+3. Generates displaced unit cells using `dislpaced_unitecells`.
+4. For each displacement:
+    - Creates a new directory (`perturbedN/`).
+    - Copies the `run.sh` script into the new directory.
+    - Reads the pristine `koopmans_sc.json` file.
+    - Creates a perturbed version of the JSON data using `create_perturbed_kcw`.
+    - Writes the perturbed JSON to the corresponding directory.
+
+# Returns
+- `Ndispalce::Int`: The number of displaced unit cells generated.
+"""
 function create_disp_calc(model::ModelKCW; from_scratch = false)
     #Check is model.path_to_calc contains koopmans.json and koopmans_sc.json files
     if !isfile(model.path_to_calc*"koopmans.json")
@@ -390,6 +527,22 @@ function create_disp_calc(model::ModelKCW; from_scratch = false)
     return Ndispalce
 end
 
+"""
+    create_disp_calc!(model::ModelKCW; from_scratch = false)
+
+Prepares the displacement calculation environment for a given `model` of type `ModelKCW`.
+
+# Arguments
+- `model::ModelKCW`: The model object containing calculation parameters and paths.
+- `from_scratch::Bool=false`: If `true`, removes the existing `displacements` directory before creating a new one.
+
+# Description
+- Optionally cleans the `displacements` directory if `from_scratch` is set.
+- Creates a new `displacements` directory in the model's calculation path.
+- If symmetry usage is enabled (`model.use_symm`), checks and applies symmetries.
+- If symmetries are not used, calculates the number of displacements as `6 * number of atoms` and prints relevant information.
+- Calls `create_disp_calc(model)` to generate displacements and checks for consistency in the number of displacements between Phonopy and symmetry calculations.
+"""
 function create_disp_calc!(model::ModelKCW; from_scratch = false)
     # Clean the folder if nescessary
     if (from_scratch && isdir(model.path_to_calc * "displacements"))
@@ -416,6 +569,15 @@ function create_disp_calc!(model::ModelKCW; from_scratch = false)
 
 end
 
+"""
+    run_scf(path_to_in::String, mpi_ranks::Int = 0)
+
+Runs a self-consistent field (SCF) calculation using Quantum ESPRESSO's `pw.x` executable.
+
+# Arguments
+- `path_to_in::String`: Path to the directory containing the `scf.in` input file.
+- `mpi_ranks::Int=0`: Number of MPI ranks to use. If greater than 0, runs the calculation in parallel using `mpirun`; otherwise, runs in serial.
+"""
 function run_scf(path_to_in::String, mpi_ranks::Int = 0)
     # Change to the specified directory
     cd(path_to_in)
@@ -431,6 +593,17 @@ function run_scf(path_to_in::String, mpi_ranks::Int = 0)
     run(pipeline(command, stdout="scf.out", stderr="errs.txt"))
 end
 
+"""
+    run_scf_cluster(path_to_in::String)
+
+Submits a batch job for a self-consistent field (SCF) calculation on a computing cluster.
+
+# Arguments
+- `path_to_in::String`: The path to the directory containing the input files and the `run.sh` script.
+
+# Description
+Changes the working directory to `path_to_in`, then submits the `run.sh` script as a batch job using `sbatch`. The standard output and error of the job submission command are redirected to `run.out` and `errs.txt`, respectively.
+"""
 function run_scf_cluster(path_to_in::String)
     # Change to the specified directory
     cd(path_to_in)
@@ -441,6 +614,22 @@ function run_scf_cluster(path_to_in::String)
     run(pipeline(command, stdout="run.out", stderr="errs.txt"))
 end
 
+"""
+    run_nscf_calc(path_to_in::String, mpi_ranks)
+
+Runs a non-self-consistent field (NSCF) calculation for electronic structure simulations.
+
+# Arguments
+- `path_to_in::String`: The base path to the input directory containing the SCF calculation results.
+- `mpi_ranks`: The number of MPI ranks to use for parallel execution. If greater than 0, runs the calculation in parallel.
+
+# Description
+This function performs the following steps:
+1. Changes the working directory to the SCF calculation directory (`scf_0`).
+2. Copies the `run.sh` script to `run_nscf.sh` and modifies it to use `nscf.in` instead of `scf.in`.
+3. Submits the NSCF calculation using `sbatch` if the `run_nscf.sh` script exists.
+4. If the script does not exist, runs the calculation directly using `pw.x` (with or without MPI, depending on `mpi_ranks`).
+"""
 function run_nscf_calc(path_to_in::String, mpi_ranks)
     println("Ceating nscf:")
     cd(path_to_in*"/scf_0/")
@@ -487,6 +676,19 @@ function run_nscf_calc(path_to_in::String, mpi_ranks)
     return true
 end
 
+"""
+    run_disp_calc(path_to_in::String, Ndispalce::Int, mpi_ranks::Int = 0) -> Bool
+
+Runs self-consistent field (SCF) calculations for a set of atomic displacements in a specified directory.
+
+# Arguments
+- `path_to_in::String`: Path to the input directory containing displacement subdirectories.
+- `Ndispalce::Int`: Number of displacement groups to process.
+- `mpi_ranks::Int=0`: Number of MPI ranks to use for the SCF calculation (default is 0).
+
+# Description
+The function first runs an SCF calculation in the `scf_0` subdirectory. If a `run.sh` script is present, it uses `run_scf_cluster`; otherwise, it uses `run_scf`. Then, for each displacement group (from 1 to `Ndispalce`), it runs the corresponding SCF calculation in the `group_i` subdirectory, using the same logic for `run.sh`.
+"""
 function run_disp_calc(path_to_in::String, Ndispalce::Int, mpi_ranks::Int = 0)
     # Change to the specified directory
     #FIXME Only run scf in the DFT case (not Hybrids)
@@ -513,6 +715,24 @@ function run_disp_calc(path_to_in::String, Ndispalce::Int, mpi_ranks::Int = 0)
     return true
 end
 
+"""
+    run_disp_nscf_calc(path_to_in::String, Ndispalce::Int, mpi_ranks::Int = 0)
+
+Runs non-self-consistent field (NSCF) calculations for a series of atomic displacements.
+
+# Arguments
+- `path_to_in::String`: Path to the input directory containing displacement groups.
+- `Ndispalce::Int`: Number of displacement groups to process.
+- `mpi_ranks::Int=0`: Number of MPI ranks to use for parallel execution. If set to 0, runs in serial mode.
+
+# Description
+For each displacement group (from 1 to `Ndispalce`), the function:
+1. Changes the working directory to the corresponding displacement group directory.
+2. Attempts to copy the SCF XML file containing forces to a backup file.
+3. Copies and modifies the `run.sh` script to create a `run_nscf.sh` script, replacing occurrences of `"scf.in"` with `"nscf.in"`.
+4. If a `run_nscf.sh` script exists, submits it as a batch job using `sbatch`, redirecting output and errors.
+5. If not, runs the NSCF calculation directly using `pw.x` (with or without MPI, depending on `mpi_ranks`), redirecting output and errors.
+"""
 function run_disp_nscf_calc(path_to_in::String, Ndispalce::Int, mpi_ranks::Int = 0)
     for i_disp in 1:Ndispalce
         println("Running displacement # $i_disp:")
@@ -570,6 +790,19 @@ function run_disp_nscf_calc(path_to_in::String, Ndispalce::Int, mpi_ranks::Int =
     return true
 end
 
+"""
+    run_disp_calc(model::ModelKCW) -> Bool
+
+Runs self-consistent field (SCF) calculations for both unperturbed and perturbed configurations of a given model.
+
+# Arguments
+- `model::ModelKCW`: The model object containing calculation parameters, including the path to calculation directories and the number of displacements (`Ndispalce`).
+
+# Description
+This function performs the following steps:
+1. Runs an SCF calculation in the "unperturbed" subdirectory of the specified calculation path.
+2. Iterates over the number of displacements (`Ndispalce`) defined in the model, running SCF calculations in each corresponding "perturbed" subdirectory (e.g., "perturbed1/", "perturbed2/", etc.).
+"""
 function run_disp_calc(model::ModelKCW)
     # Change to the specified directory
     path_to_in = model.path_to_calc
@@ -586,6 +819,26 @@ function run_disp_calc(model::ModelKCW)
     return true
 end
 
+"""
+    prepare_kcw_data(model::ModelKCW) -> Int
+
+Prepares the necessary directory structure and files for Koopmans calculation for a given `ModelKCW` instance.
+
+# Arguments
+- `model::ModelKCW`: The model object containing all relevant paths, parameters, and settings for the calculation.
+
+# Description
+This function performs the following steps:
+1. Creates required directories for displacements, and electron-phonon elements.
+2. Sets up the self-consistent field (SCF) calculation directory and copies necessary wavefunction and data files from the unperturbed calculation.
+3. Copies the non-self-consistent field (NSCF) output file to the SCF directory.
+4. Generates a k-point mesh file for the supercell.
+5. Calls `dislpaced_unitecells` to generate displaced unit cells based on the model parameters.
+6. For each displacement, creates the appropriate directory and links the corresponding wavefunction and data files from the perturbed calculations.
+
+# Returns
+- `Int`: The number of displacements (`model.Ndispalce`) processed.
+"""
 function prepare_kcw_data(model::ModelKCW)
     command = `mkdir displacements`
     try
@@ -657,6 +910,21 @@ end
 
 
 ###TODO Need to check consistenct for the reading of the potetial
+"""
+    read_potential(path_to_file::String; skiprows=0)
+
+Reads a KS potential data file and returns a 3D array of Float64 values along with its dimensions.
+
+# Arguments
+- `path_to_file::String`: Path to the file containing the potential data.
+- `skiprows`: (Optional) Number of initial rows to skip in the file. Default is 0.
+
+# Returns
+- `ff::Array{Float64,3}`: 3D array of potential values with dimensions `(N1, N2, N3)`.
+- `N1::Int`: Size of the first dimension.
+- `N2::Int`: Size of the second dimension.
+- `N3::Int`: Size of the third dimension.
+"""
 function read_potential(path_to_file::String;skiprows=0)
     rw = Float64[]
     N1, N2, N3 = 0, 0 ,0
@@ -710,6 +978,24 @@ function read_potential(path_to_file::String;skiprows=0)
     return ff, N1, N2, N3
 end
 
+"""
+    save_potential(path_to_in::String, Ndispalce, sc_size, mpi_ranks)
+
+Saves the electronic potential for a series of displaced structures by running Quantum ESPRESSO's `pp.x` post-processing tool.
+
+# Arguments
+- `path_to_in::String`: Path to the directory containing input files for each displacement.
+- `Ndispalce`: Number of displacement configurations to process.
+- `sc_size`: Size of the supercell. If greater than 1, the potential is repeated accordingly.
+- `mpi_ranks`: Number of MPI ranks to use for parallel execution. If greater than 0, runs `pp.x` with MPI.
+
+# Description
+For each displacement (and the undisplaced structure), this function:
+- Changes to the appropriate directory.
+- Writes a `pp.in` input file for `pp.x` with predefined parameters.
+- Runs `pp.x` (optionally in parallel) to generate the potential file.
+- For the undisplaced structure and if `sc_size > 1`, reads the potential, repeats it to match the supercell size, and saves it in JLD2 format.
+"""
 function save_potential(path_to_in::String, Ndispalce, sc_size, mpi_ranks)
     # Get a number of displacements
     files = readdir(path_to_in; join=true)
@@ -767,11 +1053,22 @@ function save_potential(path_to_in::String, Ndispalce, sc_size, mpi_ranks)
             Upot_sc = repeat(Upot_pc, outer=(sc_size, sc_size, sc_size))
             save(path_to_in*dir_name*"Vks.jld2", "Upot_sc", Upot_sc)
         end
-        #Need to check consistency between python and julia potential (lot or ?)
+        #Need to check consistency between python and julia potential
     end
 
 end
 
+"""
+    get_kpoint_list(path_to_in)
+
+Reads a list of k-points from a file named `kpoints.dat` located in the directory specified by `path_to_in`.
+
+# Arguments
+- `path_to_in::AbstractString`: Path to the directory containing the `kpoints.dat` file.
+
+# Returns
+- `klist::Vector{Vector{Float64}}`: A vector of k-points, where each k-point is represented as a vector of `Float64` values.
+"""
 function get_kpoint_list(path_to_in)
     file = open(path_to_in*"/kpoints.dat", "r")
     lines_kpoints = readlines(file)
@@ -790,6 +1087,19 @@ function get_kpoint_list_old(path_to_in)
     return k_list
 end
 
+"""
+    fold_kpoint(ik, iq, k_list)
+
+Given indices `ik` and `iq` into the list of k-points `k_list`, the function computes the index of the k-point in `k_list`
+that corresponds to the sum of `k_list[ik]` and `k_list[iq]`, folded back into the first Brillouin zone.
+# Arguments
+- `ik::Int`: Index of the first k-point in `k_list`.
+- `iq::Int`: Index of the second k-point in `k_list`.
+- `k_list::AbstractVector{<:AbstractVector}`: List of k-points (each k-point is a vector).
+
+# Returns
+- `ikq::Int`: Index in `k_list` of the folded sum of `k_list[ik]` and `k_list[iq]`.
+"""
 function fold_kpoint(ik, iq, k_list)
     k_point = k_list[ik]
     q_point = k_list[iq]
@@ -812,6 +1122,31 @@ function fold_kpoint(ik, iq, k_list)
     return ikq
 end
 
+"""
+    prepare_eigenvalues(path_to_in::String, natoms::Int; Ndisplace::Int = 6*natoms, ineq_atoms_list::Vector{Int}=[], spin_channel::String="")
+
+Prepares and saves eigenvalues for displaced atomic configurations.
+
+# Arguments
+- `path_to_in::String`: Path to the input directory containing calculation data.
+- `natoms::Int`: Number of atoms in the system.
+- `Ndisplace::Int=6*natoms`: Number of atomic displacements (default is 6 times the number of atoms).
+- `ineq_atoms_list::Vector{Int}=[]`: List of indices for inequivalent atoms (used if `Ndisplace` differs from `6*natoms`).
+- `spin_channel::String=""`: Spin channel to use; can be `"up"`, `"dw"`, or `""` for non-spin-polarized.
+
+# Returns
+A tuple containing:
+- `ϵkᵤ_list`: Eigenvalues for the undistorted structure.
+- `ϵₚ_list`: List of eigenvalues for positive displacements.
+- `ϵₚₘ_list`: List of eigenvalues for negative displacements.
+- `k_list`: List of k-points.
+
+# Saves
+- `scf_0/ek_list.jld2`: Eigenvalues for the undistorted structure.
+- `scf_0/ep_list.jld2`: Eigenvalues for positive displacements.
+- `scf_0/epm_list.jld2`: Eigenvalues for negative displacements.
+- `scf_0/k_list.jld2`: List of k-points.
+"""
 function prepare_eigenvalues(path_to_in::String, natoms::Int; Ndisplace::Int = 6*natoms, ineq_atoms_list::Vector{Int}=[], spin_channel::String="")
     path_to_xml="tmp/scf.save/data-file-schema.xml"
     group = "scf_0/"
@@ -859,6 +1194,20 @@ function prepare_eigenvalues(path_to_in::String, natoms::Int; Ndisplace::Int = 6
     return ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list
 end
 
+"""
+    create_electrons(path_to_in::String, natoms::Int, sc_size::Int, k_mesh::Int) -> Electrons
+
+Creates and returns an `Electrons` object by preparing the necessary matrices and eigenvalues.
+
+# Arguments
+- `path_to_in::String`: Path to the input file or directory containing required data.
+- `natoms::Int`: Number of atoms in the system.
+- `sc_size::Int`: Supercell size.
+- `k_mesh::Int`: Number of k-points in the mesh.
+
+# Returns
+- `Electrons`: An `Electrons` object initialized with the computed matrices and eigenvalues.
+"""
 function create_electrons(path_to_in::String, natoms::Int, sc_size::Int, k_mesh::Int)
     U_list, V_list = prepare_u_matrixes(path_to_in, natoms, sc_size, k_mesh)
     ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list = prepare_eigenvalues(path_to_in, natoms)
@@ -866,6 +1215,17 @@ function create_electrons(path_to_in::String, natoms::Int, sc_size::Int, k_mesh:
     return Electrons(U_list, V_list, ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list)
 end
 
+"""
+    create_electrons(model::AbstractModel)
+
+Creates an `Electrons` object based on the provided `model`. This function extracts relevant properties from the model, such as `spin_channel` and `symmetries`, and uses them to prepare the necessary matrices and eigenvalues for the electron calculations.
+
+# Arguments
+- `model::AbstractModel`: The model containing all necessary information about the system, including unit cell, calculation paths, supercell size, k-point mesh, and optional properties like `spin_channel` and `symmetries`.
+
+# Returns
+- `Electrons`: An object containing the prepared U and V matrices, eigenvalues, and k-point list for the electron system.
+"""
 function create_electrons(model::AbstractModel)
 
     spin_channel = ""
@@ -886,6 +1246,20 @@ function create_electrons(model::AbstractModel)
     return Electrons(U_list, V_list, ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list)
 end
 
+"""
+    load_electrons(model::AbstractModel) -> Electrons
+
+Loads electron-related data from disk for the given `model`. The function reads several arrays from JLD2 files located in the `displacements/scf_0/` subdirectory of `model.path_to_calc`, including:
+
+- `U_list`: Unitary matrices for electron states.
+- `V_list`: Additional matrices for electron states.
+- `ϵkᵤ_list`: Eigenvalues of undisplaced configuration.
+- `ϵₚ_list`: Eigenvalues of displaced (+tau) configuration.
+- `ϵₚₘ_list`: Eigenvalues of displaced (-tau) configuration.
+- `k_list`: List of k-points in reciprocal space.
+
+Returns an `Electrons` object constructed from the loaded data.
+"""
 function load_electrons(model::AbstractModel)
     U_list   = load(model.path_to_calc * "displacements/scf_0/U_list.jld2")["U_list"]
     V_list   = load(model.path_to_calc * "displacements/scf_0/V_list.jld2")["V_list"]
