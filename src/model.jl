@@ -14,8 +14,8 @@ mutable struct ModelQE <: AbstractModel
     abs_disp::Float64
     path_to_qe::String
     mpi_ranks::Int
-    sc_size::Int
-    k_mesh::Int
+    sc_size::Vec3{Int}
+    k_mesh::Vec3{Int}
     Ndispalce::Int
     unitcell::Dict
     scf_parameters::Dict
@@ -29,8 +29,8 @@ mutable struct ModelKCW <: AbstractModel
     abs_disp::Float64
     path_to_qe::String
     mpi_ranks::Int
-    sc_size::Int
-    k_mesh::Int
+    sc_size::Vec3{Int}
+    k_mesh::Vec3{Int}
     Ndispalce::Int
     unitcell::Dict
     scf_parameters::Dict
@@ -42,8 +42,8 @@ function create_model(;path_to_calc::String = "./",
                       abs_disp::Float64    = 1e-3,
                       path_to_qe::String   = "./",
                       mpi_ranks::Int       = 1,
-                      sc_size::Int         = 2,
-                      k_mesh::Int          = 1,
+                      sc_size::Vec3{Int}   = [2, 2, 2],
+                      k_mesh::Vec3{Int}    = [1, 1, 1],
                       Ndispalce::Int       = 0,
                       unitcell::Dict       = Dict(),
                       scf_parameters::Dict = Dict(),
@@ -62,8 +62,8 @@ function create_model_kcw(path_to_calc::String,
                           abs_disp::Float64,
                           path_to_qe::String,
                           mpi_ranks::Int,
-                          sc_size::Int,
-                          k_mesh::Int,
+                          sc_size::Vec3{Int},
+                          k_mesh::Vec3{Int},
                           Ndispalce::Int,
                           unitcell::Dict,
                           scf_parameters::Dict,
@@ -77,8 +77,8 @@ function create_model_kcw(;path_to_calc::String = "./",
     abs_disp::Float64    = 1e-3,
     path_to_qe::String   = "./",
     mpi_ranks::Int       = 1,
-    sc_size::Int         = 2,
-    k_mesh::Int          = 1,
+    sc_size::Vec3{Int}   = [2, 2, 2],
+    k_mesh::Vec3{Int}    = [1, 1, 1],
     Ndispalce::Int       = 0,
     unitcell::Dict       = Dict(),
     scf_parameters::Dict = Dict(),
