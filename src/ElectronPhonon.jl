@@ -19,6 +19,7 @@ end
 
 
 export uma_to_ry, cm1_to_ry ,cm1_to_Thz
+export Vec3, Mat3
 include("const.jl")
 
 export Electrons, Phonons, create_model, create_model_kcw

@@ -1,7 +1,4 @@
-using JLD2, DelimitedFiles, Printf, EzXML, StaticArrays, JSON3
-
-const Vec3{T} = SVector{3,T} where {T}
-const Mat3{T} = SMatrix{3,3,T,9} where {T}
+using JLD2, DelimitedFiles, Printf, EzXML, JSON3
 
 function read_qe_xml(filename::AbstractString)
     # Taken from Wannier.jl package for now
@@ -291,9 +288,9 @@ function create_disp_calc(path_to_in::String, path_to_qe::String, unitcell, scf_
 
         #create nscf calculation as well
         nscf_parameters[:calculation] = "nscf"
-        nscf_parameters[:nbnd]= scf_parameters[:nbnd]*sc_size[1]*sc_size[2]*sc_size[3]#+2*sc_size^3 #need to understand how I provide aditional states to keep the projectability satisfied
+        nscf_parameters[:nbnd]= scf_parameters[:nbnd]*prod(sc_size)#+2*sc_size^3 #need to understand how I provide aditional states to keep the projectability satisfied
         create_scf_calc(path_to_in*dir_name*"nscf.in",unitcells_disp[i_disp], nscf_parameters)
-        if k_mesh[1] != 1 $$ k_mesh[2] != 1 $$ k_mesh[3] != 1
+        if k_mesh[1] != 1 || k_mesh[2] != 1 || k_mesh[3] != 1
             include_kpoins(path_to_in*"group_$i_disp/nscf.in", path_to_in*"scf_0/kpoints_sc.dat")
         end
     end
