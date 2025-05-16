@@ -90,7 +90,7 @@ function electron_phonon_qe(path_to_in::String, ik::Int, iq::Int, mpi_ranks::Int
             "fildvscf" => "'dvscf'",
             "ldisp"    => ".true.",
             "fildyn"   => "'dyn'",
-            "tr2_ph"   =>  1.0e-12,
+            "tr2_ph"   =>  1.0e-18,
             "qplot"    => ".true.",
             "q_in_band_form" => ".true.",
             "electron_phonon" => "'epw'",
@@ -196,7 +196,7 @@ function load_wf_u_debug(path_to_in::String, ik)
 end
 
 
-function electron_phonon(path_to_in::String, abs_disp, Nat, ik, iq, sc_size, k_mesh, ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list , U_list, V_list, M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ; save_epw::Bool=false)
+function electron_phonon(path_to_in::String, abs_disp, Nat, ik, iq, sc_size, k_mesh, ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list , U_list, V_list, M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ; save_epw::Bool=false, save_qeraman::Bool=false)
     # cd(path_to_in)
 
     Ndisp_nosym = 6*Nat
@@ -377,7 +377,7 @@ function electron_phonon(path_to_in::String, abs_disp, Nat, ik, iq, sc_size, k_m
         symm_elph = zeros(ComplexF64,(nbands, nbands, length(ωₐᵣᵣ)))#gˢʸᵐᵢⱼₘ_ₐᵣᵣ
         elph = deepcopy(gᵢⱼₘ_ₐᵣᵣ)
 
-        thr = 1e-3#0.1#1e-4
+        thr = 1e-1#0.1#1e-4
         # symm through phonons
         for iph1 in 1:length(ωₐᵣᵣ)
             ω₁ = ωₐᵣᵣ[iph1]
@@ -451,22 +451,54 @@ function electron_phonon(path_to_in::String, abs_disp, Nat, ik, iq, sc_size, k_m
             @info "Could not read DFPT data"
         end
 
-        try
+        if save_qeraman
+            qeraman_dir = path_to_in * "qeraman/"
+            if !isdir(qeraman_dir)
+                mkpath(qeraman_dir)
+            end
+            if !isfile(qeraman_dir*"data.elph")
+                open(qeraman_dir*"data.elph", "w") do io
+                    @printf(io, "      Electron-phonon matrix elements M(k,q) = sqrt(hbar/2*omega)<psi(k+q,j)|dvscf_q*psi(k,i)>\n")
+                    @printf(io, "      nbnd   nmodes   nqs   nkstot   nksqtot\n")
+                    @printf(io, "    %5d        %5d        %5d     %5d     %5d\n", nbands, 3*Nat, prod(sc_size), prod(k_mesh), prod(sc_size)*prod(k_mesh))
+                    @printf(io, "      qx   qy   qz   weight_q   iq\n")
+                    @printf(io, "      kx   ky   kz   weight_k   ik   ik+q\n")
+                    @printf(io, "      ibnd  jbnd  imode  enk[eV]  enk+q[eV]  omega(q)[meV]   |M|[meV]   Re(M)[meV]   Im(M)[meV]\n")
+                    @printf(io, "      ------------------------------------------------------------------------------\n")
+                    @printf(io, "   0.0000000   0.0000000   0.0000000   1.0000000        1\n")#Q=Gamma case for now
+                end
+            end
+            #need to add condition where i erase the file  
 
-            #saving resulting electron phonon couplings
-            # @printf("      i      j      nu      ϵkᵤ        ϵqᵤ        ωₐᵣᵣ_frozen      ωₐᵣᵣ_DFPT       g_frozen    g_DFPT\n")
-            open(path_to_in*"out/comparison_$(ik)_$(iq).txt", "w") do io
-            for i in 1:nbands
-                for j in 1:nbands
-                        for iph in 1:3*Nat#Need to chec
-                        # @printf("  %5d  %5d  %5d  %10.6f  %10.6f  %12.6f  %12.6f  %12.12f %12.12f\n", i,j, iph, ϵkᵤ[i], ϵqᵤ[j], ωₐᵣᵣ[1,iph], ωₐᵣᵣ_DFPT[1,iph], symm_elph[i, j, iph], elph_dfpt[i, j, iph])
-                            @printf(io, "  %5d  %5d  %5d  %10.6f  %10.6f  %12.6f  %12.6f  %12.12f %12.12f\n", i,j, iph, ϵkᵤ[i], ϵqᵤ[j], ωₐᵣᵣ[1,iph], ωₐᵣᵣ_DFPT[1,iph], symm_elph[i, j, iph], elph_dfpt[i, j, iph])
+
+            open(qeraman_dir*"data.elph", "a") do io
+                @printf(io, "   %12.6f   %12.6f   %12.6f   %12.6f  %5d  %5d\n", k_list[ik][1], k_list[ik][2], k_list[ik][3], 2/prod(k_mesh), ik, ikq)
+                for i in 1:nbands
+                    for j in 1:nbands
+                        for iph in 1:3*Nat
+                            @printf(io, "  %5d  %5d  %5d  %10.6f  %10.6f  %12.6f  %12.6f %12.12f %12.12f\n", i,j, iph, ϵkᵤ[i], ϵqᵤ[j], ωₐᵣᵣ_DFPT[1,iph]*(1e3*cm1_to_ry/ev_to_ry), abs(gᵢⱼₘ_ₐᵣᵣ[i, j, iph]*1e3), real(gᵢⱼₘ_ₐᵣᵣ[i, j, iph]*1e3),imag(gᵢⱼₘ_ₐᵣᵣ[i, j, iph]*1e3))
                         end
                     end
                 end
             end
-        catch
-            @info "Could not save symmetrized electron-phonon matrix elements, check if out folder exists in $(path_to_in)"
+        else
+            try
+
+                #saving resulting electron phonon couplings
+                # @printf("      i      j      nu      ϵkᵤ        ϵqᵤ        ωₐᵣᵣ_frozen      ωₐᵣᵣ_DFPT       g_frozen    g_DFPT\n")
+                open(path_to_in*"out/comparison_$(ik)_$(iq).txt", "w") do io
+                for i in 1:nbands
+                    for j in 1:nbands
+                            for iph in 1:3*Nat#Need to chec
+                            # @printf("  %5d  %5d  %5d  %10.6f  %10.6f  %12.6f  %12.6f  %12.12f %12.12f\n", i,j, iph, ϵkᵤ[i], ϵqᵤ[j], ωₐᵣᵣ[1,iph], ωₐᵣᵣ_DFPT[1,iph], symm_elph[i, j, iph], elph_dfpt[i, j, iph])
+                                @printf(io, "  %5d  %5d  %5d  %10.6f  %10.6f  %12.6f  %12.6f  %12.12f %12.12f\n", i,j, iph, ϵkᵤ[i], ϵqᵤ[j], ωₐᵣᵣ[1,iph], ωₐᵣᵣ_DFPT[1,iph], symm_elph[i, j, iph], elph_dfpt[i, j, iph])
+                            end
+                        end
+                    end
+                end
+            catch
+                @info "Could not save symmetrized electron-phonon matrix elements, check if out folder exists in $(path_to_in)"
+            end            
         end
 
         return symm_elph
@@ -522,7 +554,7 @@ function plot_ep_coupling(model::ModelQE, ik::Int=0, iq::Int=0; nbnd_max=-1)
     plot_ep_coupling(model.path_to_calc*"displacements/", ik, iq; nbnd_max=nbnd_max)
 end
 
-function electron_phonon(path_to_in::String, abs_disp, natoms, ik, iq, sc_size, electrons::AbstractElectrons, phonons::AbstractPhonons; save_epw::Bool=false, path_to_calc="",kcw_chanel="")
+function electron_phonon(path_to_in::String, abs_disp, natoms, ik, iq, sc_size, electrons::AbstractElectrons, phonons::AbstractPhonons; save_epw::Bool=false,save_qeraman::Bool=false, path_to_calc="",kcw_chanel="")
     ϵkᵤ_list = electrons.ϵkᵤ_list
     ϵₚ_list = electrons.ϵₚ_list
     ϵₚₘ_list = electrons.ϵₚₘ_list
@@ -534,11 +566,11 @@ function electron_phonon(path_to_in::String, abs_disp, natoms, ik, iq, sc_size, 
     εₐᵣᵣ_ₗᵢₛₜ = phonons.εₐᵣᵣ_ₗᵢₛₜ
     mₐᵣᵣ = phonons.mₐᵣᵣ
 
-    electron_phonon(path_to_in, abs_disp, natoms, ik, iq, sc_size, ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list , U_list, V_list, M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ; save_epw=save_epw)
+    electron_phonon(path_to_in, abs_disp, natoms, ik, iq, sc_size, ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list , U_list, V_list, M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ; save_epw=save_epw,save_qeraman=save_qeraman)
 
 end
 
-function electron_phonon(model::AbstractModel, ik, iq, electrons::AbstractElectrons, phonons::AbstractPhonons; save_epw::Bool=false, path_to_calc="",kcw_chanel="")
+function electron_phonon(model::AbstractModel, ik, iq, electrons::AbstractElectrons, phonons::AbstractPhonons; save_epw::Bool=false,save_qeraman::Bool=false, path_to_calc="",kcw_chanel="")
     ϵkᵤ_list = electrons.ϵkᵤ_list
     ϵₚ_list = electrons.ϵₚ_list
     ϵₚₘ_list = electrons.ϵₚₘ_list
@@ -552,6 +584,6 @@ function electron_phonon(model::AbstractModel, ik, iq, electrons::AbstractElectr
 
     natoms = length(model.unitcell[:symbols])
 
-    electron_phonon(model.path_to_calc*"displacements/", model.abs_disp, natoms, ik, iq, model.sc_size, model.k_mesh, ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list , U_list, V_list, M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ; save_epw=save_epw)
+    electron_phonon(model.path_to_calc*"displacements/", model.abs_disp, natoms, ik, iq, model.sc_size, model.k_mesh, ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list , U_list, V_list, M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ; save_epw=save_epw,save_qeraman=save_qeraman)
 
 end
