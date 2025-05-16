@@ -126,12 +126,21 @@ function read_qe_xml(filename::AbstractString)
     return (; results..., eigenvalues)
 end
 
-function create_scf_calc(path_to_scf::String, unitcell, scf_parameters)
+function create_scf_calc(path_to_scf::String, unitcell, scf_parameters; sanitize = true)
     # Create the cell
     atoms  = pycall(ase.Atoms;unitcell...)
 
     # Write the input file using Quantum ESPRESSO format
     ase_io.write(path_to_scf,atoms; scf_parameters...)
+
+    if sanitize # in case ase/phonopy didn't manage to correctly save file
+        content = read(path_to_scf, String)
+        rx = r"np\.float64\((.*?)\)"s
+        sanitized = replace(content, rx => s"\1")
+        open(path_to_scf, "w") do io
+            write(io, sanitized)
+        end
+    end
 end
 
 function generate_kpoints(n1::Int, n2::Int, n3::Int; omit_weight::Bool=false, out_file::String="")
