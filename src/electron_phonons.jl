@@ -156,7 +156,7 @@ function parse_ph(file_name, nbands, nfreq)
             if current_line > 1
                 split_line = split(line)
                 i, j, iph = parse(Int64,split_line[1]), parse(Int64,split_line[2]), parse(Int64,split_line[3])
-                elph_dfpt[i,j,iph]= parse(Float64,split_line[end])/1e3 # to meV
+                elph_dfpt[i,j,iph]= parse(Float64,split_line[end])/1e3 # from meV to eV
             end
 
             current_line += 1
@@ -359,7 +359,7 @@ function electron_phonon(path_to_in::String, abs_disp, Nat, ik, iq, sc_size, k_m
                             end
                         end
                         gᵢⱼₘ_ₐᵣᵣ[i,j,iph] = gᵢⱼₘ/ev_to_ry
-                        data = [iph, ω/cm1_to_Thz, real(gᵢⱼₘ)/ev_to_ry, imag(gᵢⱼₘ)/ev_to_ry]
+                        data = [iph, ω/cm1_to_ry, real(gᵢⱼₘ)/ev_to_ry, imag(gᵢⱼₘ)/ev_to_ry]
                         #@printf("  %5d  %10.6f  %10.6f   %10.6f\n", data...)
                         # @printf(io, "  %5d  %10.6f  %10.10f   %10.10f\n", data...)
                     end
