@@ -533,7 +533,7 @@ function run_disp_nscf_calc(path_to_in::String, Ndispalce::Int, mpi_ranks::Int =
         catch; end
 
         # Try to copy cluster run file
-        path_to_copy = path_to_in*"displacements/group_$i_disp/run_nscf.sh"
+        path_to_copy = path_to_in*"/group_$i_disp/run_nscf.sh"
         try
             command = `cp ./run.sh $path_to_copy`
             run(command);
