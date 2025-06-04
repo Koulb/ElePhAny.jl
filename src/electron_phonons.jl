@@ -10,7 +10,7 @@ end
 
 run_calculations(model::ModelKCW) = run_disp_calc(model)
 
-function prepare_model(model::ModelQE)
+function prepare_model(model::ModelQE; save_dynq=true)
     # save_potential(model.path_to_calc*"displacements/", model.Ndispalce, model.sc_size, model.mpi_ranks)
 
     if model.use_symm == true && all(model.k_mesh .!= 1)
@@ -31,7 +31,7 @@ function prepare_model(model::ModelQE)
         prepare_wave_functions_undisp(model.path_to_calc*"displacements/", model.sc_size; k_mesh=model.k_mesh)
     end
 
-    prepare_phonons_data(model.path_to_calc*"displacements/",model.unitcell, model.abs_disp, model.sc_size, model.k_mesh, model.use_symm, model.Ndispalce)
+    prepare_phonons_data(model.path_to_calc*"displacements/",model.unitcell, model.abs_disp, model.sc_size, model.k_mesh, model.use_symm, model.Ndispalce; save_dynq=save_dynq)
 end
 
 function prepare_model(model::ModelKCW)
