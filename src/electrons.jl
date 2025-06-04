@@ -250,19 +250,27 @@ function create_disp_calc(path_to_in::String, path_to_qe::String, unitcell, scf_
     # run(pipeline(command, stdout=path_to_in*"/scf_0/kpoints_sc.dat", stderr=path_to_in*"/scf_0/ksc_sizeerr.txt"))
 
     nscf_parameters       = deepcopy(scf_parameters)
+    hybrids = haskey(scf_parameters, :nqx1)
+    hybrids_in_unicell = hybrids && (sc_size[1] != 1 || sc_size[2] != 1 || sc_size[3] != 1)
 
     #Case of hybrids
-    if haskey(scf_parameters, :nqx1)
-        nscf_parameters[:nqx1] = sc_size[1]*k_mesh[1]
-        nscf_parameters[:nqx2] = sc_size[2]*k_mesh[2]
-        nscf_parameters[:nqx3] = sc_size[3]*k_mesh[3]
+    if hybrids_in_unicell
+        nscf_parameters[:nqx1] = k_mesh[1]
+        nscf_parameters[:nqx2] = k_mesh[2]
+        nscf_parameters[:nqx3] = k_mesh[3]
     end
-
-    pop!(nscf_parameters, :nbnd)
+    
+    if !hybrids
+        pop!(nscf_parameters, :nbnd)
+    end
+    
     create_scf_calc(path_to_in*"scf_0/scf.in",unitcell, nscf_parameters)
 
+    if !hybrids
+        nscf_parameters[:calculation] = "nscf"
+    end
+
     #create nscf calculation as well
-    nscf_parameters[:calculation] = "nscf"
     nscf_parameters[:nbnd]= scf_parameters[:nbnd]
     create_scf_calc(path_to_in*"scf_0/nscf.in",unitcell, nscf_parameters)
     include_kpoins(path_to_in*"scf_0/nscf.in", path_to_in*"scf_0/kpoints.dat")
@@ -291,12 +299,19 @@ function create_disp_calc(path_to_in::String, path_to_qe::String, unitcell, scf_
 
         nscf_parameters       = deepcopy(scf_parameters)
 
-        pop!(nscf_parameters, :nbnd)
+        if !hybrids
+            pop!(nscf_parameters, :nbnd)
+        end
+
         nscf_parameters[:kpts]= pytuple((k_mesh[1], k_mesh[2], k_mesh[3]))
         create_scf_calc(path_to_in*dir_name*"scf.in",unitcells_disp[i_disp], nscf_parameters)
 
         #create nscf calculation as well
-        nscf_parameters[:calculation] = "nscf"
+
+        if !hybrids
+            nscf_parameters[:calculation] = "nscf"
+        end
+
         nscf_parameters[:nbnd]= scf_parameters[:nbnd]*prod(sc_size)#+2*sc_size^3 #need to understand how I provide aditional states to keep the projectability satisfied
         create_scf_calc(path_to_in*dir_name*"nscf.in",unitcells_disp[i_disp], nscf_parameters)
         if k_mesh[1] != 1 || k_mesh[2] != 1 || k_mesh[3] != 1
