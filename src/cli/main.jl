@@ -37,14 +37,15 @@ Comonicon.@main function epjl(; qe_in_file::String="scf.in",
     #read frozen_params.json and parse it
     frozen_params = parse_frozen_params(frozen_params_file)
     unitcell, scf_parameters = parse_qe_in(qe_in_file)
-    sc_size  = frozen_params["sc_size"]
+    sc_size::Vec3{Int}  = frozen_params["sc_size"]
+    k_mesh::Vec3{Int}  = frozen_params["k_mesh"]
 
     model = create_model(path_to_calc = frozen_params["path_to_calc"],
                          abs_disp = frozen_params["abs_disp"],
                          path_to_qe = frozen_params["path_to_qe"],
                          mpi_ranks = frozen_params["mpi_ranks"],
                          sc_size  = sc_size,
-                         k_mesh  = frozen_params["k_mesh"],
+                         k_mesh  = k_mesh,
                          Ndispalce = frozen_params["Ndispalce"],
                          use_symm = frozen_params["use_symm"],
                          unitcell = unitcell,

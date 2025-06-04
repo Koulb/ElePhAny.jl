@@ -5,7 +5,8 @@ function parse_frozen_params(path_to_json)
         "path_to_calc" =>  pwd()*"/",
         "abs_disp" => 1e-3,
         "mpi_ranks" => 8,
-        "sc_size" => 2,
+        "sc_size" => [1,1,1],
+        "k_mesh" => [1,1,1],
         "Ndispalce" => 12
     )
 

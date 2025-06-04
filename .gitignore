@@ -6,7 +6,9 @@ temp/*
 #Examples
 example/old/*
 example/*/displacements/*
+example/*/displacements*/*
 example/*/*/displacements/*
+example/*/*/displacements*/*
 
 docs/build/*
 .vscode
