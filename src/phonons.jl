@@ -199,7 +199,7 @@ end
 
 
 #Parse phonons eigenvalues and eigenvectors from qe output
-function parse_qe_ph(path_to_dyn)
+function parse_qe_ph(path_to_dyn,Nat)
     #Read file and save lines between special line
     special_line = "**************************************************************************"
 
@@ -219,7 +219,7 @@ function parse_qe_ph(path_to_dyn)
         end
     end
 
-    ωₐᵣᵣ_ₚₕ = transpose([parse(Float64,split(lines[i])[end-1]) for i in 1:3:length(lines)])
+    ωₐᵣᵣ_ₚₕ = transpose([parse(Float64,split(lines[i])[end-1]) for i in 1:(Nat+1):length(lines)])
 
     eigen_list = []
     for line in lines
@@ -228,15 +228,14 @@ function parse_qe_ph(path_to_dyn)
         end
     end
 
-    Nat =  round(Int64, length(eigen_list)/length(ωₐᵣᵣ_ₚₕ))
     εₐᵣᵣ_ₚₕ = Array{ComplexF64, 3}(undef, (1, 3*Nat, 3*Nat))
 
     for iband in 1:3*Nat
-        temp_iband = 2*iband - 1
-        eigens = vcat(eigen_list[temp_iband], eigen_list[temp_iband+1])
+        temp_iband = Nat*(iband - 1)+1
+        eigens = vcat(eigen_list[temp_iband:temp_iband+Nat-1]...)
 
         for iat in 1:3*Nat
-            temp_iat = 2*iat - 1
+            temp_iat =  2*iat - 1
             εₐᵣᵣ_ₚₕ[1, iband, iat] = eigens[temp_iat]+1im*eigens[temp_iat+1]
         end
     end
