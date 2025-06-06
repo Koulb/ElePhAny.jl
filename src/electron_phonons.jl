@@ -328,12 +328,15 @@ function electron_phonon(path_to_in::String, abs_disp, Nat, ik, iq, sc_size, k_m
 
         ## Multiplication by phonon eigenvector and phonon frequency
         ## Compute electron-phonon vertex in normal coordinate basis
+        
         ωₐᵣᵣ = ωₐᵣᵣ_ₗᵢₛₜ[iq]
         εₐᵣᵣ = εₐᵣᵣ_ₗᵢₛₜ[iq]
 
         #DEBUG WITH QE OUTPUT##
-        ωₐᵣᵣ, εₐᵣᵣ = parse_qe_ph(path_to_in*"scf_0/dyn1")
+        #TODO Need to fix and understand the reason, probably eigenvectors
+        # ωₐᵣᵣ, εₐᵣᵣ = parse_qe_ph(path_to_in*"scf_0/dyn1",Nat) 
         #DEBUG WITH QE OUTPUT##
+
         gᵢⱼₘ_ₐᵣᵣ = Array{ComplexF64, 3}(undef, (nbands, nbands, length(ωₐᵣᵣ)))
 
         for i in 1:nbands
@@ -350,6 +353,7 @@ function electron_phonon(path_to_in::String, abs_disp, Nat, ik, iq, sc_size, k_m
                             for i_cart in 1:3
                                 braket = braket_cart[i_cart]
                                 temp_iat::Int = 3*(iat - 1) + i_cart
+
                                 gᵢⱼₘ += disp*conj(ε[temp_iat])*braket[i,j]
 
                                 #if i == 1 && j == 3
@@ -377,7 +381,7 @@ function electron_phonon(path_to_in::String, abs_disp, Nat, ik, iq, sc_size, k_m
         symm_elph = zeros(ComplexF64,(nbands, nbands, length(ωₐᵣᵣ)))#gˢʸᵐᵢⱼₘ_ₐᵣᵣ
         elph = deepcopy(gᵢⱼₘ_ₐᵣᵣ)
 
-        thr = 1e-1#0.1#1e-4
+        thr = 1e-2#0.1#1e-4
         # symm through phonons
         for iph1 in 1:length(ωₐᵣᵣ)
             ω₁ = ωₐᵣᵣ[iph1]
@@ -446,7 +450,7 @@ function electron_phonon(path_to_in::String, abs_disp, Nat, ik, iq, sc_size, k_m
 
         try
             elph_dfpt = parse_ph(path_to_in*"scf_0/ph.out", nbands, length(ωₐᵣᵣ))
-            ωₐᵣᵣ_DFPT, _ = parse_qe_ph(path_to_in*"scf_0/dyn1")
+            ωₐᵣᵣ_DFPT, _ = parse_qe_ph(path_to_in*"scf_0/dyn1", Nat)
         catch
             @info "Could not read DFPT data"
         end
