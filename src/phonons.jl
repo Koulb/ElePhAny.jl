@@ -78,8 +78,12 @@ function collect_forces(path_to_in::String, unitcell, sc_size, Ndispalce)
         dir_name = "group_"*string(i_disp)*"/"
         #atom = ase.io.read(path_to_in*dir_name * "/scf.out")
         # forces[i_disp,:,:] = pyconvert(Matrix{Float64},atom.get_forces())*(Bohr/Rydberg)
-
-        force = read_forces_xml(path_to_in*dir_name*"/tmp/scf.save/data-file-schema-scf.xml")
+        force = nothing
+        if isfile(path_to_in*dir_name*"data-file-schema-scf.xml")
+            force = read_forces_xml(path_to_in*dir_name*"/tmp/scf.save/data-file-schema-scf.xml")
+        else
+            force = read_forces_xml(path_to_in*dir_name*"/tmp/scf.save/data-file-schema.xml")
+        end
         forces[i_disp,:,:] = force
     end
     return forces
