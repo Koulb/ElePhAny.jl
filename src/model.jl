@@ -51,7 +51,7 @@ function create_model(;path_to_calc::String = "./",
                       symmetries::Symmetries = Symmetries([],[],[]))
 
      if use_symm && any(x -> x > 1, k_mesh)
-         @error "Symmetry usage is not implemented for supercell calculations with kpoints"
+         @error "Symmetry usage is not implemented for EP supercell calculations with kpoints"
      end
 
     return ModelQE(path_to_calc, abs_disp, path_to_qe, mpi_ranks, sc_size, k_mesh, Ndispalce, unitcell, scf_parameters, use_symm, symmetries)

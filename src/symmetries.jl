@@ -20,6 +20,7 @@ function check_symmetries(path_to_calc, unitcell, sc_size, abs_disp)
     dataˢʸᵐ = pyconvert(Vector{Vector{Float64}},phonon_symm.get_displacements())
     dRˢʸᵐ = [round.(transpose(Uᶜʳʸˢᵗ^-1) * vec[2:4], digits=16) for vec in dataˢʸᵐ]
     Rˢʸᵐ  = [scaled_pos[convert(Int64, vec[1])+1] for vec in dataˢʸᵐ]
+    Ndisplace_symm = length(Rˢʸᵐ)
 
     dataⁿᵒˢʸᵐ = pyconvert(Vector{Vector{Float64}},phonon_nosymm.get_displacements())
     dRⁿᵒˢʸᵐ = [round.(transpose(Uᶜʳʸˢᵗ^-1) * vec[2:4], digits=16) for vec in dataⁿᵒˢʸᵐ]
@@ -62,21 +63,19 @@ function check_symmetries(path_to_calc, unitcell, sc_size, abs_disp)
         inosym += 1
     end
 
-    return Symmetries(ineq_atoms_list, trans_list, rot_list)
+    return Symmetries(ineq_atoms_list, trans_list, rot_list), Ndisplace_symm
 end
 
 function check_symmetries!(model::AbstractModel)
-    symmetries = check_symmetries(model.path_to_calc, model.unitcell, model.sc_size, model.abs_disp)
+    symmetries, Ndisplace_symm = check_symmetries(model.path_to_calc, model.unitcell, model.sc_size, model.abs_disp)
     natoms = length(pyconvert(Vector{Vector{Float64}}, model.unitcell[:scaled_positions]))
 
-    if length(symmetries.trans_list) == 6 * natoms
-        model.use_symm = true
-        model.symmetries = symmetries
-        model.Ndispalce = length(unique(symmetries.ineq_atoms_list))
-    else
-        model.use_symm = false
-        model.Ndispalce = 6 * natoms
+    model.Ndispalce = Ndisplace_symm#length(unique(symmetries.ineq_atoms_list))
+
+    if model.Ndispalce != length(unique(symmetries.ineq_atoms_list))
+        @error "Not all the symmmetries for EP were found, only phonons could be calculated"
     end
+
 end
 
 function fold_component(x, eps=5e-3)
