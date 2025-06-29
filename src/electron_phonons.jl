@@ -20,7 +20,7 @@ function prepare_model(model::ModelQE; save_dynq=true)
     if any(model.k_mesh .!= 1) && any(model.sc_size .!= 1) && all(==(model.sc_size[1]), model.sc_size) #for now only ostropic case
         #additioanl data for creating unified grid
         data = ase_io.read(model.path_to_calc*"displacements/scf_0/scf.in")
-        a = data.cell.get_bravais_lattice().a
+        a = pyconvert(Float64, data.cell.get_bravais_lattice().a)
         ecutoff    = model.scf_parameters[:ecutwfc]
         mesh_scale = model.k_mesh .* model.sc_size
 

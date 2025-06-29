@@ -355,7 +355,7 @@ function create_unified_Grid(path_to_dat, a, ecutoff, mesh_scale )
 
     miller_list_pc_raw  = [0;0;0]
 
-    for ik in 1:mesh_scale^3
+    for ik in 1:mesh_scale[1] * mesh_scale[2] * mesh_scale[3]
         kpt =  ElectronPhonon.determine_q_point(path_to_dat*"scf_0", ik)
         miller_pc_ik =  create_miller_index(a, ecutoff, mesh_scale, kpt)
         miller_list_pc_raw = hcat(miller_list_pc_raw, miller_pc_ik)
