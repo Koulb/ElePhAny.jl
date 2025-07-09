@@ -74,50 +74,48 @@ end
 
 function electron_phonon_qe(path_to_in::String, ik::Int, iq::Int, mpi_ranks::Int, path_to_qe::String)
     dir_name = "scf_0/"
-    current_directory = pwd()
-    cd(path_to_in*dir_name)
+    cd(path_to_in*dir_name) do
+        kpoint = determine_q_point_cart(path_to_in*dir_name,ik)
+        qpoint = determine_q_point_cart(path_to_in*dir_name,iq)
 
-    kpoint = determine_q_point_cart(path_to_in*dir_name,ik)
-    qpoint = determine_q_point_cart(path_to_in*dir_name,iq)
+        # println("kpoint = ", kpoint)
+        # println("qpoint = ", qpoint)
 
-    # println("kpoint = ", kpoint)
-    # println("qpoint = ", qpoint)
-
-    parameters = Dict(
-            "inputph" => Dict(
-            "prefix" => "'scf'",
-            "outdir" => "'./tmp'",
-            "fildvscf" => "'dvscf'",
-            "ldisp"    => ".true.",
-            "fildyn"   => "'dyn'",
-            "tr2_ph"   =>  1.0e-18,
-            "qplot"    => ".true.",
-            "q_in_band_form" => ".true.",
-            "electron_phonon" => "'epw'",
-            "kx" =>  kpoint[1],
-            "ky" =>  kpoint[2],
-            "kz" =>  kpoint[3],
+        parameters = Dict(
+                "inputph" => Dict(
+                "prefix" => "'scf'",
+                "outdir" => "'./tmp'",
+                "fildvscf" => "'dvscf'",
+                "ldisp"    => ".true.",
+                "fildyn"   => "'dyn'",
+                "tr2_ph"   =>  1.0e-18,
+                "qplot"    => ".true.",
+                "q_in_band_form" => ".true.",
+                "electron_phonon" => "'epw'",
+                "kx" =>  kpoint[1],
+                "ky" =>  kpoint[2],
+                "kz" =>  kpoint[3],
+            )
         )
-    )
 
-    # Write the ph.x input file
-    open("ph.in", "w") do f
-        for (section, section_data) in parameters
-            write(f, "&$section\n")
-            for (key, value) in section_data
-                write(f, "  $key = $value\n")
+        # Write the ph.x input file
+        open("ph.in", "w") do f
+            for (section, section_data) in parameters
+                write(f, "&$section\n")
+                for (key, value) in section_data
+                    write(f, "  $key = $value\n")
+                end
+                write(f, "/\n")
             end
-            write(f, "/\n")
+            write(f,"1\n")
+            write(f,"$(qpoint[1]) $(qpoint[2]) $(qpoint[3]) 1 #\n")
         end
-        write(f,"1\n")
-        write(f,"$(qpoint[1]) $(qpoint[2]) $(qpoint[3]) 1 #\n")
-    end
 
-    path_to_ph = path_to_qe*"test-suite/not_epw_comp/ph.x"
-    command = `mpirun -np $mpi_ranks $path_to_ph -in ph.in`
-    #println(command)
-    run(pipeline(command, stdout="ph.out", stderr="errs_ph.txt"))
-    cd(current_directory)
+        path_to_ph = path_to_qe*"test-suite/not_epw_comp/ph.x"
+        command = `mpirun -np $mpi_ranks $path_to_ph -in ph.in`
+        #println(command)
+        run(pipeline(command, stdout="ph.out", stderr="errs_ph.txt"))
+    end
 end
 
 function electron_phonon_qe(model::ModelQE, ik::Int, iq::Int)
@@ -197,8 +195,6 @@ end
 
 
 function electron_phonon(path_to_in::String, abs_disp, Nat, ik, iq, sc_size, k_mesh, ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list , U_list, V_list, M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ; save_epw::Bool=false, save_qeraman::Bool=false)
-    # cd(path_to_in)
-
     Ndisp_nosym = 6*Nat
     scale = ev_to_ry / abs_disp
 
@@ -223,6 +219,7 @@ function electron_phonon(path_to_in::String, abs_disp, Nat, ik, iq, sc_size, k_m
 
         Uk  = U_list[ind_abs][:,ik,:,:]
         Ukₘ = V_list[ind_abs][:,ik,:,:]
+        
         # u_trace_check = conj(transpose(Uk))*Uk
         # u_m_trace_check = conj(transpose(Ukₘ))*Ukₘ
 
@@ -237,6 +234,7 @@ function electron_phonon(path_to_in::String, abs_disp, Nat, ik, iq, sc_size, k_m
 
         Uq  = U_list[ind_abs][:,ikq,:,:]
         Uqₘ = V_list[ind_abs][:,ikq,:,:]
+        
         # u_trace_check = conj(transpose(Uq))*Uq
         # u_m_trace_check = conj(transpose(Uqₘ))*Uqₘ
 

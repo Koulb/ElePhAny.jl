@@ -168,8 +168,6 @@ function prepare_phonons_data(path_to_in::String, unitcell, abs_disp, sc_size, k
     phonon.save(path_to_in*"phonopy_params.yaml"; settings=Dict(:force_constants => true))
 
     #Dumb way of using phonopy since api gives diffrent result
-    current_directory = pwd()
-
     command = `phonopy -c phonopy_params.yaml --dim="$(sc_size[1]*k_mesh[1]) $(sc_size[2]*k_mesh[2]) $(sc_size[3]*k_mesh[3])" --eigvecs --factor $pwscf_to_cm1 -p sc_size.conf`
     file_name = "sc_size.conf"
 
@@ -184,15 +182,14 @@ function prepare_phonons_data(path_to_in::String, unitcell, abs_disp, sc_size, k
     content = content*" \nWRITEDM = .TRUE."
     #content = content*" \nFC_SYMMETRY = .TRUE."
 
-
     file = open(path_to_in*file_name, "w")
     write(file, content)
     close(file)
 
     #run(pipeline(command))
-    cd(path_to_in)
-    run(pipeline(command,stdout = devnull), wait = true)
-    cd(current_directory)
+    cd(path_to_in) do
+        run(pipeline(command,stdout = devnull), wait = true)
+    end
 
     if save_dynq==true
         save_dyn_matirx(path_to_in, sc_size)
