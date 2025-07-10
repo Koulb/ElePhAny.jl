@@ -1,4 +1,4 @@
-function check_symmetries(path_to_calc, unitcell, sc_size, abs_disp)
+function check_symmetries(path_to_calc, unitcell, sc_size, k_mesh, abs_disp)
     unitcell_phonopy = phonopy.structure.atoms.PhonopyAtoms(;symbols=unitcell[:symbols],
     cell=pylist(pyconvert(Array,unitcell[:cell])./bohr_to_ang),#Should be in Bohr, hence conversion
     scaled_positions=unitcell[:scaled_positions],
@@ -26,9 +26,12 @@ function check_symmetries(path_to_calc, unitcell, sc_size, abs_disp)
     dRⁿᵒˢʸᵐ = [round.(transpose(Uᶜʳʸˢᵗ^-1) * vec[2:4], digits=16) for vec in dataⁿᵒˢʸᵐ]
     Rⁿᵒˢʸᵐ  = [scaled_pos[convert(Int64, vec[1])+1] for vec in dataⁿᵒˢʸᵐ]
 
+    kpoints = [determine_q_point(path_to_calc*"displacements/scf_0",ik) for ik in 1:prod(k_mesh)]
+
     trans_list = []
     rot_list   = []
     ineq_atoms_list = []
+    ind_k_list = []
     index = 1
 
     inosym = 1
@@ -54,6 +57,12 @@ function check_symmetries(path_to_calc, unitcell, sc_size, abs_disp)
                     push!(trans_list, trans)
                     push!(rot_list, rot)
                     push!(ineq_atoms_list, isym)
+
+                    #saving k points ind list
+                    kpoints_rotated = [transpose(inv(rot)) * k_point for k_point in kpoints]  
+                    ind_k_point = find_matching_qpoints(kpoints, kpoints_rotated)
+                    push!(ind_k_list, ind_k_point)
+
                     check = false
                     break
                 end
@@ -63,19 +72,48 @@ function check_symmetries(path_to_calc, unitcell, sc_size, abs_disp)
         inosym += 1
     end
 
-    return Symmetries(ineq_atoms_list, trans_list, rot_list), Ndisplace_symm
+    return Symmetries(ineq_atoms_list, trans_list, rot_list, ind_k_list), Ndisplace_symm
 end
 
 function check_symmetries!(model::AbstractModel)
-    symmetries, Ndisplace_symm = check_symmetries(model.path_to_calc, model.unitcell, model.sc_size, model.abs_disp)
-    natoms = length(pyconvert(Vector{Vector{Float64}}, model.unitcell[:scaled_positions]))
-
-    model.Ndispalce = Ndisplace_symm#length(unique(symmetries.ineq_atoms_list))
+    symmetries, Ndisplace_symm = check_symmetries(model.path_to_calc, model.unitcell, model.sc_size, model.k_mesh, model.abs_disp)
+    model.Ndispalce = Ndisplace_symm #length(unique(symmetries.ineq_atoms_list))
 
     if model.Ndispalce != length(unique(symmetries.ineq_atoms_list))
+        # model.use_symm = false
         @error "Not all the symmmetries for EP were found, only phonons could be calculated"
+    else
+        # model.use_symm = true
+        model.symmetries = symmetries
     end
 
+end
+
+function find_matching_qpoints(q_ph, q_nscf)
+    iq_ph_list = Int[]
+    for i_ph in eachindex(q_ph)
+        for i_nscf in eachindex(q_nscf)
+            q_nscf_crystal = q_nscf[i_nscf]
+            q_ph_crystal = q_ph[i_ph]
+            delta_q_all = abs.(q_nscf_crystal .- q_ph_crystal)
+            check = falses(3)
+            for (ind_q, delta_q) in enumerate(delta_q_all)
+                if isapprox(delta_q, 0; atol=1e-5) || isapprox(delta_q, 1; atol=1e-5)#|| isapprox(delta_q, 2; atol=1e-5)
+                    check[ind_q] = true
+                end
+            end
+            if all(check)
+                push!(iq_ph_list, i_nscf)
+                break
+            end
+        end
+    end
+
+    if length(iq_ph_list) != length(q_ph)
+        println("No all q-points found")
+    end
+
+    return iq_ph_list
 end
 
 function fold_component(x, eps=5e-3)

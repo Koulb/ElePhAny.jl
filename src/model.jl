@@ -7,6 +7,7 @@ struct Symmetries <: AbstractSymmetries
     ineq_atoms_list::Vector{Int64}
     trans_list::Vector{Vector{Float64}}
     rot_list::Vector{Matrix{Float64}}
+    ind_k_list::Vector{Vector{Int}}
 end
 
 mutable struct ModelQE <: AbstractModel
@@ -48,7 +49,7 @@ function create_model(;path_to_calc::String = "./",
                       unitcell::Dict       = Dict(),
                       scf_parameters::Dict = Dict(),
                       use_symm::Bool       = false,
-                      symmetries::Symmetries = Symmetries([],[],[]))
+                      symmetries::Symmetries = Symmetries([],[],[],[]))
 
      if use_symm && any(x -> x > 1, k_mesh)
          @error "Symmetry usage is not implemented for EP supercell calculations with kpoints"

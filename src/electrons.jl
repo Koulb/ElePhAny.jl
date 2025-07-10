@@ -832,7 +832,7 @@ function fold_kpoint(ik, iq, k_list)
     return ikq
 end
 
-function prepare_eigenvalues(path_to_in::String, natoms::Int; Ndisplace::Int = 6*natoms, ineq_atoms_list::Vector{Int}=[], spin_channel::String="")
+function prepare_eigenvalues(path_to_in::String, natoms::Int; Ndisplace::Int = 6*natoms, ineq_atoms_list::Vector{Int}=[], ind_k_list::Vector{Vector{Int}}=[], spin_channel::String="")
     path_to_xml="tmp/scf.save/data-file-schema.xml"
     group = "scf_0/"
     ϵₚ_list_raw  = []
@@ -848,6 +848,11 @@ function prepare_eigenvalues(path_to_in::String, natoms::Int; Ndisplace::Int = 6
     end
 
     k_list = get_kpoint_list(path_to_in*group)
+
+    if isempty(ind_k_list)
+        ind_k_list = [collect(1:length(k_list)) for _ in 1:Ndisplace]
+    end
+
     for ind in 1:Ndisplace
         group = "group_$ind/"
 
@@ -864,8 +869,8 @@ function prepare_eigenvalues(path_to_in::String, natoms::Int; Ndisplace::Int = 6
     end
 
     for ind in 1:2:6*natoms
-        ϵₚ  = Ndisplace != 6 * natoms ? ϵₚ_list_raw[ineq_atoms_list[ind]] : ϵₚ_list_raw[ind]
-        ϵₚₘ = Ndisplace != 6 * natoms ? ϵₚ_list_raw[ineq_atoms_list[ind+1]] : ϵₚ_list_raw[ind+1]
+        ϵₚ  = Ndisplace != 6 * natoms ? ϵₚ_list_raw[ineq_atoms_list[ind]][ind_k_list[ind]] : ϵₚ_list_raw[ind]
+        ϵₚₘ = Ndisplace != 6 * natoms ? ϵₚ_list_raw[ineq_atoms_list[ind+1]][ind_k_list[ind+1]] : ϵₚ_list_raw[ind+1]
         push!(ϵₚ_list, ϵₚ)
         push!(ϵₚₘ_list, ϵₚₘ)
     end
@@ -893,7 +898,7 @@ function create_electrons(model::AbstractModel)
         spin_channel = model.spin_channel
     end
 
-    symmetries = Symmetries([],[],[])
+    symmetries = Symmetries([],[],[],[])
     if hasproperty(model, :symmetries)
         symmetries = model.symmetries
     end
@@ -901,7 +906,7 @@ function create_electrons(model::AbstractModel)
     natoms = length(model.unitcell[:symbols])
 
     U_list, V_list = prepare_u_matrixes(model.path_to_calc*"displacements/", natoms, model.sc_size, model.k_mesh; symmetries=symmetries)
-    ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list = prepare_eigenvalues(model.path_to_calc*"displacements/", natoms; Ndisplace=model.Ndispalce, ineq_atoms_list=symmetries.ineq_atoms_list, spin_channel=spin_channel)
+    ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list = prepare_eigenvalues(model.path_to_calc*"displacements/", natoms; Ndisplace=model.Ndispalce, ineq_atoms_list=symmetries.ineq_atoms_list, ind_k_list=symmetries.ind_k_list, spin_channel=spin_channel)
 
     return Electrons(U_list, V_list, ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list)
 end

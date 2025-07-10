@@ -515,21 +515,25 @@ function prepare_u_matrixes(path_to_in::String, natoms::Int, sc_size::Vec3{Int},
     Ndisplace_nosym = 6 * natoms
 
     N_fft = determine_fft_grid(path_to_in*"group_1/tmp/scf.save/data-file-schema.xml"; use_xml = true)
-    ψₚ0_list = []
     ψₚ0_real_list = []
     miller_list = []
-    # nbnds = length(load(path_to_in*"/scf_0/g_list_sc_1.jld2"))
+    use_symm = isempty(symmetries.trans_list) && isempty(symmetries.rot_list)
 
     for (ind, _) in enumerate(unique(symmetries.ineq_atoms_list))
-        println("Preparing wave functions for group_$ind:")
-        miller1, ψₚ0 = parse_wf(path_to_in*"/group_$ind/tmp/scf.save/wfc1")
-        ψₚ0_real = [wf_from_G(miller1, evc, N_fft) for evc in ψₚ0]
-        push!(ψₚ0_list, ψₚ0)
-        push!(ψₚ0_real_list, ψₚ0_real)
-        push!(miller_list, miller1)
-        print("ind = $ind")
+        ψₚ0_real_ip = []
+        miller_ip = []
+        for ip in 1:prod(k_mesh)
+            miller1, ψₚ0 = parse_wf(path_to_in*"/group_$ind/tmp/scf.save/wfc$ip")
+            ψₚ0_real = [wf_from_G(miller1, evc, N_fft) for evc in ψₚ0]
+            push!(ψₚ0_real_ip, ψₚ0_real)
+            push!(miller_ip, miller1)
+        end
+        push!(ψₚ0_real_list, ψₚ0_real_ip)
+        push!(miller_list, miller_ip)
     end
+
     nbnds = length(parse_wf(path_to_in*"/scf_0/tmp/scf.save/wfc1")[2])
+    kpoints = [determine_q_point(path_to_in*"/scf_0",ik) for ik in 1:prod(k_mesh)]
 
     println("nbnds = $nbnds")
 
@@ -539,35 +543,54 @@ function prepare_u_matrixes(path_to_in::String, natoms::Int, sc_size::Vec3{Int},
         local tras, rot
 
         #check if symmetries are empty
-        if isempty(symmetries.trans_list) && isempty(symmetries.rot_list)
+        if use_symm
             tras = [0.0,0.0,0.0]
             rot  = [[1.0,0.0,0.0] [0.0,1.0,0.0] [0.0,0.0,1.0]]
+            ind_k_list = [1:prod(k_mesh)]
             append!(symmetries.ineq_atoms_list, ind)
         else
             tras  = symmetries.trans_list[ind] #./sc_size
             rot   = symmetries.rot_list[ind]
+            ind_k_list = symmetries.ind_k_list[ind]
         end
 
         Uₚₖᵢⱼ = zeros(ComplexF64, prod(k_mesh), prod(k_mesh)*prod(sc_size), nbnds*prod(sc_size), nbnds)
 
-        #TODO in the case of sc_size =1, k_mesh !=1, need to read from dat files wf
-        #TODO acooint for symmetries in the s =1, k != 1 case
-
         for ip in 1:prod(k_mesh)
             if all(isapprox.(tras,[0.0,0.0,0.0], atol = 1e-15)) &&
             all(isapprox.(rot, [[1.0,0.0,0.0] [0.0,1.0,0.0] [0.0,0.0,1.0]], atol = 1e-15))
-                if all(k_mesh == 1) && any(sc_size .!= 1)
+                if any(sc_size .!= 1)
                     ψₚ_list = load(path_to_in*"/group_$(symmetries.ineq_atoms_list[ind])/g_list_sc_$ip.jld2")
                     ψₚ = [ψₚ_list["wfc$iband"] for iband in 1:length(ψₚ_list)]
                 else
-                     _, ψₚ = parse_wf(path_to_in*"/group_$(symmetries.ineq_atoms_list[ind])/tmp/scf.save/wfc$ip")
+                    _, ψₚ = parse_wf(path_to_in*"/group_$(symmetries.ineq_atoms_list[ind])/tmp/scf.save/wfc$ip")
                 end
             else
-                ψₚ0_real = ψₚ0_real_list[symmetries.ineq_atoms_list[ind]]
-                miller1 = miller_list[symmetries.ineq_atoms_list[ind]]
-                map1 = rotate_grid(N_fft, N_fft, N_fft, rot, tras)
-                ψₚ_real = [rotate_deriv(N_fft, N_fft, N_fft, map1, wfc) for wfc in ψₚ0_real]
+                ψₚ0_real = ψₚ0_real_list[symmetries.ineq_atoms_list[ind]][ind_k_list[ip]]
+                miller1 = miller_list[symmetries.ineq_atoms_list[ind]][ip]
+                map1 = rotate_grid(N_fft[1], N_fft[2], N_fft[3], rot, tras)
+                ψₚ_real = [rotate_deriv(N_fft[1], N_fft[2], N_fft[3], map1, wfc) for wfc in ψₚ0_real]
+
+                # in case of symmetries with kpoints need to multiply by a phase factor 
+                kpoint_rotated = transpose(inv(rot)) * kpoints[ind_k_list[ip]]
+                phase_in = determine_phase(kpoint_rotated, N_fft)
+                phase_out = 1.0 
+                
+
+                if all(sc_size .== 1)
+                    phase_out = determine_phase(kpoints[ip], N_fft) 
+                end
+
+                ψₚ_real = [wf .* phase_in .* conj(phase_out) for wf in ψₚ_real]
                 ψₚ = [wf_to_G(miller1, evc, N_fft) for evc in ψₚ_real]
+
+                # # save the transformed wave functions
+                # ψₚ_list =Dict()
+                # for (iband, wfc) in enumerate(ψₚ)
+                #     ψₚ_list["wfc$iband"] = wfc
+                # end
+                # save("/home/poliukhin/Development/ElectronPhonon/example/tst/si_k_symm/displacements/tmp_check/"*"/group_$(ind)/g_list_sc_$ip.jld2", ψₚ_list)
+
             end
 
             for ik in 1:prod(sc_size)*prod(k_mesh)
