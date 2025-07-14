@@ -56,7 +56,7 @@ function parse_fortran_bin(file_path::String)
     return miller, evc_list
 end
 
-function wf_from_G(miller::Matrix{Int32}, evc::Vector{ComplexF64}, Nxyz::Vec3{Int})
+function wf_from_G(miller::Matrix{Int}, evc::Vector{ComplexF64}, Nxyz::Vec3{Int})
     reciprocal_space_grid = zeros(ComplexF64, Nxyz[1], Nxyz[2], Nxyz[3])
     # Determine the shift needed to map Miller indices to grid indices
     shift = div.(Nxyz, 2)
@@ -127,7 +127,7 @@ function wf_from_G_list(miller::Matrix{Int32}, evc_list::AbstractArray{Any}, Nxy
     return wave_function
 end
 
-function wf_to_G(miller::Matrix{Int32}, wfc, Nxyz::Vec3{Int})
+function wf_to_G(miller::Matrix{Int}, wfc, Nxyz::Vec3{Int})
     Nevc = size(miller, 2)
 
     evc_sc = zeros(ComplexF64, size(miller, 2))
@@ -377,6 +377,9 @@ function create_unified_Grid(path_to_dat, a, ecutoff, mesh_scale )
         miller_map[point] = i
     end
 
+    # save miller_map to a file
+    save(path_to_dat*"scf_0/miller_list_sc.jld2", "miller_list", miller_list_pc_raw_unique)
+
     return miller_map
 end
 
@@ -514,7 +517,13 @@ function prepare_u_matrixes(path_to_in::String, natoms::Int, sc_size::Vec3{Int},
 
     Ndisplace_nosym = 6 * natoms
 
-    N_fft = determine_fft_grid(path_to_in*"group_1/tmp/scf.save/data-file-schema.xml"; use_xml = true)
+    N_fft = 1
+    if any(sc_size .!= 1)
+        N_fft = determine_fft_grid(path_to_in*"group_1/tmp/scf.save/data-file-schema.xml"; use_xml = true).* k_mesh
+    else
+        N_fft = determine_fft_grid(path_to_in*"group_1/tmp/scf.save/data-file-schema.xml"; use_xml = true)
+    end
+
     ψₚ0_real_list = []
     miller_list = []
     use_symm = isempty(symmetries.trans_list) && isempty(symmetries.rot_list)
@@ -523,8 +532,21 @@ function prepare_u_matrixes(path_to_in::String, natoms::Int, sc_size::Vec3{Int},
         ψₚ0_real_ip = []
         miller_ip = []
         for ip in 1:prod(k_mesh)
-            miller1, ψₚ0 = parse_wf(path_to_in*"/group_$ind/tmp/scf.save/wfc$ip")
-            ψₚ0_real = [wf_from_G(miller1, evc, N_fft) for evc in ψₚ0]
+            if any(sc_size .!= 1)
+                miller1 = load(path_to_in*"/scf_0/miller_list_sc.jld2")["miller_list"]
+                ψₚ0_list_raw = load(path_to_in*"/group_$ind/g_list_sc_$ip.jld2")
+                ψₚ0_list = [ψₚ0_list_raw["wfc$iband"] for iband in 1:length(ψₚ0_list_raw)]
+
+                ψₚ0_real_phase = [wf_from_G(miller1, evc, N_fft) for evc in ψₚ0_list]
+                K = determine_q_point(path_to_in*"/scf_0", ip; sc_size = k_mesh, use_sc = true)
+                ψₚ0_real = [wf .* conj(determine_phase(K, N_fft)) for wf in ψₚ0_real_phase]
+                
+                # miller1, ψₚ0 = parse_wf(path_to_in*"/group_$ind/tmp/scf.save/wfc$ip")
+                # ψₚ0_real = [wf_from_G(miller1, evc, N_fft) for evc in ψₚ0]
+            else
+                miller1, ψₚ0 = parse_wf(path_to_in*"/group_$ind/tmp/scf.save/wfc$ip")
+                ψₚ0_real = [wf_from_G(miller1, evc, N_fft) for evc in ψₚ0]
+            end
             push!(ψₚ0_real_ip, ψₚ0_real)
             push!(miller_ip, miller1)
         end
@@ -533,8 +555,13 @@ function prepare_u_matrixes(path_to_in::String, natoms::Int, sc_size::Vec3{Int},
     end
 
     nbnds = length(parse_wf(path_to_in*"/scf_0/tmp/scf.save/wfc1")[2])
-    kpoints = [determine_q_point(path_to_in*"/scf_0",ik) for ik in 1:prod(k_mesh)]
-
+    
+    kpoints = []
+    if any(sc_size .!= 1)
+        kpoints = [determine_q_point(path_to_in*"/scf_0",ik; sc_size=k_mesh, use_sc = true) for ik in 1:prod(k_mesh)]
+    else
+        kpoints = [determine_q_point(path_to_in*"/scf_0",ik) for ik in 1:prod(k_mesh)]
+    end
     println("nbnds = $nbnds")
 
     println("Preparing u matrixes:")
@@ -550,6 +577,11 @@ function prepare_u_matrixes(path_to_in::String, natoms::Int, sc_size::Vec3{Int},
             append!(symmetries.ineq_atoms_list, ind)
         else
             tras  = symmetries.trans_list[ind] #./sc_size
+
+            if any(sc_size .!= 1) #TODO understand corner case with sc size  and k_mesh != 1
+                tras = tras ./ k_mesh
+            end
+
             rot   = symmetries.rot_list[ind]
             ind_k_list = symmetries.ind_k_list[ind]
         end
@@ -575,7 +607,6 @@ function prepare_u_matrixes(path_to_in::String, natoms::Int, sc_size::Vec3{Int},
                 kpoint_rotated = transpose(inv(rot)) * kpoints[ind_k_list[ip]]
                 phase_in = determine_phase(kpoint_rotated, N_fft)
                 phase_out = 1.0 
-                
 
                 if all(sc_size .== 1)
                     phase_out = determine_phase(kpoints[ip], N_fft) 
@@ -584,12 +615,12 @@ function prepare_u_matrixes(path_to_in::String, natoms::Int, sc_size::Vec3{Int},
                 ψₚ_real = [wf .* phase_in .* conj(phase_out) for wf in ψₚ_real]
                 ψₚ = [wf_to_G(miller1, evc, N_fft) for evc in ψₚ_real]
 
-                # # save the transformed wave functions
+                # DEBUG save the transformed wave functions
                 # ψₚ_list =Dict()
                 # for (iband, wfc) in enumerate(ψₚ)
                 #     ψₚ_list["wfc$iband"] = wfc
                 # end
-                # save("/home/poliukhin/Development/ElectronPhonon/example/tst/si_k_symm/displacements/tmp_check/"*"/group_$(ind)/g_list_sc_$ip.jld2", ψₚ_list)
+                # save("/home/poliukhin/Development/ElectronPhonon/example/tst/si_k_sc_symm/displacements/tmp_check/"*"/group_$(ind)/g_list_sc_$ip.jld2", ψₚ_list)
 
             end
 

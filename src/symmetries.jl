@@ -26,7 +26,12 @@ function check_symmetries(path_to_calc, unitcell, sc_size, k_mesh, abs_disp)
     dRⁿᵒˢʸᵐ = [round.(transpose(Uᶜʳʸˢᵗ^-1) * vec[2:4], digits=16) for vec in dataⁿᵒˢʸᵐ]
     Rⁿᵒˢʸᵐ  = [scaled_pos[convert(Int64, vec[1])+1] for vec in dataⁿᵒˢʸᵐ]
 
-    kpoints = [determine_q_point(path_to_calc*"displacements/scf_0",ik) for ik in 1:prod(k_mesh)]
+    use_sc = false
+    if any(sc_size .!= 1)
+        use_sc = true
+    end
+
+    kpoints = [determine_q_point(path_to_calc*"displacements/scf_0",ik; use_sc = use_sc) for ik in 1:prod(k_mesh)]
 
     trans_list = []
     rot_list   = []
@@ -71,7 +76,6 @@ function check_symmetries(path_to_calc, unitcell, sc_size, k_mesh, abs_disp)
         end
         inosym += 1
     end
-
     return Symmetries(ineq_atoms_list, trans_list, rot_list, ind_k_list), Ndisplace_symm
 end
 
