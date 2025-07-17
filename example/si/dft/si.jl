@@ -2,8 +2,9 @@ using ElectronPhonon, PythonCall, ProgressMeter, Base.Threads
 
 #flags
 create = true
-run = true
-prepare = true
+from_scratch = false
+run = false
+prepare = false
 calc_ep = true
 
 # Example usage
@@ -12,12 +13,12 @@ abs_disp = 1e-3
 
 println("Displacement: $abs_disp")
 directory_path = "$path_to_calc"#
-path_to_qe= "/home/apolyukhin/Soft/sourse/q-e/"
+path_to_qe= "/home/poliukhin/Soft/sourse/q-e/"
 mpi_ranks = 8
 
 #Params
-sc_size = 2
-k_mesh  = 1
+sc_size::Vec3{Int} = [1,1,1]
+k_mesh::Vec3{Int}  = [2,2,2]
 
 # Lattice constant of Silicon
 a = 5.43052  # in Angstrom
@@ -34,11 +35,11 @@ unitcell = Dict(
 # Set up the calculation parameters as a Python dictionary
 scf_parameters = Dict(
     :format => "espresso-in",
-    :kpts => pytuple((k_mesh*sc_size, k_mesh*sc_size, k_mesh*sc_size)),
+    :kpts => pytuple((k_mesh[1]*sc_size[1], k_mesh[2]*sc_size[2], k_mesh[3]*sc_size[3])),
     :calculation =>"scf",
     :prefix => "scf",
     :outdir => "./tmp/",
-    :pseudo_dir => "/home/apolyukhin/Development/frozen_phonons/elph/example/pseudo",
+    :pseudo_dir => "/home/poliukhin/Development/frozen_phonons/elph/example/pseudo",
     :ecutwfc => 60,
     :conv_thr =>1.e-13,# 1e-16,# #1.e-20,#5.e-30
     :pseudopotentials => Dict("Si" => "Si.upf"),
@@ -56,7 +57,7 @@ scf_parameters = Dict(
     :noinv=> true
 )
 
-use_symm = true
+use_symm = false
 
 model = create_model(path_to_calc = path_to_calc,
                       abs_disp = abs_disp,
@@ -70,7 +71,7 @@ model = create_model(path_to_calc = path_to_calc,
 
 
 if create
-    create_disp_calc!(model; from_scratch = true)
+    create_disp_calc!(model; from_scratch = from_scratch)
 end
 
 if run
@@ -90,8 +91,8 @@ if calc_ep
     phonons = load_phonons(model)
 
     # Electron-phonon matrix elements
-    ik_list = [1,2,3,4] # [i for i in 1:sc_size^3] ##[1,2]##
-    iq_list = [1,2,3,4] # [i for i in 1:sc_size^3] ##[1,2]##
+    ik_list = [1,2,3,4]#[1,2,3,4] # [i for i in 1:sc_size^3] ##[1,2]##
+    iq_list = [1]#[1,2,3,4] # [i for i in 1:sc_size^3] ##[1,2]##
 
     progress = Progress(length(ik_list)*length(iq_list), dt=5.0)
 
