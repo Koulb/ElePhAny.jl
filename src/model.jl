@@ -17,6 +17,7 @@ struct Symmetries <: AbstractSymmetries
     ineq_atoms_list::Vector{Int64}
     trans_list::Vector{Vector{Float64}}
     rot_list::Vector{Matrix{Float64}}
+    ind_k_list::Vector{Vector{Int}}
 end
 
 """
@@ -42,8 +43,8 @@ mutable struct ModelQE <: AbstractModel
     abs_disp::Float64
     path_to_qe::String
     mpi_ranks::Int
-    sc_size::Int
-    k_mesh::Int
+    sc_size::Vec3{Int}
+    k_mesh::Vec3{Int}
     Ndispalce::Int
     unitcell::Dict
     scf_parameters::Dict
@@ -77,8 +78,8 @@ mutable struct ModelKCW <: AbstractModel
     abs_disp::Float64
     path_to_qe::String
     mpi_ranks::Int
-    sc_size::Int
-    k_mesh::Int
+    sc_size::Vec3{Int}
+    k_mesh::Vec3{Int}
     Ndispalce::Int
     unitcell::Dict
     scf_parameters::Dict
@@ -122,17 +123,17 @@ function create_model(;path_to_calc::String = "./",
                       abs_disp::Float64    = 1e-3,
                       path_to_qe::String   = "./",
                       mpi_ranks::Int       = 1,
-                      sc_size::Int         = 2,
-                      k_mesh::Int          = 1,
+                      sc_size::Vec3{Int}   = [2, 2, 2],
+                      k_mesh::Vec3{Int}    = [1, 1, 1],
                       Ndispalce::Int       = 0,
                       unitcell::Dict       = Dict(),
                       scf_parameters::Dict = Dict(),
                       use_symm::Bool       = false,
-                      symmetries::Symmetries = Symmetries([],[],[]))
+                      symmetries::Symmetries = Symmetries([],[],[],[]))
 
-    if use_symm && k_mesh > 1
-        @error "Symmetry usage is not implemented for supercell calculations with kpoints"
-    end
+     if use_symm && any(x -> x > 1, k_mesh)
+         @error "Symmetry usage is not implemented for EP supercell calculations with kpoints"
+     end
 
     return ModelQE(path_to_calc, abs_disp, path_to_qe, mpi_ranks, sc_size, k_mesh, Ndispalce, unitcell, scf_parameters, use_symm, symmetries)
 end
@@ -173,8 +174,8 @@ function create_model_kcw(path_to_calc::String,
                           abs_disp::Float64,
                           path_to_qe::String,
                           mpi_ranks::Int,
-                          sc_size::Int,
-                          k_mesh::Int,
+                          sc_size::Vec3{Int},
+                          k_mesh::Vec3{Int},
                           Ndispalce::Int,
                           unitcell::Dict,
                           scf_parameters::Dict,
@@ -221,8 +222,8 @@ function create_model_kcw(;path_to_calc::String = "./",
     abs_disp::Float64    = 1e-3,
     path_to_qe::String   = "./",
     mpi_ranks::Int       = 1,
-    sc_size::Int         = 2,
-    k_mesh::Int          = 1,
+    sc_size::Vec3{Int}   = [2, 2, 2],
+    k_mesh::Vec3{Int}    = [1, 1, 1],
     Ndispalce::Int       = 0,
     unitcell::Dict       = Dict(),
     scf_parameters::Dict = Dict(),

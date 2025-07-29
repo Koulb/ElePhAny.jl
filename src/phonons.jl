@@ -14,7 +14,7 @@ Determines the q-point from a k-points file.
 # Returns
 - `Vector{Float64}`: The q-point at index `iq`, scaled by `sc_size`.
 """
-function determine_q_point(path_to_in, iq; sc_size=1, use_sc = false)
+function determine_q_point(path_to_in, iq; sc_size=[1,1,1], use_sc = false)
     file = open(joinpath(path_to_in,"kpoints.dat"), "r")
     if use_sc
         file = open(joinpath(path_to_in,"kpoints_sc.dat"), "r")
@@ -102,7 +102,7 @@ function dislpaced_unitecells(path_to_save, unitcell, abs_disp, sc_size, use_sym
                                                              scaled_positions=unitcell[:scaled_positions],
                                                              masses=unitcell[:masses])
 
-    phonon = phonopy.Phonopy(unitcell_phonopy, is_symmetry=use_symm, supercell_matrix=pylist([[sc_size, 0, 0], [0, sc_size, 0], [0, 0, sc_size]]))
+    phonon = phonopy.Phonopy(unitcell_phonopy, is_symmetry=use_symm, supercell_matrix=pylist([[sc_size[1], 0, 0], [0, sc_size[2], 0], [0, 0, sc_size[3]]]))
     phonon.generate_displacements(distance=abs_disp)
     supercells_data = phonon.supercells_with_displacements
     supercells = []
@@ -137,15 +137,19 @@ Collects atomic forces from a series of displacement calculations.
 function collect_forces(path_to_in::String, unitcell, sc_size, Ndispalce)
   # Get a number of displacements
   # files = readdir(path_to_in; join=true)
-  number_atoms = length(unitcell[:symbols])*sc_size^3
+  number_atoms = length(unitcell[:symbols])*sc_size[1]*sc_size[2]*sc_size[3]
   forces = Array{Float64}(undef, Ndispalce, number_atoms, 3)
 
     for i_disp in 1:Ndispalce
         dir_name = "group_"*string(i_disp)*"/"
         #atom = ase.io.read(path_to_in*dir_name * "/scf.out")
         # forces[i_disp,:,:] = pyconvert(Matrix{Float64},atom.get_forces())*(Bohr/Rydberg)
-
-        force = read_forces_xml(path_to_in*dir_name*"/tmp/scf.save/data-file-schema-scf.xml")
+        force = nothing
+        if isfile(path_to_in*dir_name*"/tmp/scf.save/data-file-schema-scf.xml")
+            force = read_forces_xml(path_to_in*dir_name*"/tmp/scf.save/data-file-schema-scf.xml")
+        else
+            force = read_forces_xml(path_to_in*dir_name*"/tmp/scf.save/data-file-schema.xml")
+        end
         forces[i_disp,:,:] = force
     end
     return forces
@@ -168,7 +172,7 @@ For each q-point in the supercell:
 - Saves the resulting matrix to a file in a newly created `dyn_mat` subdirectory.
 
 """
-function save_dyn_matirx(path_to_in::String, sc_size::Int)
+function save_dyn_matirx(path_to_in::String, sc_size::Vec3{Int})
     #saving the dynamic matrix
     path_to_dyn = path_to_in*"dyn_mat"
     command = `mkdir $path_to_dyn`
@@ -187,7 +191,7 @@ function save_dyn_matirx(path_to_in::String, sc_size::Int)
     masses = pyconvert(Vector{Float64},phonon_params.masses)
     #phonon_params.symmetrize_force_constants()
 
-    for iq in 1:sc_size^3
+    for iq in 1:sc_size[1]*sc_size[2]*sc_size[3]
         # dyn_mat = reduce(hcat,phonons["phonon"][iq]["dynamical_matrix"])'# hcat(...)
         # dyn_mat = dyn_mat[:,1:2:end] + 1im*dyn_mat[:,2:2:end]
 
@@ -276,7 +280,7 @@ function prepare_phonons_data(path_to_in::String, unitcell, abs_disp, sc_size, k
 
     phonon = phonopy.Phonopy(unitcell_phonopy,
                              is_symmetry=use_symm,
-                             supercell_matrix=pylist([[sc_size, 0, 0], [0, sc_size, 0], [0, 0, sc_size]]),
+                             supercell_matrix=pylist([[sc_size[1], 0, 0], [0, sc_size[2], 0], [0, 0, sc_size[3]]]),
                              calculator="qe",
                              factor=pwscf_to_cm1)#from internal units to Thz and then to cm-1
 
@@ -291,15 +295,13 @@ function prepare_phonons_data(path_to_in::String, unitcell, abs_disp, sc_size, k
     phonon.save(path_to_in*"phonopy_params.yaml"; settings=Dict(:force_constants => true))
 
     #Dumb way of using phonopy since api gives diffrent result
-    current_directory = pwd()
-
-    command = `phonopy -c phonopy_params.yaml --dim="$(sc_size*k_mesh) $(sc_size*k_mesh) $(sc_size*k_mesh)" --eigvecs --factor $pwscf_to_cm1 -p sc_size.conf`
+    command = `phonopy -c phonopy_params.yaml --dim="$(sc_size[1]*k_mesh[1]) $(sc_size[2]*k_mesh[2]) $(sc_size[3]*k_mesh[3])" --eigvecs --factor $pwscf_to_cm1 -p sc_size.conf`
     file_name = "sc_size.conf"
 
     content = ""
     qpoint = determine_q_point(path_to_in*"scf_0/",1)
     content = "QPOINTS = $(qpoint[1]) $(qpoint[2]) $(qpoint[3])"
-    for iq in 2:(sc_size*k_mesh)^3
+    for iq in 2:sc_size[1]*k_mesh[1] * sc_size[2]*k_mesh[2] * sc_size[3]*k_mesh[3]
         qpoint = determine_q_point(path_to_in*"scf_0/",iq)
         content = content*" $(qpoint[1]) $(qpoint[2]) $(qpoint[3])"
     end
@@ -312,9 +314,9 @@ function prepare_phonons_data(path_to_in::String, unitcell, abs_disp, sc_size, k
     close(file)
 
     #run(pipeline(command))
-    cd(path_to_in)
-    run(pipeline(command,stdout = devnull), wait = true)
-    cd(current_directory)
+    cd(path_to_in) do
+        run(pipeline(command,stdout = devnull), wait = true)
+    end
 
     if save_dynq==true
         save_dyn_matirx(path_to_in, sc_size)
@@ -341,7 +343,8 @@ Parses a Quantum ESPRESSO `.dyn` file to extract phonon frequencies and eigenvec
 The function reads the specified `.dyn` file, extracts the section between lines marked by a special separator, and parses the phonon frequencies and eigenvectors. The frequencies are extracted from every third line, while the eigenvectors are parsed from the remaining lines. The eigenvectors are assembled into a complex 3D array, where the real and imaginary parts are interleaved in the file.
 
 """
-function parse_qe_ph(path_to_dyn)
+#Parse phonons eigenvalues and eigenvectors from qe output
+function parse_qe_ph(path_to_dyn,Nat)
     #Read file and save lines between special line
     special_line = "**************************************************************************"
 
@@ -361,7 +364,7 @@ function parse_qe_ph(path_to_dyn)
         end
     end
 
-    ωₐᵣᵣ_ₚₕ = transpose([parse(Float64,split(lines[i])[end-1]) for i in 1:3:length(lines)])
+    ωₐᵣᵣ_ₚₕ = transpose([parse(Float64,split(lines[i])[end-1]) for i in 1:(Nat+1):length(lines)])
 
     eigen_list = []
     for line in lines
@@ -370,15 +373,14 @@ function parse_qe_ph(path_to_dyn)
         end
     end
 
-    Nat =  round(Int64, length(eigen_list)/length(ωₐᵣᵣ_ₚₕ))
     εₐᵣᵣ_ₚₕ = Array{ComplexF64, 3}(undef, (1, 3*Nat, 3*Nat))
 
     for iband in 1:3*Nat
-        temp_iband = 2*iband - 1
-        eigens = vcat(eigen_list[temp_iband], eigen_list[temp_iband+1])
+        temp_iband = Nat*(iband - 1)+1
+        eigens = vcat(eigen_list[temp_iband:temp_iband+Nat-1]...)
 
         for iat in 1:3*Nat
-            temp_iat = 2*iat - 1
+            temp_iat =  2*iat - 1
             εₐᵣᵣ_ₚₕ[1, iband, iat] = eigens[temp_iat]+1im*eigens[temp_iat+1]
         end
     end
@@ -408,7 +410,7 @@ Saves the following files in the `scf_0` subdirectory of `path_to_in`:
 - `omega_arr_list.jld2`: Contains the list of phonon frequencies.
 - `eps_arr_list.jld2`: Contains the list of phonon eigenvectors.
 """
-function prepare_phonons(path_to_in::String, sc_size::Int)
+function prepare_phonons(path_to_in::String, sc_size::Vec3{Int})
 
     local phonon_params
 
@@ -445,7 +447,7 @@ function prepare_phonons(path_to_in::String, sc_size::Int)
 
     save(path_to_in * "scf_0/m_arr.jld2", "m_arr", mₐᵣᵣ)
 
-    for iq in 1:sc_size^3
+    for iq in 1:sc_size[1]*sc_size[2]*sc_size[3]
         εₐᵣᵣ = Array{ComplexF64, 3}(undef, (1, 3*Nat, 3*Nat))
         ωₐᵣᵣ = Array{Float64, 2}(undef, (1, 3*Nat))
 
@@ -488,7 +490,7 @@ Creates a `Phonons` object by preparing phonon data.
 - `Phonons`: An instance of the `Phonons` type containing the mass matrix, frequency array, eigenvector array, and mass array.
 
 """
-function create_phonons(path_to_in::String, sc_size::Int)
+function create_phonons(path_to_in::String, sc_size::Vec3{Int})
     M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ = prepare_phonons(path_to_in, sc_size)
 
     return Phonons(M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ)
@@ -508,7 +510,7 @@ frequencies, eigenvectors, and atomic masses from the specified displacement cal
 - `Phonons`: An object containing the phonon matrix, frequency arrays, eigenvector arrays, and atomic mass array.
 """
 function create_phonons(model::AbstractModel)
-    sc_size = model.k_mesh * model.sc_size
+    sc_size = model.k_mesh .* model.sc_size
     M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ = prepare_phonons(model.path_to_calc*"displacements/", sc_size)
 
     return Phonons(M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ)

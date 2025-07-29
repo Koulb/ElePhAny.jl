@@ -5,9 +5,13 @@ temp/*
 
 #Examples
 example/old/*
+example/tst/*
+
 example/*/displacements/*
+example/*/displacements*/*
 example/*/*/displacements/*
+example/*/*/displacements*/*
 
-
-#docs
 docs/build/*
+.vscode
+

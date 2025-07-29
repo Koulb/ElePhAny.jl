@@ -1,7 +1,4 @@
-using JLD2, DelimitedFiles, Printf, EzXML, StaticArrays, JSON3
-
-const Vec3{T} = SVector{3,T} where {T}
-const Mat3{T} = SMatrix{3,3,T,9} where {T}
+using JLD2, DelimitedFiles, Printf, EzXML, JSON3
 
 """
     read_qe_xml(filename::AbstractString)
@@ -150,6 +147,7 @@ function read_qe_xml(filename::AbstractString)
     return (; results..., eigenvalues)
 end
 
+function create_scf_calc(path_to_scf::String, unitcell, scf_parameters; sanitize = true)
 """
     create_scf_calc(path_to_scf::String, unitcell, scf_parameters)
 
@@ -166,6 +164,15 @@ function create_scf_calc(path_to_scf::String, unitcell, scf_parameters)
 
     # Write the input file using Quantum ESPRESSO format
     ase_io.write(path_to_scf,atoms; scf_parameters...)
+
+    if sanitize # in case ase/phonopy didn't manage to correctly save file
+        content = read(path_to_scf, String)
+        rx = r"np\.float64\((.*?)\)"s
+        sanitized = replace(content, rx => s"\1")
+        open(path_to_scf, "w") do io
+            write(io, sanitized)
+        end
+    end
 end
 
 """
@@ -296,92 +303,97 @@ This function:
 - `Ndispalce::Int`: The number of displaced structures (and corresponding calculation groups) created.
 """
 function create_disp_calc(path_to_in::String, path_to_qe::String, unitcell, scf_parameters, abs_disp, sc_size, k_mesh, use_symm; from_scratch = false)
-    # Change to the specified directory
-    cd(path_to_in)
+    Ndispalce = 0
+    cd(path_to_in) do
+        # Clean the folder if nescessary
+        if (from_scratch && isdir(path_to_in * "displacements"))
+            run(`rm -rf displacements`)
+        end
 
-    # Clean the folder if nescessary
-    if (from_scratch && isdir(path_to_in * "displacements"))
-        run(`rm -rf displacements`)
-    end
-
-    command = `mkdir displacements`
-    try
-        run(command);
-        println(command)
-    catch; end
-    path_to_in = path_to_in * "displacements/"
-    cd(path_to_in)
-    println("Creating folders in $path_to_in:")
-
-    command = `mkdir scf_0 epw out elph_elements`
-    try
-        run(command);
-        println(command)
-    catch; end
-
-    generate_kpoints(k_mesh*sc_size, k_mesh*sc_size, k_mesh*sc_size; out_file=path_to_in*"scf_0/kpoints.dat")
-    generate_kpoints(k_mesh, k_mesh, k_mesh; out_file=path_to_in*"scf_0/kpoints_sc.dat")
-
-    # command = `$(path_to_qe)/W90/utility/kmesh.pl $(k_mesh*sc_size) $(k_mesh*sc_size) $(k_mesh*sc_size)`
-    # println(command)
-    # run(pipeline(command, stdout=path_to_in*"/scf_0/kpoints.dat", stderr=path_to_in*"/scf_0/ksc_sizeerr.txt"))
-
-    # command = `$(path_to_qe)/W90/utility/kmesh.pl $sc_size $sc_size $sc_size`
-    # println(command)
-    # run(pipeline(command, stdout=path_to_in*"/scf_0/kpoints_sc.dat", stderr=path_to_in*"/scf_0/ksc_sizeerr.txt"))
-
-    nscf_parameters       = deepcopy(scf_parameters)
-
-    #Case of hybrids
-    if haskey(scf_parameters, :nqx1)
-        nscf_parameters[:nqx1] = sc_size*k_mesh
-        nscf_parameters[:nqx2] = sc_size*k_mesh
-        nscf_parameters[:nqx3] = sc_size*k_mesh
-    end
-
-    pop!(nscf_parameters, :nbnd)
-    create_scf_calc(path_to_in*"scf_0/scf.in",unitcell, nscf_parameters)
-
-    #create nscf calculation as well
-    nscf_parameters[:calculation] = "nscf"
-    nscf_parameters[:nbnd]= scf_parameters[:nbnd]
-    create_scf_calc(path_to_in*"scf_0/nscf.in",unitcell, nscf_parameters)
-    include_kpoins(path_to_in*"scf_0/nscf.in", path_to_in*"scf_0/kpoints.dat")
-
-    try
-        command = `cp ../run.sh scf_0`
-        run(command);
-        println(command)
-    catch; end
-
-    unitcells_disp = dislpaced_unitecells(path_to_in, unitcell, abs_disp, sc_size, use_symm)
-    Ndispalce = size(unitcells_disp)[1]
-
-    for i_disp in 1:Ndispalce
-        dir_name = "group_"*string(i_disp)*"/"
-        command = `mkdir $dir_name`
-        command_cp = `cp ../run.sh $dir_name`
-
+        command = `mkdir displacements`
         try
             run(command);
             println(command)
+        catch; end
+    end
+    path_to_in = path_to_in * "displacements/"
+    cd(path_to_in) do
+        println("Creating folders in $path_to_in:")
 
-            run(command_cp);
-            println(command_cp)
+        command = `mkdir scf_0 epw out elph_elements`
+        try
+            run(command);
+            println(command)
         catch; end
 
         nscf_parameters       = deepcopy(scf_parameters)
+        hybrids = haskey(scf_parameters, :nqx1)
+        hybrids_in_unicell = hybrids && (sc_size[1] != 1 || sc_size[2] != 1 || sc_size[3] != 1)
 
-        pop!(nscf_parameters, :nbnd)
-        nscf_parameters[:kpts]= pytuple((k_mesh, k_mesh, k_mesh))
-        create_scf_calc(path_to_in*dir_name*"scf.in",unitcells_disp[i_disp], nscf_parameters)
+        #Case of hybrids
+        if hybrids_in_unicell
+            nscf_parameters[:nqx1] = k_mesh[1]
+            nscf_parameters[:nqx2] = k_mesh[2]
+            nscf_parameters[:nqx3] = k_mesh[3]
+        end
+        
+        if !hybrids
+            pop!(nscf_parameters, :nbnd)
+        end
+        
+        create_scf_calc(path_to_in*"scf_0/scf.in",unitcell, nscf_parameters)
+
+        if !hybrids
+            nscf_parameters[:calculation] = "nscf"
+        end
 
         #create nscf calculation as well
-        nscf_parameters[:calculation] = "nscf"
-        nscf_parameters[:nbnd]= scf_parameters[:nbnd]*sc_size^3#+2*sc_size^3 #need to understand how I provide aditional states to keep the projectability satisfied
-        create_scf_calc(path_to_in*dir_name*"nscf.in",unitcells_disp[i_disp], nscf_parameters)
-        if k_mesh != 1
-            include_kpoins(path_to_in*"group_$i_disp/nscf.in", path_to_in*"scf_0/kpoints_sc.dat")
+        nscf_parameters[:nbnd]= scf_parameters[:nbnd]
+        create_scf_calc(path_to_in*"scf_0/nscf.in",unitcell, nscf_parameters)
+        include_kpoins(path_to_in*"scf_0/nscf.in", path_to_in*"scf_0/kpoints.dat")
+
+        try
+            command = `cp ../run.sh scf_0`
+            run(command);
+            println(command)
+        catch; end
+
+        unitcells_disp = dislpaced_unitecells(path_to_in, unitcell, abs_disp, sc_size, use_symm)
+        Ndispalce = size(unitcells_disp)[1]
+
+        for i_disp in 1:Ndispalce
+            dir_name = "group_"*string(i_disp)*"/"
+            command = `mkdir $dir_name`
+            command_cp = `cp ../run.sh $dir_name`
+
+            try
+                run(command);
+                println(command)
+
+                run(command_cp);
+                println(command_cp)
+            catch; end
+
+            nscf_parameters       = deepcopy(scf_parameters)
+
+            if !hybrids
+                pop!(nscf_parameters, :nbnd)
+            end
+
+            nscf_parameters[:kpts]= pytuple((k_mesh[1], k_mesh[2], k_mesh[3]))
+            create_scf_calc(path_to_in*dir_name*"scf.in",unitcells_disp[i_disp], nscf_parameters)
+
+            #create nscf calculation as well
+
+            if !hybrids
+                nscf_parameters[:calculation] = "nscf"
+            end
+
+            nscf_parameters[:nbnd]= scf_parameters[:nbnd]*prod(sc_size)#+2*sc_size^3 #need to understand how I provide aditional states to keep the projectability satisfied
+            create_scf_calc(path_to_in*dir_name*"nscf.in",unitcells_disp[i_disp], nscf_parameters)
+            if k_mesh[1] != 1 || k_mesh[2] != 1 || k_mesh[3] != 1
+                include_kpoins(path_to_in*"group_$i_disp/nscf.in", path_to_in*"scf_0/kpoints_sc.dat")
+            end
         end
     end
 
@@ -418,6 +430,19 @@ function create_disp_calc!(model::ModelQE; from_scratch = false)
         println(command)
     catch; end
 
+    cd("$(model.path_to_calc)/displacements") do
+        command = `mkdir scf_0 epw out elph_elements`
+        try
+            run(command);
+            println(command)
+        catch; end
+    end
+
+    path_to_in = model.path_to_calc * "displacements/"
+
+    generate_kpoints(model.k_mesh[1]*model.sc_size[1], model.k_mesh[2]*model.sc_size[2], model.k_mesh[3]*model.sc_size[3]; out_file=path_to_in*"scf_0/kpoints.dat")
+    generate_kpoints(model.k_mesh[1], model.k_mesh[2], model.k_mesh[3]; out_file=path_to_in*"scf_0/kpoints_sc.dat")
+
     if model.use_symm
         check_symmetries!(model)
     else
@@ -428,7 +453,7 @@ function create_disp_calc!(model::ModelQE; from_scratch = false)
 
     Ndispalce = create_disp_calc(model.path_to_calc, model.path_to_qe, model.unitcell, model.scf_parameters, model.abs_disp, model.sc_size, model.k_mesh, model.use_symm)
     if Ndispalce != model.Ndispalce
-        @error "Inconsistend amount of displacement between phonopy ($Ndispalce) and symmetries calcuation ($(model.Ndisplace)) "
+        @error "Inconsistend amount of displacement between phonopy ($Ndispalce) and symmetries calcuation ($(model.Ndispalce)) "
     end
 end
 
@@ -579,18 +604,16 @@ Runs a self-consistent field (SCF) calculation using Quantum ESPRESSO's `pw.x` e
 - `mpi_ranks::Int=0`: Number of MPI ranks to use. If greater than 0, runs the calculation in parallel using `mpirun`; otherwise, runs in serial.
 """
 function run_scf(path_to_in::String, mpi_ranks::Int = 0)
-    # Change to the specified directory
-    cd(path_to_in)
+    cd(path_to_in) do
+        if mpi_ranks > 0
+            command = `mpirun -np $mpi_ranks pw.x -in scf.in`
+        else
+            command = `pw.x -in scf.in`
+        end
 
-    # Execute the command
-    if mpi_ranks > 0
-        command = `mpirun -np $mpi_ranks pw.x -in scf.in`
-    else
-        command = `pw.x -in scf.in`
+        println(command)
+        run(pipeline(command, stdout="scf.out", stderr="errs.txt"))
     end
-
-    println(command)
-    run(pipeline(command, stdout="scf.out", stderr="errs.txt"))
 end
 
 """
@@ -605,13 +628,12 @@ Submits a batch job for a self-consistent field (SCF) calculation on a computing
 Changes the working directory to `path_to_in`, then submits the `run.sh` script as a batch job using `sbatch`. The standard output and error of the job submission command are redirected to `run.out` and `errs.txt`, respectively.
 """
 function run_scf_cluster(path_to_in::String)
-    # Change to the specified directory
-    cd(path_to_in)
+    cd(path_to_in) do
+        command = `sbatch run.sh`
 
-    command = `sbatch run.sh`
-
-    println(command)
-    run(pipeline(command, stdout="run.out", stderr="errs.txt"))
+        println(command)
+        run(pipeline(command, stdout="run.out", stderr="errs.txt"))
+    end
 end
 
 """
@@ -632,47 +654,46 @@ This function performs the following steps:
 """
 function run_nscf_calc(path_to_in::String, mpi_ranks)
     println("Ceating nscf:")
-    cd(path_to_in*"/scf_0/")
+    cd(path_to_in*"/scf_0/") do
+        path_to_copy = path_to_in*"/scf_0/run_nscf.sh"
+        try
+            command = `cp ./run.sh $path_to_copy`
+            run(command);
+            println(command)
 
-    path_to_copy = path_to_in*"/scf_0/run_nscf.sh"
-    try
-        command = `cp ./run.sh $path_to_copy`
-        run(command);
-        println(command)
+            # Open the run_nscf.sh file and replace "scf.in" with "nscf.in"
+            file = open(path_to_copy, "r")
+            lines = readlines(file)
+            close(file)
 
-        # Open the run_nscf.sh file and replace "scf.in" with "nscf.in"
-        file = open(path_to_copy, "r")
-        lines = readlines(file)
-        close(file)
-
-        for (index, line) in enumerate(lines)
-            if occursin("scf.in", line)
-                lines[index] = replace(line, "scf.in" => "nscf.in")
+            for (index, line) in enumerate(lines)
+                if occursin("scf.in", line)
+                    lines[index] = replace(line, "scf.in" => "nscf.in")
+                end
             end
-        end
 
-        file = open(path_to_copy, "w")
-        writedlm(file, lines, quotes=false)
-        close(file)
+            file = open(path_to_copy, "w")
+            writedlm(file, lines, quotes=false)
+            close(file)
 
-    catch; end
+        catch; end
 
-    println("Running nscf:")
-    if isfile(path_to_copy)
-        command = `sbatch run_nscf.sh`
+        println("Running nscf:")
+        if isfile(path_to_copy)
+            command = `sbatch run_nscf.sh`
 
-        println(command)
-        run(pipeline(command, stdout="run_nscf.out", stderr="nerrs.txt"))
-    else
-        if mpi_ranks > 0
-            command = `mpirun -np $mpi_ranks pw.x -in nscf.in`
+            println(command)
+            run(pipeline(command, stdout="run_nscf.out", stderr="nerrs.txt"))
         else
-            command = `pw.x -in nscf.in`
+            if mpi_ranks > 0
+                command = `mpirun -np $mpi_ranks pw.x -in nscf.in`
+            else
+                command = `pw.x -in nscf.in`
+            end
+            println(command)
+            run(pipeline(command, stdout="scf.out", stderr="nerrs.txt"))
         end
-        println(command)
-        run(pipeline(command, stdout="scf.out", stderr="nerrs.txt"))
     end
-
     return true
 end
 
@@ -737,53 +758,53 @@ function run_disp_nscf_calc(path_to_in::String, Ndispalce::Int, mpi_ranks::Int =
     for i_disp in 1:Ndispalce
         println("Running displacement # $i_disp:")
         dir_name = "group_"*string(i_disp)*"/"
-        cd(path_to_in*dir_name)
+        cd(path_to_in*dir_name) do
+            #save scf xml file that has forces
+            try
+                command = `cp $(path_to_in*dir_name)/tmp/scf.save/data-file-schema.xml $(path_to_in*dir_name)/tmp/scf.save/data-file-schema-scf.xml`
+                run(command)
+                println(command)
+            catch; end
 
-        #save scf xml file that has forces
-        try
-            command = `cp $(path_to_in*dir_name)/tmp/scf.save/data-file-schema.xml $(path_to_in*dir_name)/tmp/scf.save/data-file-schema-scf.xml`
-            run(command)
-            println(command)
-        catch; end
+            # Try to copy cluster run file
+            path_to_copy = path_to_in*"/group_$i_disp/run_nscf.sh"
+            try
+                command = `cp ./run.sh $path_to_copy`
+                run(command);
+                println(command)
 
-        # Try to copy cluster run file
-        path_to_copy = path_to_in*"displacements/group_$i_disp/run_nscf.sh"
-        try
-            command = `cp ./run.sh $path_to_copy`
-            run(command);
-            println(command)
+                # Open the run_nscf.sh file and replace "scf.in" with "nscf.in"
+                file = open(path_to_copy, "r")
+                lines = readlines(file)
+                close(file)
 
-            # Open the run_nscf.sh file and replace "scf.in" with "nscf.in"
-            file = open(path_to_copy, "r")
-            lines = readlines(file)
-            close(file)
-
-            for (index, line) in enumerate(lines)
-                if occursin("scf.in", line)
-                    lines[index] = replace(line, "scf.in" => "nscf.in")
+                for (index, line) in enumerate(lines)
+                    if occursin("scf.in", line)
+                        lines[index] = replace(line, "scf.in" => "nscf.in")
+                    end
                 end
-            end
 
-            file = open(path_to_copy, "w")
-            writedlm(file, lines, quotes=false)
-            close(file)
+                file = open(path_to_copy, "w")
+                writedlm(file, lines, quotes=false)
+                close(file)
 
-        catch; end
+            catch; end
 
-        if(isfile(path_to_in*dir_name*"run_nscf.sh"))
-            command = `sbatch run_nscf.sh`
-            println(command)
-            run(pipeline(command, stdout="run_nscf.out", stderr="errs.txt"))
-        else
-            # Execute the command
-            if mpi_ranks > 0
-                command = `mpirun -np $mpi_ranks pw.x -in nscf.in`
+            if(isfile(path_to_in*dir_name*"run_nscf.sh"))
+                command = `sbatch run_nscf.sh`
+                println(command)
+                run(pipeline(command, stdout="run_nscf.out", stderr="errs.txt"))
             else
-                command = `pw.x -in nscf.in`
-            end
+                # Execute the command
+                if mpi_ranks > 0
+                    command = `mpirun -np $mpi_ranks pw.x -in nscf.in`
+                else
+                    command = `pw.x -in nscf.in`
+                end
 
-            println(command)
-            run(pipeline(command, stdout="nscf.out", stderr="nerrs.txt"))
+                println(command)
+                run(pipeline(command, stdout="nscf.out", stderr="nerrs.txt"))
+            end
         end
     end
 
@@ -861,7 +882,7 @@ function prepare_kcw_data(model::ModelKCW)
         println(command)
     catch; end
 
-    for ind in range(1, model.sc_size^3)
+    for ind in range(1, model.sc_size[1]*model.sc_size[2]*model.sc_size[3])
         file =  model.path_to_calc * "unperturbed/TMP/kc_kcw.save/wfc$(model.spin_channel)$(ind).dat"
         command = `cp $file $path_to_wfc_out/wfc$(ind).dat`
         run(command);
@@ -1026,34 +1047,34 @@ function save_potential(path_to_in::String, Ndispalce, sc_size, mpi_ranks)
         else
             dir_name = "group_"*string(i_disp)*"/"
         end
-        cd(path_to_in*dir_name)
+        cd(path_to_in*dir_name) do
 
-        # Write the pp.x input file
-        open("pp.in", "w") do f
-            for (section, section_data) in parameters
-                write(f, "&$section\n")
-                for (key, value) in section_data
-                    write(f, "  $key = $value\n")
+            # Write the pp.x input file
+            open("pp.in", "w") do f
+                for (section, section_data) in parameters
+                    write(f, "&$section\n")
+                    for (key, value) in section_data
+                        write(f, "  $key = $value\n")
+                    end
+                    write(f, "/\n")
                 end
-                write(f, "/\n")
+            end
+
+            if i_disp >Ndispalce
+                println("Undisplaced")
+            else
+                println("Displacement #$i_disp")
+            end
+
+            println(command)
+            run(pipeline(command, stdout="pp.out", stderr="errs_pp.txt"))
+
+            if sc_size > 1 &&  dir_name == "scf_0/"
+                Upot_pc, = read_potential(path_to_in*dir_name*"Vks",skiprows=1)
+                Upot_sc = repeat(Upot_pc, outer=(sc_size[1], sc_size[2], sc_size[3]))
+                save(path_to_in*dir_name*"Vks.jld2", "Upot_sc", Upot_sc)
             end
         end
-
-        if i_disp >Ndispalce
-            println("Undisplaced")
-        else
-            println("Displacement #$i_disp")
-        end
-
-        println(command)
-        run(pipeline(command, stdout="pp.out", stderr="errs_pp.txt"))
-
-        if sc_size > 1 &&  dir_name == "scf_0/"
-            Upot_pc, = read_potential(path_to_in*dir_name*"Vks",skiprows=1)
-            Upot_sc = repeat(Upot_pc, outer=(sc_size, sc_size, sc_size))
-            save(path_to_in*dir_name*"Vks.jld2", "Upot_sc", Upot_sc)
-        end
-        #Need to check consistency between python and julia potential
     end
 
 end
@@ -1122,6 +1143,7 @@ function fold_kpoint(ik, iq, k_list)
     return ikq
 end
 
+function prepare_eigenvalues(path_to_in::String, natoms::Int; Ndisplace::Int = 6*natoms, ineq_atoms_list::Vector{Int}=[], ind_k_list::Vector{Vector{Int}}=[], spin_channel::String="")
 """
     prepare_eigenvalues(path_to_in::String, natoms::Int; Ndisplace::Int = 6*natoms, ineq_atoms_list::Vector{Int}=[], spin_channel::String="")
 
@@ -1163,6 +1185,11 @@ function prepare_eigenvalues(path_to_in::String, natoms::Int; Ndisplace::Int = 6
     end
 
     k_list = get_kpoint_list(path_to_in*group)
+
+    if isempty(ind_k_list)
+        ind_k_list = [collect(1:length(k_list)) for _ in 1:Ndisplace]
+    end
+
     for ind in 1:Ndisplace
         group = "group_$ind/"
 
@@ -1179,8 +1206,8 @@ function prepare_eigenvalues(path_to_in::String, natoms::Int; Ndisplace::Int = 6
     end
 
     for ind in 1:2:6*natoms
-        ϵₚ  = Ndisplace != 6 * natoms ? ϵₚ_list_raw[ineq_atoms_list[ind]] : ϵₚ_list_raw[ind]
-        ϵₚₘ = Ndisplace != 6 * natoms ? ϵₚ_list_raw[ineq_atoms_list[ind+1]] : ϵₚ_list_raw[ind+1]
+        ϵₚ  = Ndisplace != 6 * natoms ? ϵₚ_list_raw[ineq_atoms_list[ind]][ind_k_list[ind]] : ϵₚ_list_raw[ind]
+        ϵₚₘ = Ndisplace != 6 * natoms ? ϵₚ_list_raw[ineq_atoms_list[ind+1]][ind_k_list[ind+1]] : ϵₚ_list_raw[ind+1]
         push!(ϵₚ_list, ϵₚ)
         push!(ϵₚₘ_list, ϵₚₘ)
     end
@@ -1233,7 +1260,7 @@ function create_electrons(model::AbstractModel)
         spin_channel = model.spin_channel
     end
 
-    symmetries = Symmetries([],[],[])
+    symmetries = Symmetries([],[],[],[])
     if hasproperty(model, :symmetries)
         symmetries = model.symmetries
     end
@@ -1241,7 +1268,7 @@ function create_electrons(model::AbstractModel)
     natoms = length(model.unitcell[:symbols])
 
     U_list, V_list = prepare_u_matrixes(model.path_to_calc*"displacements/", natoms, model.sc_size, model.k_mesh; symmetries=symmetries)
-    ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list = prepare_eigenvalues(model.path_to_calc*"displacements/", natoms; Ndisplace=model.Ndispalce, ineq_atoms_list=symmetries.ineq_atoms_list, spin_channel=spin_channel)
+    ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list = prepare_eigenvalues(model.path_to_calc*"displacements/", natoms; Ndisplace=model.Ndispalce, ineq_atoms_list=symmetries.ineq_atoms_list, ind_k_list=symmetries.ind_k_list, spin_channel=spin_channel)
 
     return Electrons(U_list, V_list, ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list)
 end
