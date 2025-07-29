@@ -5,5 +5,9 @@ makedocs(
     authors="Aleksandr Poliukhin",
     clean=true,
     modules=[ElectronPhonon],
-    checkdocs=:exports
+    checkdocs=:exports,
+    pages = [
+        "Home" => "index.md",
+        "Examples" => "examples.md"
+        ]
 )

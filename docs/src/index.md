@@ -46,7 +46,6 @@ ElectronPhonon.dislpaced_unitecells
 ElectronPhonon.collect_forces
 ElectronPhonon.save_dyn_matirx
 ElectronPhonon.prepare_phonons_data
-ElectronPhonon.parse_qe_ph
 ElectronPhonon.prepare_phonons
 ElectronPhonon.create_phonons
 ElectronPhonon.load_phonons
@@ -94,7 +93,6 @@ ElectronPhonon.prepare_wave_functions_to_R
 ElectronPhonon.prepare_wave_functions_to_G
 ElectronPhonon.prepare_wave_functions_undisp
 ElectronPhonon.prepare_wave_functions_disp
-ElectronPhonon.prepare_u_matrixes
 ElectronPhonon.calculate_braket_real
 ElectronPhonon.calculate_braket
 ```

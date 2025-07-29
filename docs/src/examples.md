@@ -1,0 +1,113 @@
+# Examples
+
+## Silicon
+
+Setting up variables
+
+```julia
+ using ElectronPhonon, PythonCall
+
+path_to_calc = pwd() * "/"
+abs_disp = 1e-3
+
+directory_path = "$path_to_calc"#
+path_to_qe= "/home/poliukhin/Soft/sourse/q-e/"
+mpi_ranks = 8
+use_symm = false
+
+#Params
+sc_size::Vec3{Int} = [1,1,1]
+k_mesh::Vec3{Int}  = [2,2,2]
+
+# Lattice constant of Silicon
+a = 5.43052  # in Angstrom
+
+unitcell = Dict(
+    :symbols =>  pylist(["Si", "Si"]),
+    :cell => pylist([[-0.5 * a, 0.0, 0.5 * a],
+    [0.0, 0.5 * a, 0.5 * a],
+    [-0.5 * a, 0.5 * a, 0.0]]),
+    :scaled_positions => pylist([(0, 0, 0), (0.75, 0.75, 0.75)]),
+    :masses => pylist([28.08550, 28.08550])
+)
+
+# Set up the calculation parameters as a Python dictionary
+scf_parameters = Dict(
+    :format => "espresso-in",
+    :kpts => pytuple((k_mesh[1]*sc_size[1], k_mesh[2]*sc_size[2], k_mesh[3]*sc_size[3])),
+    :calculation =>"scf",
+    :prefix => "scf",
+    :outdir => "./tmp/",
+    :pseudo_dir => "/home/poliukhin/Development/frozen_phonons/elph/example/pseudo",
+    :ecutwfc => 60,
+    :conv_thr =>1.e-13,# 1e-16,# #1.e-20,#5.e-30
+    :pseudopotentials => Dict("Si" => "Si.upf"),
+    :diagonalization => "ppcg",#"ppcg",#"ppcg",#david
+    :mixing_mode => "plain",
+    :mixing_beta => 0.7,
+    :crystal_coordinates => true,
+    :verbosity => "high",
+    :tstress => false,
+    :ibrav => 2,
+    :tprnfor => true,
+    :nbnd => 4,
+    :electron_maxstep => 1000,
+    :nosym=> true,
+    :noinv=> true
+)
+
+use_symm = false
+
+model = create_model(path_to_calc = path_to_calc,
+                      abs_disp = abs_disp,
+                      path_to_qe = path_to_qe,
+                      mpi_ranks = mpi_ranks,
+                      sc_size = sc_size,
+                      k_mesh  = k_mesh,
+                      unitcell = unitcell,
+                      scf_parameters = scf_parameters,
+                      use_symm = use_symm);
+```
+
+## HSE
+```julia 
+scf_parameters_hse = Dict(
+    :input_dft => "HSE",
+    :nqx1 => 1,
+    :nqx2 => 1,
+    :nqx3 => 1
+)
+
+merge!(scf_parameters, scf_parameters_hse)
+
+```
+
+
+## Running code 
+
+```julia 
+create_disp_calc!(model; from_scratch = from_scratch)
+run_calculations(model)
+prepare_model(model)
+electrons = create_electrons(model)
+phonons = create_phonons(model)
+
+# Electron-phonon matrix elements
+ik_list = [i for i in 1:product(sc_size^3)]
+iq_list = [i for i in 1:product(sc_size^3)]
+
+println("Calculating electron-phonon matrix elements for $(length(ik_list)*length(iq_list)) points:")
+for ik in ik_list #@threads
+    for iq in iq_list
+        electron_phonon_qe(model, ik, iq)# requires to compile special ph.x in testsuite/non_epw_comp
+        electron_phonon(model, ik, iq, electrons, phonons;) #save_epw = true
+        plot_ep_coupling(model, ik, iq, nbnd_max = 8)
+    end
+end
+
+```
+
+Results
+
+## Interface with EPW
+
