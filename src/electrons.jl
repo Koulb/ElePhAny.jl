@@ -50,6 +50,7 @@ function read_qe_xml(filename::AbstractString)
         push!(atom_positions, pos)
         atom_labels[i] = atom["name"]
     end
+    
     # lattice
     for i in 1:3
         a = findfirst("cell/a$i", atomic_structure)
@@ -147,7 +148,7 @@ function read_qe_xml(filename::AbstractString)
     return (; results..., eigenvalues)
 end
 
-function create_scf_calc(path_to_scf::String, unitcell, scf_parameters; sanitize = true)
+
 """
     create_scf_calc(path_to_scf::String, unitcell, scf_parameters)
 
@@ -158,7 +159,7 @@ Creates a self-consistent field (SCF) calculation input for Quantum ESPRESSO.
 - `unitcell`: The unit cell parameters or structure information, passed as keyword arguments to `ase.Atoms`.
 - `scf_parameters`: Parameters for the SCF calculation, passed as keyword arguments to `ase_io.write`.
 """
-function create_scf_calc(path_to_scf::String, unitcell, scf_parameters)
+function create_scf_calc(path_to_scf::String, unitcell, scf_parameters; sanitize = true)
     # Create the cell
     atoms  = pycall(ase.Atoms;unitcell...)
 
