@@ -1144,7 +1144,6 @@ function fold_kpoint(ik, iq, k_list)
     return ikq
 end
 
-function prepare_eigenvalues(path_to_in::String, natoms::Int; Ndisplace::Int = 6*natoms, ineq_atoms_list::Vector{Int}=[], ind_k_list::Vector{Vector{Int}}=[], spin_channel::String="")
 """
     prepare_eigenvalues(path_to_in::String, natoms::Int; Ndisplace::Int = 6*natoms, ineq_atoms_list::Vector{Int}=[], spin_channel::String="")
 
@@ -1170,7 +1169,7 @@ A tuple containing:
 - `scf_0/epm_list.jld2`: Eigenvalues for negative displacements.
 - `scf_0/k_list.jld2`: List of k-points.
 """
-function prepare_eigenvalues(path_to_in::String, natoms::Int; Ndisplace::Int = 6*natoms, ineq_atoms_list::Vector{Int}=[], spin_channel::String="")
+function prepare_eigenvalues(path_to_in::String, natoms::Int; Ndisplace::Int = 6*natoms, ineq_atoms_list::Vector{Int}=[], ind_k_list::Vector{Vector{Int}}=[], spin_channel::String="")
     path_to_xml="tmp/scf.save/data-file-schema.xml"
     group = "scf_0/"
     ϵₚ_list_raw  = []
