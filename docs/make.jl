@@ -1,7 +1,7 @@
 using Documenter, ElectronPhonon
 
 makedocs(
-    sitename="ElectronPhonon.jl",
+    sitename="ElePhAny.jl",
     authors="Aleksandr Poliukhin",
     clean=true,
     modules=[ElectronPhonon],

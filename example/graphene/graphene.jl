@@ -5,7 +5,7 @@ create = true
 from_scratch = false
 run = false
 prepare = false
-calc_ep = true
+calc_ep = false
 
 # Example usage
 path_to_calc = pwd() * "/"
@@ -18,7 +18,7 @@ mpi_ranks = 8
 
 #Params
 sc_size::Vec3{Int} = [1,1,1]
-k_mesh::Vec3{Int}  = [4,4,1]
+k_mesh::Vec3{Int}  = [2,2,2]
 
 # Lattice constant of C
 a = 2.4664089310  # in Angstrom
@@ -29,7 +29,7 @@ unitcell = Dict(
     :cell => pylist([[a, 0.0, 0.0],
     [-0.5*a, sqrt(3)/2*a, 0.0],
     [0, 0, c]]),
-    :scaled_positions => pylist([(0.3333333333, 0.6666666667, 0.5000000000), ( 0.6666666667, 0.3333333333, 0.5000000000)]),
+    :scaled_positions => pylist([(0.3333333333, 0.6666666667, 0.0000000000), ( 0.6666666667, 0.3333333333, 0.0000000000)]),
     :masses => pylist([12.0107, 12.0107])
 )
 
@@ -63,7 +63,7 @@ scf_parameters = Dict(
     :assume_isolated => "2D",
 )
 
-use_symm = false
+use_symm = true
 
 model = create_model(path_to_calc = path_to_calc,
                       abs_disp = abs_disp,
@@ -107,8 +107,8 @@ if calc_ep
     println("Calculating electron-phonon matrix elements for $(length(ik_list)*length(iq_list)) points:")
     for ik in ik_list #@threads
         for iq in iq_list
-            electron_phonon_qe(model, ik, iq)# requires to compile special ph.x in testsuite/non_epw_comp
-            electron_phonon(model, ik, iq, electrons, phonons;save_qeraman = true) #save_epw = true
+            # electron_phonon_qe(model, ik, iq)# requires to compile special ph.x in testsuite/non_epw_comp
+            electron_phonon(model, ik, iq, electrons, phonons; save_qeraman = true) #save_epw = true
             plot_ep_coupling(model, ik, iq, nbnd_max = 8)
             next!(progress)
         end

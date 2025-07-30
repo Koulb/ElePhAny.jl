@@ -489,7 +489,7 @@ function electron_phonon(path_to_in::String, abs_disp, Nat, ik, iq, sc_size, k_m
 
         #DEBUG WITH QE OUTPUT##
         #TODO Need to fix and understand the reason, probably eigenvectors
-        # ωₐᵣᵣ, εₐᵣᵣ = parse_qe_ph(path_to_in*"scf_0/dyn1",Nat) 
+        ωₐᵣᵣ, εₐᵣᵣ = parse_qe_ph(path_to_in*"scf_0/dyn1",Nat) 
         #DEBUG WITH QE OUTPUT##
 
         gᵢⱼₘ_ₐᵣᵣ = Array{ComplexF64, 3}(undef, (nbands, nbands, length(ωₐᵣᵣ)))
@@ -711,14 +711,14 @@ function plot_ep_coupling(path_to_in::String, ik::Int, iq::Int; nbnd_max=-1)
     end
 
 
-    # Create a scatter plot
-    scatter(x, y, xlabel="g_DFPT", ylabel="g_frozen", title="Comparison", color = "red")
+    # Create a scatter plot with transparent background
+    plt = scatter(x, y, xlabel="g(DFPT)", ylabel="g(FD)", title="Comparison", color="red", foreground_color=:black)
     line = LinRange(0, 1.1*maximum(max.(x,y)), 4)
-    plot!(line, line, color = "black", legend = false)
-    xlims!(0, 1.1*maximum(x))
-    ylims!(0, 1.1*maximum(x))
+    plot!(plt, line, line, color="black", legend=false)
+    xlims!(plt, 0, 1.1*maximum(x))
+    ylims!(plt, 0, 1.1*maximum(y))
 
-    savefig(path_to_in*"out/comparison_$(ik)_$(iq).png")
+    savefig(plt, path_to_in*"out/comparison_$(ik)_$(iq).png")
 
     return x, y
 end

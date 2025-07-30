@@ -321,7 +321,7 @@ function create_disp_calc(path_to_in::String, path_to_qe::String, unitcell, scf_
     cd(path_to_in) do
         println("Creating folders in $path_to_in:")
 
-        command = `mkdir scf_0 epw out elph_elements`
+        command = `mkdir scf_0 epw out`
         try
             run(command);
             println(command)
@@ -432,7 +432,7 @@ function create_disp_calc!(model::ModelQE; from_scratch = false)
     catch; end
 
     cd("$(model.path_to_calc)/displacements") do
-        command = `mkdir scf_0 epw out elph_elements`
+        command = `mkdir scf_0 epw out`
         try
             run(command);
             println(command)
@@ -698,6 +698,10 @@ function run_nscf_calc(path_to_in::String, mpi_ranks)
     return true
 end
 
+function run_nscf_calc(model::AbstractModel)
+    run_nscf_calc(model.path_to_calc*"displacements/", model.mpi_ranks)
+end
+
 """
     run_disp_calc(path_to_in::String, Ndispalce::Int, mpi_ranks::Int = 0) -> Bool
 
@@ -735,6 +739,10 @@ function run_disp_calc(path_to_in::String, Ndispalce::Int, mpi_ranks::Int = 0)
     end
 
     return true
+end
+
+function run_disp_calc(model::AbstractModel)
+    run_disp_calc(model.path_to_calc*"displacements/", model.Ndispalce, model.mpi_ranks)
 end
 
 """
@@ -812,6 +820,10 @@ function run_disp_nscf_calc(path_to_in::String, Ndispalce::Int, mpi_ranks::Int =
     return true
 end
 
+function run_disp_nscf_calc(model::AbstractModel)
+    run_disp_nscf_calc(model.path_to_calc*"displacements/", model.Ndispalce, model.mpi_ranks)
+end
+
 """
     run_disp_calc(model::ModelKCW) -> Bool
 
@@ -877,7 +889,7 @@ function prepare_kcw_data(model::ModelKCW)
         println(command)
     end
 
-    command = `mkdir $(model.path_to_calc)displacements/epw $(model.path_to_calc)displacements/elph_elements`
+    command = `mkdir $(model.path_to_calc)displacements/epw`
     try
         run(command);
         println(command)

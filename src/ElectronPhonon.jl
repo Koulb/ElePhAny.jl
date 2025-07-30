@@ -17,7 +17,6 @@ function __init__()
     PythonCall.pycopy!(np, pyimport("numpy"))
 end
 
-
 export uma_to_ry, cm1_to_ry ,cm1_to_Thz, bohr_to_ang
 export Vec3, Mat3
 include("const.jl")
@@ -28,10 +27,11 @@ include("model.jl")
 include("symmetries.jl")
 
 export create_disp_calc, create_disp_calc!, run_disp_calc, save_potential, run_nscf_calc, prepare_eigenvalues, create_electrons
-export load_electrons
+export load_electrons, run_disp_nscf_calc, run_nscf_calc, run_disp_calc
 include("electrons.jl")
 
 export prepare_wave_functions_all, prepare_wave_functions_undisp, prepare_u_matrixes, create_phonons, create_miller_index
+export parse_wf, determine_fft_grid, wf_from_G, wf_to_G, calculate_braket, calculate_braket_real
 include("wave_function.jl")
 
 export calculate_phonons, prepare_phonons, load_phonons
