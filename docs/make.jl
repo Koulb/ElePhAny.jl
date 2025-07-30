@@ -1,13 +1,15 @@
 using Documenter, ElectronPhonon
 
 makedocs(
-    sitename="ElePhAny.jl",
+    sitename="ElePhAny",
     authors="Aleksandr Poliukhin",
     clean=true,
     modules=[ElectronPhonon],
     checkdocs=:exports,
     pages = [
-        "Home" => "index.md",
-        "Examples" => "examples.md"
+        "Home" => "home.md",
+        "Theory" => "theory.md",
+        "Examples" => "examples.md",
+        "Index" => "index.md",
         ]
 )

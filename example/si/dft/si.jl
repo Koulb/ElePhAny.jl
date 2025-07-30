@@ -91,7 +91,7 @@ if calc_ep
     phonons = load_phonons(model)
 
     # Electron-phonon matrix elements
-    ik_list = [1,2,3,4]#[1,2,3,4] # [i for i in 1:sc_size^3] ##[1,2]##
+    ik_list = [1,2,3,4,5,6,7,8]#[1,2,3,4] # [i for i in 1:sc_size^3] ##[1,2]##
     iq_list = [1]#[1,2,3,4] # [i for i in 1:sc_size^3] ##[1,2]##
 
     progress = Progress(length(ik_list)*length(iq_list), dt=5.0)
