@@ -147,7 +147,8 @@ phonons = create_phonons(model)
     miller, psi_list = parse_wf("./tmp/scf.save/wfc1")
     ```
 
-    QE saves wave function in reciprocal space $\psi_{n\mathbf{k}}(\mathbf{r}) = \sum_{G}\psi_{n\mathbf{k}}(\mathbf{G}) e^{i(\mathbf{G} +\mathbf{k})\mathbf{r}}$, where psi_list is a list of wave functions coefficient for every band with $N_{\mathbf{G}}$ coefficients per band that coresponds to $\psi_{n\mathbf{k}}(\mathbf{G})$ and miller is matrix $3xN_{G}$ that allows to resonstruct the $G$ vector of coresponding plane wave coefficient $\psi_{n\mathbf{k}}(\mathbf{G})$ by using (read more wave functions in QE on [Gitlab Wiki page](https://gitlab.com/QEF/q-e/-/wikis/Developers/Format-of-data-files)):
+    QE saves wave function in reciprocal space $\psi_{n\mathbf{k}}(\mathbf{r}) = \sum_{G}\psi_{n\mathbf{k}}(\mathbf{G}) e^{i(\mathbf{G} +\mathbf{k})\mathbf{r}}$, where `psi_list` is a list of wave functions coefficient for every band with $N_{\mathbf{G}}$ coefficients per band that coresponds to $\psi_{n\mathbf{k}}(\mathbf{G})$.
+    `miller` is matrix $3 \times N{\mathbf{G}}$ that allows to resonstruct the $G$ vector of coresponding plane wave coefficient $\psi_{n\mathbf{k}}(\mathbf{G})$ by using (read more about wave functions in QE on [Gitlab Wiki page](https://gitlab.com/QEF/q-e/-/wikis/Developers/Format-of-data-files)):
         
     $$\mathbf{G}[i, j, k] = \text{miller}[1,i] \mathbf{b}_1 + \text{miller}[2,i] \mathbf{b}_2 + \text{miller}[3,i] \mathbf{b}_3$$
 
