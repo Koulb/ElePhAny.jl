@@ -167,8 +167,8 @@ Now, the final part of the calculation is the construction of the electron-phono
 
 ```julia 
 # Electron-phonon matrix elements
-ik_list = [i for i in 1:product(k_mesh*sc_size)]
-iq_list = [i for i in 1:product(k_mesh*sc_size)]
+ik_list = [i for i in 1:prod(k_mesh*sc_size)]
+iq_list = [i for i in 1:prod(k_mesh*sc_size)]
 
 for ik in ik_list
     for iq in iq_list
@@ -203,6 +203,12 @@ In case any other method beyond DFT is of interest, one could intervene after th
 
 !!! warn
     This section provides an interface to the EPW software. Since the usage of it is not very smooth and EPW developers are moving to storing data in HDF5 files, stay tuned for an improved version of the interface that does not require an explicit call to the Python script. 
+
+To run this section of the example we need to run part of the script that constructs electron-phonon matrix element, this time without explicit comparison with DFPT and adding aditional flag that saves data readable by EPW:
+
+```julia
+electron_phonon(model, ik, iq, electrons, phonons; save_epw = true)
+```
 
 Having access to the electron-phonon matrix elements on the coarse grid, it is easy to build an interface with the relevant code that could obtain electron-phonon related properties. We are going with EPW code for this matter since it has a straightforward interface to the QE package. Continuing the example where we created `displacements` folder in the same place where we have the execution script, we will add a few additional files in the root folder.
 
