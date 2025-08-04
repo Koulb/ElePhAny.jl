@@ -1,12 +1,34 @@
 import numpy as np
+import sys
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
 
 
 #Comparing results
 #### Electron-phonons
-path_to_data = '/scratch/apolyukhin/scripts/q-e/new_ewp_tests/si_test_2/'
+if len(sys.argv) > 1:
+    path_to_data = sys.argv[1]
+else:
+    path_to_data = './'
 check = '------------------------------------------------------------------------------'
+
+def determine_q_point_cart(path_to_in, ik):
+    result = [0.0, 0.0, 0.0]
+    count = 1
+    with open(f"{path_to_in}/scf.out", "r") as file:
+        lines = file.readlines()
+        for line in lines:
+            if "        k(" in line:
+                if ik == count:
+                    parts = line.split()
+                    # The k-point coordinates are typically at positions 5, 6, 7 (0-based: 4,5,6)
+                    # Remove any trailing characters like ',' or ')'
+                    coords = [part.rstrip(',)') for part in parts[4:7]]
+                    result = [float(coord) for coord in coords]
+                    break
+                else:
+                    count += 1
+    return result
 
 #EPW
 data_epw1 = []

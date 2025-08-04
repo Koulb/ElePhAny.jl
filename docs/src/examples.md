@@ -200,4 +200,319 @@ merge!(scf_parameters, scf_parameters_hse)
 In case any other method beyond DFT is of interest, one could intervene after the electrons and phonons object is created and change the corresponding eigenvalues and eigenvectors.
 
 ## Interface with EPW
-TBD
+
+!!! warn
+    This section provides an interface to the EPW software. Since the usage of it is not very smooth and EPW developers are moving to storing data in HDF5 files, stay tuned for an improved version of the interface that does not require an explicit call to the Python script. 
+
+Having access to the electron-phonon matrix elements on the coarse grid, it is easy to build an interface with the relevant code that could obtain electron-phonon related properties. We are going with EPW code for this matter since it has a straightforward interface to the QE package. Continuing the example where we created `displacements` folder in the same place where we have the execution script, we will add a few additional files in the root folder.
+
+```sh
+touch ph.in
+touch epw0.in
+touch epw1.in
+touch epw2.in
+touch path_k.kpt
+touch path_q.kpt
+touch run.sh
+```
+
+```ini
+!ph.in
+&inputph
+  recover=.false.
+  tr2_ph=1.0d-17,
+  prefix='si',
+  amass(1)=28.0855,
+  outdir='./',
+  fildyn='si.dyn.xml',
+  fildvscf='dvscf'
+  ldisp=.true.,
+  nq1 = 2,
+  nq2 = 2,
+  nq3 = 2
+ /
+```
+
+```ini
+!epw0.in
+&inputepw
+    prefix      = 'si'
+    amass(1)    = 28.0855,
+    outdir      = './'
+    dvscf_dir   = './save/'
+    elph        = .true.
+    epbwrite    = .true.
+    epbread     = .false.
+    epwwrite    = .true.
+    epwread     = .false.
+    use_ws      = .true.
+    nbndsub     =  4
+    wannierize   = .true.
+    num_iter     = 50000
+    iprint       = 2
+    proj(1)     = 'f=0,0,0:sp3'
+
+    nkf1 = 1
+    nkf2 = 1
+    nkf3 = 1
+    nqf1 = 1
+    nqf2 = 1
+    nqf3 = 1
+    nk1  = 2
+    nk2  = 2
+    nk3  = 2
+    nq1  = 2
+    nq2  = 2
+    nq3  = 2
+ /
+```
+ 
+```ini
+!epw1.in
+--
+&inputepw
+  prefix      = 'si'
+  amass(1)    = 28.0855,
+  outdir      = './'
+  dvscf_dir   = './save/'
+  elph        = .true.
+  epbwrite    = .false.
+  epbread     = .true.
+  epwwrite    = .true.
+  epwread     = .false.
+  use_ws      = .true.
+  nbndsub        =  4
+  wannierize     = .false.
+  num_iter       = 50000
+  iprint         = 2
+  proj(1)        = 'f=0,0,0:sp3'
+  prtgkk = .true.
+  band_plot = .false.
+  
+  filkf = 'path_k.kpt'
+  filqf = 'path_q.kpt'
+  nk1  = 2
+  nk2  = 2
+  nk3  = 2
+  nq1  = 2
+  nq2  = 2
+  nq3  = 2
+ /
+```
+
+```ini
+!epw2.in
+&inputepw
+  prefix      = 'si'
+  amass(1)    = 28.0855,
+  outdir      = './'
+  dvscf_dir   = './save/'
+  elph        = .true.
+  epbwrite    = .false.
+  epbread     = .true.
+  epwwrite    = .true.
+  epwread     = .false.
+  use_ws      = .true.
+  nbndsub        =  4
+  wannierize     = .true.
+  num_iter       = 50000
+  iprint         = 2
+  proj(1)        = 'f=0,0,0:sp3'
+  prtgkk = .true.
+  band_plot = .false.
+  
+  filkf = 'path_k.kpt'
+  filqf = 'path_q.kpt'
+  nk1  = 2
+  nk2  = 2
+  nk3  = 2
+  nq1  = 2
+  nq2  = 2
+  nq3  = 2
+ /
+```
+
+```ini
+!path_k.kpt
+1 cartesian
+ 0.0000000000      0.0000000000     0.0000000000  1.0
+```
+
+```ini
+!path_q.kpt
+101 cartesian
+    1.0000000000  0.000000000  0.000000000  1.0
+    0.9800000000  0.000000000  0.000000000  1.0
+    0.9600000000  0.000000000  0.000000000  1.0
+    0.9400000000  0.000000000  0.000000000  1.0
+    0.9200000000  0.000000000  0.000000000  1.0
+    0.9000000000  0.000000000  0.000000000  1.0
+    0.8800000000  0.000000000  0.000000000  1.0
+    0.8600000000  0.000000000  0.000000000  1.0
+    0.8400000000  0.000000000  0.000000000  1.0
+    0.8200000000  0.000000000  0.000000000  1.0
+    0.8000000000  0.000000000  0.000000000  1.0
+    0.7800000000  0.000000000  0.000000000  1.0
+    0.7600000000  0.000000000  0.000000000  1.0
+    0.7400000000  0.000000000  0.000000000  1.0
+    0.7200000000  0.000000000  0.000000000  1.0
+    0.7000000000  0.000000000  0.000000000  1.0
+    0.6800000000  0.000000000  0.000000000  1.0
+    0.6600000000  0.000000000  0.000000000  1.0
+    0.6400000000  0.000000000  0.000000000  1.0
+    0.6200000000  0.000000000  0.000000000  1.0
+    0.6000000000  0.000000000  0.000000000  1.0
+    0.5800000000  0.000000000  0.000000000  1.0
+    0.5600000000  0.000000000  0.000000000  1.0
+    0.5400000000  0.000000000  0.000000000  1.0
+    0.5200000000  0.000000000  0.000000000  1.0
+    0.5000000000  0.000000000  0.000000000  1.0
+    0.4800000000  0.000000000  0.000000000  1.0
+    0.4600000000  0.000000000  0.000000000  1.0
+    0.4400000000  0.000000000  0.000000000  1.0
+    0.4200000000  0.000000000  0.000000000  1.0
+    0.4000000000  0.000000000  0.000000000  1.0
+    0.3800000000  0.000000000  0.000000000  1.0
+    0.3600000000  0.000000000  0.000000000  1.0
+    0.3400000000  0.000000000  0.000000000  1.0
+    0.3200000000  0.000000000  0.000000000  1.0
+    0.3000000000  0.000000000  0.000000000  1.0
+    0.2800000000  0.000000000  0.000000000  1.0
+    0.2600000000  0.000000000  0.000000000  1.0
+    0.2400000000  0.000000000  0.000000000  1.0
+    0.2200000000  0.000000000  0.000000000  1.0
+    0.2000000000  0.000000000  0.000000000  1.0
+    0.1800000000  0.000000000  0.000000000  1.0
+    0.1600000000  0.000000000  0.000000000  1.0
+    0.1400000000  0.000000000  0.000000000  1.0
+    0.1200000000  0.000000000  0.000000000  1.0
+    0.1000000000  0.000000000  0.000000000  1.0
+    0.0800000000  0.000000000  0.000000000  1.0
+    0.0600000000  0.000000000  0.000000000  1.0
+    0.0400000000  0.000000000  0.000000000  1.0
+    0.0200000000  0.000000000  0.000000000  1.0
+    0.0000000000  0.000000000  0.000000000  1.0
+   -0.0100000000      0.0100000000      0.0100000000  1.0
+   -0.0200000000      0.0200000000      0.0200000000  1.0
+   -0.0300000000      0.0300000000      0.0300000000  1.0
+   -0.0400000000      0.0400000000      0.0400000000  1.0
+   -0.0500000000      0.0500000000      0.0500000000  1.0
+   -0.0600000000      0.0600000000      0.0600000000  1.0
+   -0.0700000000      0.0700000000      0.0700000000  1.0
+   -0.0800000000      0.0800000000      0.0800000000  1.0
+   -0.0900000000      0.0900000000      0.0900000000  1.0
+   -0.1000000000      0.1000000000      0.1000000000  1.0
+   -0.1100000000      0.1100000000      0.1100000000  1.0
+   -0.1200000000      0.1200000000      0.1200000000  1.0
+   -0.1300000000      0.1300000000      0.1300000000  1.0
+   -0.1400000000      0.1400000000      0.1400000000  1.0
+   -0.1500000000      0.1500000000      0.1500000000  1.0
+   -0.1600000000      0.1600000000      0.1600000000  1.0
+   -0.1700000000      0.1700000000      0.1700000000  1.0
+   -0.1800000000      0.1800000000      0.1800000000  1.0
+   -0.1900000000      0.1900000000      0.1900000000  1.0
+   -0.2000000000      0.2000000000      0.2000000000  1.0
+   -0.2100000000      0.2100000000      0.2100000000  1.0
+   -0.2200000000      0.2200000000      0.2200000000  1.0
+   -0.2300000000      0.2300000000      0.2300000000  1.0
+   -0.2400000000      0.2400000000      0.2400000000  1.0
+   -0.2500000000      0.2500000000      0.2500000000  1.0
+   -0.2600000000      0.2600000000      0.2600000000  1.0
+   -0.2700000000      0.2700000000      0.2700000000  1.0
+   -0.2800000000      0.2800000000      0.2800000000  1.0
+   -0.2900000000      0.2900000000      0.2900000000  1.0
+   -0.3000000000      0.3000000000      0.3000000000  1.0
+   -0.3100000000      0.3100000000      0.3100000000  1.0
+   -0.3200000000      0.3200000000      0.3200000000  1.0
+   -0.3300000000      0.3300000000      0.3300000000  1.0
+   -0.3400000000      0.3400000000      0.3400000000  1.0
+   -0.3500000000      0.3500000000      0.3500000000  1.0
+   -0.3600000000      0.3600000000      0.3600000000  1.0
+   -0.3700000000      0.3700000000      0.3700000000  1.0
+   -0.3800000000      0.3800000000      0.3800000000  1.0
+   -0.3900000000      0.3900000000      0.3900000000  1.0
+   -0.4000000000      0.4000000000      0.4000000000  1.0
+   -0.4100000000      0.4100000000      0.4100000000  1.0
+   -0.4200000000      0.4200000000      0.4200000000  1.0
+   -0.4300000000      0.4300000000      0.4300000000  1.0
+   -0.4400000000      0.4400000000      0.4400000000  1.0
+   -0.4500000000      0.4500000000      0.4500000000  1.0
+   -0.4600000000      0.4600000000      0.4600000000  1.0
+   -0.4700000000      0.4700000000      0.4700000000  1.0
+   -0.4800000000      0.4800000000      0.4800000000  1.0
+   -0.4900000000      0.4900000000      0.4900000000  1.0
+   -0.5000000000      0.5000000000      0.5000000000  1.0    
+```
+
+
+```ini
+#run.sh
+#!/bin/bash
+#SBATCH --no-requeue
+#SBATCH --job-name="si_tst"
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=64
+#SBATCH --time=00:30:00
+
+#SBATCH --account=mr33
+#SBATCH --partition=debug
+#SBATCH --constraint=mc
+
+module load cray/23.12
+module switch PrgEnv-cray PrgEnv-intel
+module load cpeIntel libxc
+module unload cray-libsci
+module load cray-python
+
+export OMP_NUM_THREADS="1"
+export QE_PATH=/users/apoliukh/soft/q-e_eiger/bin
+export NMPI=64
+export NPOOL=64
+export PARA_PREFIX="srun"
+export ELEPHANY_PATH="/home/poliukhin/Development/ElectronPhonon/"
+
+#copy data ....
+cp -r ./displacements/scf_0/tmp/scf.save ./si.save
+cp -r ./displacements/scf_0/scf.out ./
+echo "0, copy finished finished"
+
+$PARA_PREFIX -n $NMPI $QE_PATH/ph.x -npool $NPOOL -in ph.in > ph.out
+echo "1, ph finished"
+
+python3 /users/apoliukh/soft/q-e_eiger/EPW/bin/pp.py << EOF
+si
+EOF
+echo "2, pp.py finished"
+
+$QE_PATH/epw.x -in epw0.in  > epw0.out
+echo "3, epw0 finished"
+
+$QE_PATH/epw.x -in epw1.in  > epw1.out
+echo "4, epw1 finished"
+
+cp -r si.save/ si_dft.save/ 
+cp si.epb1 si_dft.save/
+
+python $ELEPHANY_PATH/epw/parse_epb.py
+python $ELEPHANY_PATH/epw/fake2nscf.py
+
+$QE_PATH/epw.x < epw2.in  > epw2.out
+echo "4, epw2 finished"
+```
+
+For the additional explanation of different options of EPW, consult the [documentation](https://docs.epw-code.org/doc/Inputs.html). For the `scf` and `nscf` calculations, we are reusing data from the `displacements/scf_0` folder. After copying the ground state calculation, we are performing phonon calculations using the `ph.in` input file. After converting data to the EPW readable format using the `pp.py` script, we run `epw0.in`, which creates a `si.epb` file containing all the essential data related to the electron-phonon calculation. This is the file that we will modify using the `parse_epb.py` script. The script allows parsing of a Fortran binary file and modifying related electron eigenvalues, phonon dynamical matrices, and electron-phonon matrix elements in the Kohn-Sham basis (without multiplying by the phonon eigenvector). The important caveat here is that the electron-phonon matrix is not gauge invariant, which means that we have to carry initial wave functions that were used to create the matrix to be consistent with Wannier interpolation. For this, the second script `fake2nscf.py` is used to copy wavefunctions and eigenvalues that were obtained with any functional to the format QE could read. These scripts are the temporary solutions to the interface and are located in the `epw` folder of the source code. 
+
+After successfully parsing the electron-phonon matrix and modifying the wavefunction, we can rerun EPW using `epw2.in`, which will read the modified EPW files, perform wannierization, and then calculate interpolated quantities. To compare the results between DFPT and FD, we could use `compare_epw.py`. To plot electron-phonon coupling along the path specified in `path_k.kpt` and `path_q.kpt` files, use the `plot_epw.py` script.
+
+
+```sh
+python compare_epw.py
+```
+
+![1](assets/epw_frozen_comp_2_new.pdf)
+
+```sh
+python plot_epw.py
+```
+
+![2](assets/el_ph_coupling_4_all.pdf)
