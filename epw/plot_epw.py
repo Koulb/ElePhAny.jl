@@ -72,5 +72,5 @@ plt.legend()
 plt.ylabel(r"|g|$_{avg}$(meV)")
 
 plt.title('Electron-phonon coupling')
-plt.savefig('out/el_ph_coupling.png')
+plt.savefig('el_ph_coupling.png')
 plt.show()

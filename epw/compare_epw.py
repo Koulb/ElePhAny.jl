@@ -103,17 +103,9 @@ for threshold_ind, threshold in enumerate(threshold_array):
     axes[1].add_patch(rect)
 axes[1].legend(loc='upper left')
 axes[1].set_yscale('log')
+plt.savefig('epw_frozen_comp.png')
 
-plt.savefig('epw_frozen_comp.pdf')
 plt.show()
 
-print('Number of ep which differ {:3.2} is {:3.3} %'.format(threshold, threshold_number * 100))
-
-array_phononns_epw1 = np.array(phononns_epw1)
-array_phononns_epw2 = np.array(phononns_epw2)
-plt.plot((array_phononns_epw1-array_phononns_epw2)*8065.73/1e3)
-
-plt.ylabel(r'$\omega^{DFPT} - \omega^{Frozen}$, cm$^{-1}$')
-plt.xlabel('Reduced index I:{i,j,m,ik,iq}')
 plt.show()
         
