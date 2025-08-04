@@ -114,8 +114,8 @@ Constructs a real-space wave function from its plane-wave expansion coefficients
 - The function maps Miller indices to the appropriate indices in a reciprocal space grid, fills in the provided coefficients, and then performs an inverse FFT (using `bfft` after `ifftshift`) to obtain the real-space wave function.
 - The Miller indices are shifted and wrapped to fit within the grid dimensions.
 """
-function wf_from_G(miller::Matrix{Int32}, evc::Vector{ComplexF64}, Nxyz::Integer)
-    reciprocal_space_grid = zeros(ComplexF64, Nxyz, Nxyz, Nxyz)
+function wf_from_G(miller::Matrix{Int32}, evc::Vector{ComplexF64}, Nxyz::Vec3{Int})
+    reciprocal_space_grid = zeros(ComplexF64, Nxyz[1], Nxyz[2], Nxyz[3])
     # Determine the shift needed to map Miller indices to grid indices
     shift = div.(Nxyz, 2)
     # shift when N is vec3
@@ -148,10 +148,10 @@ Constructs a real-space wave function on a 3D grid from its plane-wave expansion
 # Returns
 - `wave_function::Array{ComplexF64,3}`: The computed wave function values on a 3D grid of size `(Nxyz, Nxyz, Nxyz)`.
 """
-function wf_from_G_slow(miller::Matrix{Int32}, evc::Vector{ComplexF64}, Nxyz::Integer)
-    x = range(0, 1-1/Nxyz, Nxyz)
-    y = range(0, 1-1/Nxyz, Nxyz)
-    z = range(0, 1-1/Nxyz, Nxyz)
+function wf_from_G_slow(miller::Matrix{Int32}, evc::Vector{ComplexF64}, Nxyz::Vec3{Int})
+    x = range(0, 1-1/Nxyz[1], Nxyz[1])
+    y = range(0, 1-1/Nxyz[2], Nxyz[2])
+    z = range(0, 1-1/Nxyz[3], Nxyz[3])
 
     wave_function = zeros(ComplexF64,(Nxyz[1], Nxyz[2], Nxyz[3]))
 
@@ -193,7 +193,7 @@ This function maps the plane-wave coefficients onto a reciprocal space grid acco
 - The Miller indices are shifted to map correctly onto the FFT grid.
 - The function assumes a cubic grid and that the Miller indices are provided in the correct format.
 """
-function wf_from_G_list(miller::Matrix{Int32}, evc_list::AbstractArray{Any}, Nxyz::Integer)
+function wf_from_G_list(miller::Matrix{Int32}, evc_list::AbstractArray{Any}, Nxyz::Vec3{Int})
     evc_matrix = permutedims(hcat(evc_list...))
     N_evc = size(evc_matrix)[1]
     reciprocal_space_grid = zeros(ComplexF64, N_evc, Nxyz[1], Nxyz[2], Nxyz[3])
@@ -235,7 +235,7 @@ Transforms a wave function `wfc` from real space to G-space using the provided M
 - The function applies an FFT and fftshift to the input wave function, then extracts the coefficients corresponding to the provided Miller indices.
 - The output is normalized such that its norm is 1.
 """
-function wf_to_G(miller::Matrix{Int}, wfc, Nxyz::Vec3{Int})
+function wf_to_G(miller::Matrix{Int32}, wfc, Nxyz::Vec3{Int})
     Nevc = size(miller, 2)
 
     evc_sc = zeros(ComplexF64, size(miller, 2))
@@ -271,7 +271,7 @@ Transforms a list of real-space wave functions `wfc` into a list of G-space wave
 # Notes
 - The function assumes that the FFT grid is cubic (Nx = Ny = Nz = Nxyz).
 """
-function wf_to_G_list(miller::Matrix{Int32}, wfc::AbstractArray{ComplexF64, 4}, Nxyz::Integer)
+function wf_to_G_list(miller::Matrix{Int32}, wfc::AbstractArray{ComplexF64, 4}, Nxyz::Vec3{Int})
     Ng = size(miller, 2)
     Nevc = size(wfc, 1)
 
@@ -859,7 +859,7 @@ function prepare_u_matrixes(path_to_in::String, natoms::Int, sc_size::Vec3{Int},
         for ip in 1:prod(k_mesh)
             if all(isapprox.(tras,[0.0,0.0,0.0], atol = 1e-15)) &&
             all(isapprox.(rot, [[1.0,0.0,0.0] [0.0,1.0,0.0] [0.0,0.0,1.0]], atol = 1e-15))
-                if any(sc_size .!= 1)
+                if any(sc_size .!= 1) && any(k_mesh .!= 1)
                     ψₚ_list = load(path_to_in*"/group_$(symmetries.ineq_atoms_list[ind])/g_list_sc_$ip.jld2")
                     ψₚ = [ψₚ_list["wfc$iband"] for iband in 1:length(ψₚ_list)]
                 else
