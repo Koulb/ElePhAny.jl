@@ -376,16 +376,12 @@ function create_disp_calc(path_to_in::String, path_to_qe::String, unitcell, scf_
             catch; end
 
             nscf_parameters       = deepcopy(scf_parameters)
-
-            if !hybrids
-                pop!(nscf_parameters, :nbnd)
-            end
+            pop!(nscf_parameters, :nbnd)
 
             nscf_parameters[:kpts]= pytuple((k_mesh[1], k_mesh[2], k_mesh[3]))
             create_scf_calc(path_to_in*dir_name*"scf.in",unitcells_disp[i_disp], nscf_parameters)
 
             #create nscf calculation as well
-
             if !hybrids
                 nscf_parameters[:calculation] = "nscf"
             end
