@@ -16,8 +16,8 @@ path_to_qe= "/home/apolyukhin/Soft/sourse/q-e/"
 mpi_ranks = 1# Here we shave run.sh in the folder assuming that calcs will be launched witth sbatch
 
 #Params
-sc_size = 2
-k_mesh  = 1
+sc_size = [2, 2, 2]
+k_mesh  = [1, 1, 1]
 
 # Lattice constant of Silicon
 a = 5.43052  # in Angstrom
@@ -34,11 +34,11 @@ unitcell = Dict(
 # Set up the calculation parameters as a Python dictionary
 scf_parameters = Dict(
     :format => "espresso-in",
-    :kpts => pytuple((k_mesh*sc_size, k_mesh*sc_size, k_mesh*sc_size)),
+    :kpts => pytuple((k_mesh[1]*sc_size[1], k_mesh[2]*sc_size[2], k_mesh[3]*sc_size[3])),
     :calculation =>"scf",
     :prefix => "scf",
     :outdir => "./tmp/",
-    :pseudo_dir => "/home/apolyukhin/Development/frozen_phonons/elph/example/pseudo",
+    :pseudo_dir => "/home/poliukhin/Development/frozen_phonons/elph/example/pseudo",
     :ecutwfc => 60,
     :conv_thr =>1.e-13,# 1e-16,# #1.e-20,#5.e-30
     :pseudopotentials => Dict("Si" => "Si.upf"),
@@ -60,7 +60,7 @@ scf_parameters = Dict(
     :nqx3 => 1
 )
 
-use_symm = false #TODO test symmetries with hybrids in details
+use_symm = false
 
 model = create_model(path_to_calc = path_to_calc,
                       abs_disp = abs_disp,
@@ -94,8 +94,8 @@ if calc_ep
     phonons = load_phonons(model)
 
     # Electron-phonon matrix elements
-    ik_list = [i for i in 1:mesh^3] ##[1,2]##
-    iq_list = [i for i in 1:mesh^3] ##[1,2]##
+    ik_list = [i for i in 1:prod(k_mesh.*sc_size)] ##[1,2]##
+    iq_list = [i for i in 1:prod(k_mesh.*sc_size)] ##[1,2]##
 
     progress = Progress(length(ik_list)*length(iq_list), dt=5.0)
 

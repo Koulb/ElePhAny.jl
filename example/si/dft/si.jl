@@ -2,9 +2,9 @@ using ElectronPhonon, PythonCall, ProgressMeter, Base.Threads
 
 #flags
 create = true
-from_scratch = false
-run = false
-prepare = false
+from_scratch = true
+run = true
+prepare = true
 calc_ep = true
 
 # Example usage
@@ -17,8 +17,8 @@ path_to_qe= "/home/poliukhin/Soft/sourse/q-e/"
 mpi_ranks = 8
 
 #Params
-sc_size::Vec3{Int} = [1,1,1]
-k_mesh::Vec3{Int}  = [2,2,2]
+sc_size = [2,2,2]
+k_mesh = [1,1,1]
 
 # Lattice constant of Silicon
 a = 5.43052  # in Angstrom
@@ -52,12 +52,10 @@ scf_parameters = Dict(
     :ibrav => 2,
     :tprnfor => true,
     :nbnd => 4,
-    :electron_maxstep => 1000,
-    :nosym=> true,
-    :noinv=> true
+    :electron_maxstep => 1000
 )
 
-use_symm = false
+use_symm = true
 
 model = create_model(path_to_calc = path_to_calc,
                       abs_disp = abs_disp,

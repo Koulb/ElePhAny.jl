@@ -17,8 +17,8 @@ path_to_qe= "/home/apolyukhin/Soft/sourse/q-e/"
 mpi_ranks = 1 # For now we asumme runnning koopmans only with sbatch, so run.sh is in the folder
 
 #Params
-sc_size = 2
-k_mesh  = 1
+sc_size = [2, 2, 2]
+k_mesh  = [1, 1, 1]
 
 # Lattice constant of Silicon
 a = 5.43052  # in Angstrom
@@ -35,7 +35,7 @@ unitcell = Dict(
 # Set up the calculation parameters as a Python dictionary
 scf_parameters = Dict(
     :format => "espresso-in",
-    :kpts => pytuple((k_mesh*sc_size, k_mesh*sc_size, k_mesh*sc_size)),
+    :kpts => pytuple((k_mesh[1]*sc_size[1], k_mesh[2]*sc_size[2], k_mesh[3]*sc_size[3])),
     :calculation =>"scf",
     :prefix => "scf",
     :outdir => "./tmp/",
@@ -55,13 +55,9 @@ scf_parameters = Dict(
     :electron_maxstep => 1000,
     :nosym=> true,
     :noinv=> true#,
-    # :input_dft => "HSE",
-    # :nqx1 => 1,
-    # :nqx2 => 1,
-    # :nqx3 => 1
 )
 
-use_symm = false #TODO test symmetries with KCW in details
+use_symm = false
 
 model = create_model_kcw(path_to_calc = path_to_calc,
                          spin_channel = spin_channel,

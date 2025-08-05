@@ -17,8 +17,8 @@ path_to_qe= "/home/poliukhin/Soft/sourse/q-e/"
 mpi_ranks = 8
 
 #Params
-sc_size::Vec3{Int} = [1,1,1]
-k_mesh::Vec3{Int}  = [2,2,2]
+sc_size = [1,1,1]
+k_mesh  = [2,2,2]
 
 # Lattice constant of C
 a = 2.4664089310  # in Angstrom

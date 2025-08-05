@@ -10,7 +10,8 @@ path_to_qe = "/home/apolyukhin/Soft/sourse/q-e/"
 mpi_ranks  = 10
 
 #Params
-sc_size = 2
+sc_size = [2,2,2]
+k_mesh  = [1,1,1]
 
 # Lattice constant of GaAs
 a = 5.65325  # in Angstrom
@@ -27,11 +28,11 @@ unitcell = Dict(
 # Set up the calculation parameters as a Python dictionary
 scf_parameters = Dict(
     :format => "espresso-in",
-    :kpts => pytuple((sc_size, sc_size, sc_size)),
+    :kpts => pytuple((k_mesh[1]*sc_size[1], k_mesh[2]*sc_size[2], k_mesh[3]*sc_size[3])),
     :calculation =>"scf",
     :prefix => "scf",
     :outdir => "./tmp/",
-    :pseudo_dir => "/scratch/apolyukhin/scripts/q-e/new_ewp_tests/Pseudo",
+    :pseudo_dir => "/scratch/poliukhin/scripts/q-e/new_ewp_tests/gaas_mob_frozen/k4/gaas/gaas.save",
     :ecutwfc => 80,
     :conv_thr =>1.e-13,
     :pseudopotentials => Dict("Ga" => "Ga_ONCV_PBE-1.0.upf", "As" => "As_ONCV_PBE-1.0.upf"),
@@ -49,14 +50,14 @@ scf_parameters = Dict(
     :noinv=> false
 )
 
-use_symm = true
+use_symm = false
 
 model = create_model(path_to_calc = path_to_calc,
                       abs_disp = abs_disp,
                       path_to_qe = path_to_qe,
                       mpi_ranks = mpi_ranks,
                       sc_size = sc_size,
-                      Ndispalce = 2,
+                      k_mesh = k_mesh,
                       unitcell = unitcell,
                       scf_parameters = scf_parameters,
                       use_symm = use_symm)

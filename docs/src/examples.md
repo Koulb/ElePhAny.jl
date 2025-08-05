@@ -50,8 +50,8 @@ abs_disp = 1e-3
 path_to_qe= "/home/poliukhin/Soft/sourse/q-e/"
 mpi_ranks = 8
 use_symm = false
-sc_size::Vec3{Int} = [2,2,2]
-k_mesh::Vec3{Int}  = [1,1,1]
+sc_size = [2,2,2]
+k_mesh  = [1,1,1]
 ```
 
 The final step in setting up the calculation is to create the QE input file for the pristine system. It is handled by ASE and Phonopy packages, for which we need to provide `unitcell` and `scf_parameters` python-like dictionaries. 
@@ -179,7 +179,7 @@ for ik in ik_list
 end
 ```
 
-Inspecting the `out` folder, we could find the resulting comparison of electron-phonon matrix elements. For example for `ik` = 2, `iq` = 1, we see that FD and DFPT mathes perfectly 😎:
+Inspecting the `out` folder, we could find the resulting comparison of electron-phonon matrix elements. For example for `ik` = 1, `iq` = 2, we see that FD and DFPT mathes perfectly 😎:
 
 ![Comparison of electron-phonon matrix elements](assets/comparison_2_1.png)
 

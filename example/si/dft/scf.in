@@ -5,7 +5,7 @@
    tprnfor          = .true.
    outdir           = './tmp/'
    prefix           = 'scf'
-   pseudo_dir       = '/home/apolyukhin/Development/frozen_phonons/elph/example/pseudo'
+   pseudo_dir       = '/home/poliukhin/Development/frozen_phonons/elph/example/pseudo'
 /
 &SYSTEM
    ibrav            = 2
@@ -14,7 +14,7 @@
    noinv            = .true.
    ntyp             = 1
    nat              = 2
-   nbnd             = 10
+   nbnd             = 4
    celldm(1)        = 10.262195563743724
 /
 &ELECTRONS

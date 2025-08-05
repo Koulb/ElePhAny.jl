@@ -9,6 +9,7 @@ model = create_model(path_to_calc = pwd()*"/",
                      path_to_qe = frozen_params["path_to_qe"],
                      mpi_ranks = frozen_params["mpi_ranks"],
                      sc_size = frozen_params["sc_size"],
+                     k_mesh = frozen_params["k_mesh"],
                      use_symm = frozen_params["use_symm"],
                      unitcell = unitcell,
                      scf_parameters = scf_parameters)

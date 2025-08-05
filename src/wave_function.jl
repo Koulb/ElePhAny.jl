@@ -98,14 +98,14 @@ function parse_fortran_bin(file_path::String)
 end
 
 """
-    wf_from_G(miller::Matrix{Int32}, evc::Vector{ComplexF64}, Nxyz::Integer) -> Array{ComplexF64, 3}
+    wf_from_G(miller::Matrix{Int32}, evc::Vector{ComplexF64}, Nxyz) -> Array{ComplexF64, 3}
 
 Constructs a real-space wave function from its plane-wave expansion coefficients in reciprocal space.
 
 # Arguments
 - `miller::Matrix{Int32}`: A 3×N matrix where each column represents a Miller index (reciprocal lattice vector) for a plane wave component.
 - `evc::Vector{ComplexF64}`: A vector of complex coefficients corresponding to each Miller index, representing the amplitude and phase of each plane wave.
-- `Nxyz::Integer`: The size of the cubic grid in each spatial dimension (assumes a cubic box of size Nxyz × Nxyz × Nxyz).
+- `Nxyz`: The size of the cubic grid in each spatial dimension (assumes a cubic box of size Nxyz × Nxyz × Nxyz).
 
 # Returns
 - `wave_function::Array{ComplexF64, 3}`: The reconstructed wave function in real space, represented as a 3D array of complex values.
@@ -114,7 +114,7 @@ Constructs a real-space wave function from its plane-wave expansion coefficients
 - The function maps Miller indices to the appropriate indices in a reciprocal space grid, fills in the provided coefficients, and then performs an inverse FFT (using `bfft` after `ifftshift`) to obtain the real-space wave function.
 - The Miller indices are shifted and wrapped to fit within the grid dimensions.
 """
-function wf_from_G(miller::Matrix{Int32}, evc::Vector{ComplexF64}, Nxyz::Vector{Int})
+function wf_from_G(miller::Matrix{Int32}, evc::Vector{ComplexF64}, Nxyz)
     reciprocal_space_grid = zeros(ComplexF64, Nxyz[1], Nxyz[2], Nxyz[3])
     # Determine the shift needed to map Miller indices to grid indices
     shift = div.(Nxyz, 2)
@@ -135,19 +135,19 @@ function wf_from_G(miller::Matrix{Int32}, evc::Vector{ComplexF64}, Nxyz::Vector{
 end
 
 """
-    wf_from_G_slow(miller::Matrix{Int32}, evc::Vector{ComplexF64}, Nxyz::Integer) -> Array{ComplexF64,3}
+    wf_from_G_slow(miller::Matrix{Int32}, evc::Vector{ComplexF64}, Nxyz) -> Array{ComplexF64,3}
 
 Constructs a real-space wave function on a 3D grid from its plane-wave expansion coefficients withot FFT.
 
 # Arguments
 - `miller::Matrix{Int32}`: A matrix where each column represents a reciprocal lattice vector (Miller indices) for the plane-wave basis.
 - `evc::Vector{ComplexF64}`: The expansion coefficients (eigenvector components) corresponding to each plane-wave basis vector.
-- `Nxyz::Integer`: The number of grid points along each spatial dimension (assumes a cubic grid).
+- `Nxyz`: The number of grid points along each spatial dimension (assumes a cubic grid).
 
 # Returns
 - `wave_function::Array{ComplexF64,3}`: The computed wave function values on a 3D grid of size `(Nxyz, Nxyz, Nxyz)`.
 """
-function wf_from_G_slow(miller::Matrix{Int32}, evc::Vector{ComplexF64}, Nxyz::Vector{Int})
+function wf_from_G_slow(miller::Matrix{Int32}, evc::Vector{ComplexF64}, Nxyz)
     x = range(0, 1-1/Nxyz[1], Nxyz[1])
     y = range(0, 1-1/Nxyz[2], Nxyz[2])
     z = range(0, 1-1/Nxyz[3], Nxyz[3])
@@ -173,14 +173,14 @@ function wf_from_G_slow(miller::Matrix{Int32}, evc::Vector{ComplexF64}, Nxyz::Ve
 end
 
 """
-    wf_from_G_list(miller::Matrix{Int32}, evc_list::AbstractArray{Any}, Nxyz::Integer) -> Array{ComplexF64, 4}
+    wf_from_G_list(miller::Matrix{Int32}, evc_list::AbstractArray{Any}, Nxyz) -> Array{ComplexF64, 4}
 
 Constructs the real-space wave function from a list of plane-wave coefficients and their corresponding Miller indices.
 
 # Arguments
 - `miller::Matrix{Int32}`: A 3×N matrix where each column contains the Miller indices (G-vectors) for a plane wave.
 - `evc_list::AbstractArray{Any}`: A list (or array) of Nbands wave-functions' coefficients corresponding to each G-vector.
-- `Nxyz::Integer`: The size of the cubic grid in each spatial direction.
+- `Nxyz`: The size of the cubic grid in each spatial direction.
 
 # Returns
 - `wave_function::Array{ComplexF64, 4}`: A 4D array of complex values representing the wave function in real space, with dimensions `(N_evc, Nxyz, Nxyz, Nxyz)`, where `N_evc` is the number of eigenvector coefficients.
@@ -192,7 +192,7 @@ This function maps the plane-wave coefficients onto a reciprocal space grid acco
 - The Miller indices are shifted to map correctly onto the FFT grid.
 - The function assumes a cubic grid and that the Miller indices are provided in the correct format.
 """
-function wf_from_G_list(miller::Matrix{Int32}, evc_list::AbstractArray{Any}, Nxyz::Vector{Int})
+function wf_from_G_list(miller::Matrix{Int32}, evc_list::AbstractArray{Any}, Nxyz)
     evc_matrix = permutedims(hcat(evc_list...))
     N_evc = size(evc_matrix)[1]
     reciprocal_space_grid = zeros(ComplexF64, N_evc, Nxyz[1], Nxyz[2], Nxyz[3])
@@ -218,14 +218,14 @@ function wf_from_G_list(miller::Matrix{Int32}, evc_list::AbstractArray{Any}, Nxy
 end
 
 """
-    wf_to_G(miller::Matrix{Int32}, wfc, Nxyz::Integer) -> Vector{ComplexF64}
+    wf_to_G(miller::Matrix{Int32}, wfc, Nxyz) -> Vector{ComplexF64}
 
 Transforms a wave function `wfc` from real space to G-space using the provided Miller indices.
 
 # Arguments
 - `miller::Matrix{Int32}`: A 3×N matrix where each column represents a Miller index (G-vector) in reciprocal space.
 - `wfc`: The wave function Nxyz×Nxyz×Nxyz in real space, assumed to be a 3D array compatible with FFT operations.
-- `Nxyz::Integer`: The size of the FFT grid along each dimension (assumed cubic).
+- `Nxyz`: The size of the FFT grid along each dimension (assumed cubic).
 
 # Returns
 - `evc_sc::Vector{ComplexF64}`: The wave function coefficients in G-space, normalized.
@@ -234,7 +234,7 @@ Transforms a wave function `wfc` from real space to G-space using the provided M
 - The function applies an FFT and fftshift to the input wave function, then extracts the coefficients corresponding to the provided Miller indices.
 - The output is normalized such that its norm is 1.
 """
-function wf_to_G(miller::Matrix{Int32}, wfc, Nxyz::Vector{Int})
+function wf_to_G(miller::Matrix{Int32}, wfc, Nxyz)
     Nevc = size(miller, 2)
 
     evc_sc = zeros(ComplexF64, size(miller, 2))
@@ -255,14 +255,14 @@ end
 
 
 """
-    wf_to_G_list(miller::Matrix{Int32}, wfc::AbstractArray{ComplexF64, 4}, Nxyz::Integer) -> Matrix{ComplexF64}
+    wf_to_G_list(miller::Matrix{Int32}, wfc::AbstractArray{ComplexF64, 4}, Nxyz) -> Matrix{ComplexF64}
 
 Transforms a list of real-space wave functions `wfc` into a list of G-space wave functions.
 
 # Arguments
 - `miller::Matrix{Int32}`: A 3×Ng matrix where each column represents the Miller indices (G-vector components) for which the plane-wave coefficients are to be extracted.
 - `wfc::AbstractArray{ComplexF64, 4}`: The real-space wave function array with dimensions (Nbands, Nx, Ny, Nz), where Nevc is the number of eigenvectors (bands), and Nx, Ny, Nz are the grid sizes in each spatial direction.
-- `Nxyz::Integer`: The size of the FFT grid in each spatial direction (assumed cubic).
+- `Nxyz`: The size of the FFT grid in each spatial direction (assumed cubic).
 
 # Returns
 - `evc_sc::Matrix{ComplexF64}`: A matrix of size (Nbands, NG), where each column contains the plane-wave coefficients for the corresponding G-vector from `miller`.
@@ -270,7 +270,7 @@ Transforms a list of real-space wave functions `wfc` into a list of G-space wave
 # Notes
 - The function assumes that the FFT grid is cubic (Nx = Ny = Nz = Nxyz).
 """
-function wf_to_G_list(miller::Matrix{Int32}, wfc::AbstractArray{ComplexF64, 4}, Nxyz::Vector{Int})
+function wf_to_G_list(miller::Matrix{Int32}, wfc::AbstractArray{ComplexF64, 4}, Nxyz)
     Ng = size(miller, 2)
     Nevc = size(wfc, 1)
 
@@ -323,10 +323,10 @@ Determines the FFT grid size (`Nxyz`) from a given file.
 - `use_xml::Bool = false`: If `true`, parses the file as an XML file; otherwise, parses it as a plain text file.
 
 # Returns
-- `Nxyz::Int`: The FFT grid size along the first dimension.
+- `Nxyz`: The FFT grid size along each dimension.
 """
 function determine_fft_grid(path_to_file::String; use_xml::Bool = false)
-    Nxyz::Vector{Int} = [0, 0, 0]
+    Nxyz= [0, 0, 0]
     if use_xml
         # Parse the XML file
         doc = EzXML.readxml(path_to_file)
@@ -372,7 +372,7 @@ Compute the phase factor `exp(2im * π * dot(r, q_point))` on a 3D grid of size 
 
 # Arguments
 - `q_point::AbstractVector`: A 3-element vector representing the q-point in reciprocal space.
-- `Nxyz::Int`: The number of grid points along each spatial dimension.
+- `Nxyz`: The number of grid points along each spatial dimension.
 
 # Returns
 - `exp_factor::Array{Complex{Float64},3}`: A 3D array of complex phase factors evaluated at each grid point.
@@ -517,7 +517,7 @@ This function:
 """
 function prepare_wave_functions_to_G(path_to_in::String; ik::Int=1)
     wfc_list = load(path_to_in*"/scf_0/wfc_list_phase_$ik.jld2")
-    Nxyz::Vector{Int} = size(wfc_list["wfc1"])
+    Nxyz = size(wfc_list["wfc1"])
     miller_sc, _ = parse_wf(path_to_in*"/group_1/tmp/scf.save/wfc1")
 
     g_list = Dict()
@@ -799,7 +799,7 @@ function prepare_u_matrixes(path_to_in::String, natoms::Int, sc_size::Vector{Int
         ψₚ0_real_ip = []
         miller_ip = []
         for ip in 1:prod(k_mesh)
-            if any(sc_size .!= 1)
+            if use_symm && any(k_mesh .!= 1)
                 miller1 = load(path_to_in*"/scf_0/miller_list_sc.jld2")["miller_list"]
                 ψₚ0_list_raw = load(path_to_in*"/group_$ind/g_list_sc_$ip.jld2")
                 ψₚ0_list = [ψₚ0_list_raw["wfc$iband"] for iband in 1:length(ψₚ0_list_raw)]
@@ -940,7 +940,7 @@ Calculates the normalized inner product ⟨bra|ket⟩ between two 3D complex-val
 - `Complex{Float64}`: The normalized inner product ⟨bra|ket⟩, computed as the sum over all elements of `conj(bra[i]) * ket[i]`, divided by the total number of elements.
 """
 function calculate_braket_real(bra::Array{Complex{Float64}, 3}, ket::Array{Complex{Float64}, 3})
-    Nxyz::Vector{Int} = size(ket)
+    Nxyz = size(ket)
     result = zero(Complex{Float64})
 
     @inbounds @simd for i in 1:prod(Nxyz)
