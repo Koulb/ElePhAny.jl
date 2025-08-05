@@ -1,0 +1,47 @@
+&CONTROL
+   calculation      = 'nscf'
+   verbosity        = 'high'
+   tstress          = .false.
+   tprnfor          = .true.
+   outdir           = './'
+   prefix           = 'si'
+   pseudo_dir       = '/home/poliukhin/Development/frozen_phonons/elph/example/pseudo'
+/
+&SYSTEM
+   ibrav            = 2
+   nbnd             = 4
+   ecutwfc          = 60
+   ntyp             = 1
+   nat              = 2
+   celldm(1)        = 10.262195563743724
+/
+&ELECTRONS
+   electron_maxstep = 1000
+   conv_thr         = 1e-13
+   mixing_mode      = 'plain'
+   mixing_beta      = 0.7
+   diagonalization  = 'ppcg'
+/
+&IONS
+/
+&CELL
+/
+
+ATOMIC_SPECIES
+Si 28.0855 Si.upf
+
+K_POINTS crystal
+8
+  0.000000000000  0.000000000000  0.000000000000  1.25000000e-01
+  0.000000000000  0.000000000000  0.500000000000  1.25000000e-01
+  0.000000000000  0.500000000000  0.000000000000  1.25000000e-01
+  0.000000000000  0.500000000000  0.500000000000  1.25000000e-01
+  0.500000000000  0.000000000000  0.000000000000  1.25000000e-01
+  0.500000000000  0.000000000000  0.500000000000  1.25000000e-01
+  0.500000000000  0.500000000000  0.000000000000  1.25000000e-01
+  0.500000000000  0.500000000000  0.500000000000  1.25000000e-01
+
+ATOMIC_POSITIONS crystal
+Si -0.0000000000 0.0000000000 -0.0000000000 
+Si 0.7500000000 0.7500000000 0.7500000000 
+

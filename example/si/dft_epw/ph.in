@@ -1,0 +1,13 @@
+&inputph
+  recover=.false.
+  tr2_ph=1.0d-17,
+  prefix='si',
+  amass(1)=28.0855,
+  outdir='./',
+  fildyn='si.dyn.xml',
+  fildvscf='dvscf'
+  ldisp=.true.,
+  nq1 = 2,
+  nq2 = 2,
+  nq3 = 2
+ /

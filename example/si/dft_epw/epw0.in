@@ -1,0 +1,52 @@
+--
+&inputepw
+  prefix      = 'si'
+  amass(1)    = 28.0855,
+  outdir      = './'
+  dvscf_dir   = './save/'
+
+  elph        = .true.
+
+  epbwrite    = .true.
+  epbread     = .false.
+  epwwrite    = .true.
+  epwread     = .false.
+ 
+  use_ws      = .true.
+
+  nbndsub     =  4
+  !bands_skipped = 'exclude_bands = 5-20'
+  wannierize   = .true.
+  num_iter     = 50000
+  iprint       = 2
+  !dis_win_max  = 16.9
+  !dis_froz_max = 10.6
+  proj(1)     = 'f=0,0,0:sp3'
+  wdata(1)  = 'bands_plot = .true.'
+  wdata(2)  = 'begin kpoint_path'
+  wdata(3)  = 'L  0.50000   0.50000   0.50000 G  0.00000   0.00000   0.00000'
+  wdata(4)  = 'G  0.00000   0.00000   0.00000 X  0.50000   0.00000   0.50000'
+  wdata(5)  = 'X  0.50000   0.00000   0.50000 U  0.62500   0.25000   0.62500'
+  wdata(6)  = 'U  0.62500   0.25000   0.62500 K  0.37500   0.37500   0.75000'
+  wdata(7)  = 'K  0.37500   0.37500   0.75000 G  0.00000   0.00000   0.00000'
+  wdata(9)  = 'end kpoint_path'
+  wdata(10) = 'bands_plot_format = gnuplot'
+  wdata(12) = 'dis_num_iter      = 5000'
+  wdata(13) = 'num_print_cycles  = 10'
+  wdata(13) = 'conv_tol = 1E-12'
+  wdata(14) = 'conv_window = 4'
+
+  nkf1 = 1
+  nkf2 = 1
+  nkf3 = 1
+  nqf1 = 1
+  nqf2 = 1
+  nqf3 = 1
+
+  nk1  = 2
+  nk2  = 2
+  nk3  = 2
+  nq1  = 2
+  nq2  = 2
+  nq3  = 2
+ /

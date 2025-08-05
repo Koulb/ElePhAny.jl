@@ -1,0 +1,29 @@
+--
+&inputepw
+  prefix      = 'si'
+  amass(1)    = 28.0855,
+  outdir      = './'
+  dvscf_dir   = './save/'
+  elph        = .true.
+  epbwrite    = .false.
+  epbread     = .true.
+  epwwrite    = .true.
+  epwread     = .false.
+  use_ws      = .true.
+  nbndsub        =  4
+  wannierize     = .false.
+  num_iter       = 50000
+  iprint         = 2
+  proj(1)        = 'f=0,0,0:sp3'
+  prtgkk = .true.
+  band_plot = .false.
+  
+  filkf = 'path_k.kpt'
+  filqf = 'path_q.kpt'
+  nk1  = 2
+  nk2  = 2
+  nk3  = 2
+  nq1  = 2
+  nq2  = 2
+  nq3  = 2
+ /
