@@ -6,7 +6,7 @@ abs_disp = 5e-4
 
 println("Displacement: $abs_disp")
 directory_path = "$path_to_calc"#
-path_to_qe = "/home/apolyukhin/Soft/sourse/q-e/"
+path_to_qe = "/home/poliukhin/Soft/sourse/q-e/"
 mpi_ranks  = 10
 
 #Params
