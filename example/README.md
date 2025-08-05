@@ -34,9 +34,6 @@ Default usage of the code, creates "displacement" folder contatining all the dat
 ### Si/dft/si_file.jl
 Reading input parameters from pristine unitcell scf.in file and frozen_params.json
 
-### Si/dft/si_dftk.jl
-Example of possible interface with DFTK (wortks for k=q=G for now)
-
 ### Si/hse/si_hse.jl
 Same as dft, but uses hse functional. Note that whenever 'run.sh' is present in the folder, run_calculation will try to use it to launch calcuation with slurm (simmple solution for running on cluster for now).
 
