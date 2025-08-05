@@ -172,7 +172,7 @@ For each q-point in the supercell:
 - Saves the resulting matrix to a file in a newly created `dyn_mat` subdirectory.
 
 """
-function save_dyn_matirx(path_to_in::String, sc_size::Vec3{Int})
+function save_dyn_matirx(path_to_in::String, sc_size::Vector{Int})
     #saving the dynamic matrix
     path_to_dyn = path_to_in*"dyn_mat"
     command = `mkdir $path_to_dyn`
@@ -410,7 +410,7 @@ Saves the following files in the `scf_0` subdirectory of `path_to_in`:
 - `omega_arr_list.jld2`: Contains the list of phonon frequencies.
 - `eps_arr_list.jld2`: Contains the list of phonon eigenvectors.
 """
-function prepare_phonons(path_to_in::String, sc_size::Vec3{Int})
+function prepare_phonons(path_to_in::String, sc_size::Vector{Int})
 
     local phonon_params
 
@@ -490,7 +490,7 @@ Creates a `Phonons` object by preparing phonon data.
 - `Phonons`: An instance of the `Phonons` type containing the mass matrix, frequency array, eigenvector array, and mass array.
 
 """
-function create_phonons(path_to_in::String, sc_size::Vec3{Int})
+function create_phonons(path_to_in::String, sc_size::Vector{Int})
     M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ = prepare_phonons(path_to_in, sc_size)
 
     return Phonons(M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ)

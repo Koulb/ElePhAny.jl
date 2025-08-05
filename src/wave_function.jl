@@ -114,11 +114,10 @@ Constructs a real-space wave function from its plane-wave expansion coefficients
 - The function maps Miller indices to the appropriate indices in a reciprocal space grid, fills in the provided coefficients, and then performs an inverse FFT (using `bfft` after `ifftshift`) to obtain the real-space wave function.
 - The Miller indices are shifted and wrapped to fit within the grid dimensions.
 """
-function wf_from_G(miller::Matrix{Int32}, evc::Vector{ComplexF64}, Nxyz::Vec3{Int})
+function wf_from_G(miller::Matrix{Int32}, evc::Vector{ComplexF64}, Nxyz::Vector{Int})
     reciprocal_space_grid = zeros(ComplexF64, Nxyz[1], Nxyz[2], Nxyz[3])
     # Determine the shift needed to map Miller indices to grid indices
     shift = div.(Nxyz, 2)
-    # shift when N is vec3
     # shift = div(Nxyz, 2) .+ 1
 
     # Iterate through Miller indices and fill in the known coefficients
@@ -148,7 +147,7 @@ Constructs a real-space wave function on a 3D grid from its plane-wave expansion
 # Returns
 - `wave_function::Array{ComplexF64,3}`: The computed wave function values on a 3D grid of size `(Nxyz, Nxyz, Nxyz)`.
 """
-function wf_from_G_slow(miller::Matrix{Int32}, evc::Vector{ComplexF64}, Nxyz::Vec3{Int})
+function wf_from_G_slow(miller::Matrix{Int32}, evc::Vector{ComplexF64}, Nxyz::Vector{Int})
     x = range(0, 1-1/Nxyz[1], Nxyz[1])
     y = range(0, 1-1/Nxyz[2], Nxyz[2])
     z = range(0, 1-1/Nxyz[3], Nxyz[3])
@@ -193,7 +192,7 @@ This function maps the plane-wave coefficients onto a reciprocal space grid acco
 - The Miller indices are shifted to map correctly onto the FFT grid.
 - The function assumes a cubic grid and that the Miller indices are provided in the correct format.
 """
-function wf_from_G_list(miller::Matrix{Int32}, evc_list::AbstractArray{Any}, Nxyz::Vec3{Int})
+function wf_from_G_list(miller::Matrix{Int32}, evc_list::AbstractArray{Any}, Nxyz::Vector{Int})
     evc_matrix = permutedims(hcat(evc_list...))
     N_evc = size(evc_matrix)[1]
     reciprocal_space_grid = zeros(ComplexF64, N_evc, Nxyz[1], Nxyz[2], Nxyz[3])
@@ -235,7 +234,7 @@ Transforms a wave function `wfc` from real space to G-space using the provided M
 - The function applies an FFT and fftshift to the input wave function, then extracts the coefficients corresponding to the provided Miller indices.
 - The output is normalized such that its norm is 1.
 """
-function wf_to_G(miller::Matrix{Int32}, wfc, Nxyz::Vec3{Int})
+function wf_to_G(miller::Matrix{Int32}, wfc, Nxyz::Vector{Int})
     Nevc = size(miller, 2)
 
     evc_sc = zeros(ComplexF64, size(miller, 2))
@@ -271,7 +270,7 @@ Transforms a list of real-space wave functions `wfc` into a list of G-space wave
 # Notes
 - The function assumes that the FFT grid is cubic (Nx = Ny = Nz = Nxyz).
 """
-function wf_to_G_list(miller::Matrix{Int32}, wfc::AbstractArray{ComplexF64, 4}, Nxyz::Vec3{Int})
+function wf_to_G_list(miller::Matrix{Int32}, wfc::AbstractArray{ComplexF64, 4}, Nxyz::Vector{Int})
     Ng = size(miller, 2)
     Nevc = size(wfc, 1)
 
@@ -327,7 +326,7 @@ Determines the FFT grid size (`Nxyz`) from a given file.
 - `Nxyz::Int`: The FFT grid size along the first dimension.
 """
 function determine_fft_grid(path_to_file::String; use_xml::Bool = false)
-    Nxyz::Vec3{Int} = [0, 0, 0]
+    Nxyz::Vector{Int} = [0, 0, 0]
     if use_xml
         # Parse the XML file
         doc = EzXML.readxml(path_to_file)
@@ -425,7 +424,7 @@ This function performs the following steps:
 # Output
 Saves the processed wave functions with phase factors applied to a file named `wfc_list_phase_ik.jld2` in the specified input directory.
 """
-function prepare_unfold_to_sc(path_to_in::String, sc_size::Vec3{Int}, ik::Int)
+function prepare_unfold_to_sc(path_to_in::String, sc_size::Vector{Int}, ik::Int)
     Nxyz = determine_fft_grid(path_to_in*"/scf.out") .* sc_size
     q_vector = determine_q_point(path_to_in, ik; sc_size = sc_size)
     exp_factor = determine_phase(q_vector, Nxyz)
@@ -457,7 +456,7 @@ Applies a phase factor to an array of complex wave functions  `wfc` in-place, ba
 - `ik::Int`: Index of the k-point for which the phase factor is determined.
 
 """
-function wf_phase!(path_to_in::String, wfc::AbstractArray{ComplexF64, 4}, sc_size::Vec3{Int}, ik::Int)
+function wf_phase!(path_to_in::String, wfc::AbstractArray{ComplexF64, 4}, sc_size::Vector{Int}, ik::Int)
     Nxyz = determine_fft_grid(path_to_in*"/scf_0/scf.out") .* sc_size
     q_vector = determine_q_point(path_to_in*"/scf_0/", ik; sc_size = [1,1,1], use_sc = true)
     exp_factor = determine_phase(q_vector, Nxyz)
@@ -518,7 +517,7 @@ This function:
 """
 function prepare_wave_functions_to_G(path_to_in::String; ik::Int=1)
     wfc_list = load(path_to_in*"/scf_0/wfc_list_phase_$ik.jld2")
-    Nxyz::Vec3{Int} = size(wfc_list["wfc1"])
+    Nxyz::Vector{Int} = size(wfc_list["wfc1"])
     miller_sc, _ = parse_wf(path_to_in*"/group_1/tmp/scf.save/wfc1")
 
     g_list = Dict()
@@ -630,7 +629,7 @@ function get_unfolded_wf(miller_final_map, miller_pc_ik, wfc_pc_ik, K_init, mesh
     return wfc_sc_ik_shifted
 end
 
-function prepare_wave_functions_undisp(path_to_in::String, miller_final_map, ik::Int, mesh_scale::Vec3{Int})
+function prepare_wave_functions_undisp(path_to_in::String, miller_final_map, ik::Int, mesh_scale::Vector{Int})
     miller_pc_ik, wfc_pc_ik =  ElectronPhonon.parse_wf(path_to_in*"scf_0/tmp/scf.save/wfc$(ik)")
     K = ElectronPhonon.determine_q_point(path_to_in*"scf_0", ik; sc_size = mesh_scale)
     wfc_pc_ik1_unf = get_unfolded_wf(miller_final_map,miller_pc_ik, wfc_pc_ik, K, mesh_scale)
@@ -644,14 +643,14 @@ function prepare_wave_functions_undisp(path_to_in::String, miller_final_map, ik:
     save(path_to_in*"/scf_0/g_list_sc_$ik.jld2", g_list)
 end
 
-function prepare_wave_functions_undisp(path_to_in::String, miller_final_map, sc_size::Vec3{Int}; k_mesh::Vec3{Int} = [1,1,1])
+function prepare_wave_functions_undisp(path_to_in::String, miller_final_map, sc_size::Vector{Int}, k_mesh::Vector{Int} = [1,1,1])
     for ik in 1:prod(sc_size)*prod(k_mesh)
         prepare_wave_functions_undisp(path_to_in,miller_final_map,ik,sc_size.*k_mesh)
         @info "ik = $ik/$(prod(sc_size)*prod(k_mesh)) is ready"
     end
 end
 
-function prepare_wave_functions_disp(path_to_in::String, miller_final_map, ik::Int, Ndisplace::Int, mesh_scale::Vec3{Int})
+function prepare_wave_functions_disp(path_to_in::String, miller_final_map, ik::Int, Ndisplace::Int, mesh_scale::Vector{Int})
     @threads for ind in 1:Ndisplace
         miller_sc_ik, wfc_sc_ik =  ElectronPhonon.parse_wf(path_to_in*"group_$ind/tmp/scf.save/wfc$(ik)")
         K = ElectronPhonon.determine_q_point(path_to_in*"scf_0", ik; sc_size = mesh_scale, use_sc = true)
@@ -667,7 +666,7 @@ function prepare_wave_functions_disp(path_to_in::String, miller_final_map, ik::I
     end
 end
 
-function prepare_wave_functions_disp(path_to_in::String, miller_final_map, Ndisplace::Int, k_mesh::Vec3{Int})
+function prepare_wave_functions_disp(path_to_in::String, miller_final_map, Ndisplace::Int, k_mesh::Vector{Int})
     for ik in 1:prod(k_mesh)
         prepare_wave_functions_disp(path_to_in, miller_final_map, ik, Ndisplace, k_mesh)
         @info "ik = $ik/$(prod(k_mesh)) is ready"
@@ -691,7 +690,7 @@ Prepares wave functions for further calculations by performing the following ste
 - `ik::Int`: Index of the k-point to process.
 - `sc_size::Int`: Size of the supercell for unfolding.
 """
-function prepare_wave_functions_undisp(path_to_in::String, ik::Int, sc_size::Vec3{Int})
+function prepare_wave_functions_undisp(path_to_in::String, ik::Int, sc_size::Vector{Int})
     file_path=path_to_in*"/scf_0/"
     @info "Tranforming wave functions to R space:"
     prepare_wave_functions_to_R(file_path;ik=ik)
@@ -701,7 +700,7 @@ function prepare_wave_functions_undisp(path_to_in::String, ik::Int, sc_size::Vec
     prepare_wave_functions_to_G(path_to_in;ik=ik)
 end
 
-function prepare_wave_functions_undisp(path_to_in::String, sc_size::Vec3{Int}; k_mesh::Vec3{Int} = [1,1,1])
+function prepare_wave_functions_undisp(path_to_in::String, sc_size::Vector{Int}; k_mesh::Vector{Int} = [1,1,1])
     for ik in 1:prod(sc_size)*prod(k_mesh)
         prepare_wave_functions_undisp(path_to_in,ik,sc_size)
         @info "ik = $ik/$(prod(sc_size)*prod(k_mesh)) is ready"
@@ -729,7 +728,7 @@ For each displacement group, this function:
     - Converts the corrected wave functions back to G-space.
 3. Saves the phase-corrected wave function coefficients to a JLD2 file for each displacement group.
 """
-function prepare_wave_functions_disp(path_to_in::String, ik::Int, Ndisplace::Int, sc_size::Vec3{Int}, k_mesh::Vec3{Int})
+function prepare_wave_functions_disp(path_to_in::String, ik::Int, Ndisplace::Int, sc_size::Vector{Int}, k_mesh::Vector{Int})
 
     @threads for ind in 1:Ndisplace
         path_to_data = path_to_in*"group_$ind/"
@@ -772,14 +771,14 @@ A wrapper function that calls another method of `prepare_wave_functions_disp` wi
 - `sc_size::Int`: Size of the supercell.
 - `k_mesh::Int`: Number of k-points along each reciprocal lattice direction.
 """
-function prepare_wave_functions_disp(path_to_in::String, Ndisplace::Int, sc_size::Vec3{Int}, k_mesh::Vec3{Int})
+function prepare_wave_functions_disp(path_to_in::String, Ndisplace::Int, sc_size::Vector{Int}, k_mesh::Vector{Int})
     for ik in 1:prod(k_mesh)
         prepare_wave_functions_disp(path_to_in,ik, Ndisplace, sc_size, k_mesh)
         @info "ik = $ik/$(k_mesh^3) is ready"
     end
 end
 
-function prepare_u_matrixes(path_to_in::String, natoms::Int, sc_size::Vec3{Int}, k_mesh::Vec3{Int}; symmetries::Symmetries = Symmetries([], [], []), save_matrixes::Bool=true)
+function prepare_u_matrixes(path_to_in::String, natoms::Int, sc_size::Vector{Int}, k_mesh::Vector{Int}; symmetries::Symmetries = Symmetries([], [], []), save_matrixes::Bool=true)
     U_list = []
     V_list = []
 
@@ -941,7 +940,7 @@ Calculates the normalized inner product ⟨bra|ket⟩ between two 3D complex-val
 - `Complex{Float64}`: The normalized inner product ⟨bra|ket⟩, computed as the sum over all elements of `conj(bra[i]) * ket[i]`, divided by the total number of elements.
 """
 function calculate_braket_real(bra::Array{Complex{Float64}, 3}, ket::Array{Complex{Float64}, 3})
-    Nxyz::Vec3{Int} = size(ket)
+    Nxyz::Vector{Int} = size(ket)
     result = zero(Complex{Float64})
 
     @inbounds @simd for i in 1:prod(Nxyz)

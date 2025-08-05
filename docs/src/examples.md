@@ -510,4 +510,4 @@ python $ELEPHANY_PATH/epw/plot_epw.py
 
 ![Comparison of electron phonon coupling with DFT and HSE on a path](assets/el_ph_coupling.png)
 
-On this plot, FD is obtained with the HSE functional, which is inaccessible to standard DFPT 💥 . As we can see, more complex functionals tend to increase the coupling, which, in the case of e.g., transport, would lower the carried drift mobility. See more [arXiv prepaper]() for more details on this.
+On this plot, FD is obtained using the HSE functional, which is inaccessible to standard DFPT 💥. As we can see, more complex functionals tend to increase the coupling, which, in the case of e.g., transport, would lower the carried drift mobility. See more [arXiv prepaper]() for more details on this. Also, take a look at the `example` folder for more examples (e.g., GaAs) and stay tuned for new features in the future!
