@@ -75,15 +75,20 @@ $$g_{mn\nu}(\mathbf{k},\mathbf{q}) = \sum_{\kappa,\alpha}
 
 **ElePhAny** evaluates braket of $\partial V/\partial\tau_{\kappa\alpha}$ via finite differences
 
-$$\frac{\partial V}{\partial \tau_{\kappa\alpha}} = \frac{\partial \hat{H}}{\partial \tau_{\kappa\alpha}} 
-\approx \frac{\hat{H}(+\Delta\tau_{\kappa\alpha}) - \hat{H}(-\Delta\tau_{\kappa\alpha})}{2\,\Delta\tau_{\kappa\alpha}}$$
+
+```math
+\frac{\partial V}{\partial \tau_{\kappa\alpha}} = \frac{\partial \hat{H}}{\partial \tau_{\kappa\alpha}} 
+\approx \frac{\hat{H}(+\Delta\tau_{\kappa\alpha}) - \hat{H}(-\Delta\tau_{\kappa\alpha})}{2\,\Delta\tau_{\kappa\alpha}}
+```
 
 and eigenvalues and overlaps from pristine/displaced systems:
 
-$$\langle \psi_{m,\mathbf{k+q}}|\tfrac{\partial V}{\partial \tau_{\kappa\alpha}}|\psi_{n,\mathbf{k}}\rangle 
+```math
+\langle \psi_{m,\mathbf{k+q}}|\tfrac{\partial V}{\partial \tau_{\kappa\alpha}}|\psi_{n,\mathbf{k}}\rangle 
 \approx \frac{1}{2\,\Delta\tau_{\kappa\alpha}}\sum_{j=1}^{N_{\max}}
 \Big[\;\varepsilon^{+}_j\,(u^{+}_{j,n\mathbf{k}})^* u^{+}_{j,m\mathbf{k+q}}
--\varepsilon^{-}_j\,(u^{-}_{j,n\mathbf{k}})^* u^{-}_{j,m\mathbf{k+q}}\Big]$$
+-\varepsilon^{-}_j\,(u^{-}_{j,n\mathbf{k}})^* u^{-}_{j,m\mathbf{k+q}}\Big]
+```
 
 
 ➡️ See the [**preprint**](#) for full derivation and details.
