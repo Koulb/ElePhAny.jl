@@ -148,7 +148,7 @@ phonons = create_phonons(model)
     ```
 
     QE saves wave function in reciprocal space $\psi_{n\mathbf{k}}(\mathbf{r}) = \sum_{G}\psi_{n\mathbf{k}}(\mathbf{G}) e^{i(\mathbf{G} +\mathbf{k})\mathbf{r}}$, where `psi_list` is a list of wave functions coefficient for every band with $N_{\mathbf{G}}$ coefficients per band that coresponds to $\psi_{n\mathbf{k}}(\mathbf{G})$.
-    `miller` is matrix $3 \times N{\mathbf{G}}$ that allows to resonstruct the $G$ vector of coresponding plane wave coefficient $\psi_{n\mathbf{k}}(\mathbf{G})$ by using (read more about wave functions in QE on [Gitlab Wiki page](https://gitlab.com/QEF/q-e/-/wikis/Developers/Format-of-data-files)):
+    `miller` is matrix $3 \times N_{\mathbf{G}}$ that allows to resonstruct the $\mathbf{G}$ vector of coresponding plane wave coefficient $\psi_{n\mathbf{k}}(\mathbf{G})$ by using (read more about wave functions in QE on [Gitlab Wiki page](https://gitlab.com/QEF/q-e/-/wikis/Developers/Format-of-data-files)):
         
     $$\mathbf{G}[i, j, k] = \text{miller}[1,i] \mathbf{b}_1 + \text{miller}[2,i] \mathbf{b}_2 + \text{miller}[3,i] \mathbf{b}_3$$
 
@@ -179,7 +179,7 @@ for ik in ik_list
 end
 ```
 
-Inspecting the `out` folder, we could find the resulting comparison of electron-phonon matrix elements. For example for `ik` = 2, `iq` = 1:
+Inspecting the `out` folder, we could find the resulting comparison of electron-phonon matrix elements. For example for `ik` = 2, `iq` = 1, we see that FD and DFPT mathes perfectly 😎:
 
 ![Comparison of electron-phonon matrix elements](assets/comparison_2_1.png)
 
@@ -438,43 +438,30 @@ touch run.sh
 ```ini
 #run.sh
 #!/bin/bash
-#SBATCH --no-requeue
-#SBATCH --job-name="si_tst"
-#SBATCH --nodes=1
-#SBATCH --ntasks-per-node=64
-#SBATCH --time=00:30:00
 
-#SBATCH --account=mr33
-#SBATCH --partition=debug
-#SBATCH --constraint=mc
-
-module load cray/23.12
-module switch PrgEnv-cray PrgEnv-intel
-module load cpeIntel libxc
-module unload cray-libsci
-module load cray-python
-
-export OMP_NUM_THREADS="1"
-export QE_PATH=/users/apoliukh/soft/q-e_eiger/bin
-export NMPI=64
-export NPOOL=64
-export PARA_PREFIX="srun"
+export QE_PATH="/home/poliukhin/Soft/sourse/q-e/bin/"
+export NMPI=8
+export NPOOL=8
+export PARA_PREFIX="mpirun"
 export ELEPHANY_PATH="/home/poliukhin/Development/ElectronPhonon/"
 
-#copy data ....
+copy data ....
 cp -r ./displacements/scf_0/tmp/scf.save ./si.save
 cp -r ./displacements/scf_0/scf.out ./
 echo "0, copy finished finished"
 
+$PARA_PREFIX -n $NMPI $QE_PATH/pw.x -npool $NPOOL -in nscf.in > nscf.out
+echo "2, nscf finished"   
+
 $PARA_PREFIX -n $NMPI $QE_PATH/ph.x -npool $NPOOL -in ph.in > ph.out
 echo "1, ph finished"
 
-python3 /users/apoliukh/soft/q-e_eiger/EPW/bin/pp.py << EOF
+python3 /home/poliukhin/Soft/q-e/EPW/bin/pp.py << EOF
 si
 EOF
 echo "2, pp.py finished"
 
-$QE_PATH/epw.x -in epw0.in  > epw0.out
+epw.x -in epw0.in  > epw0.out
 echo "3, epw0 finished"
 
 $QE_PATH/epw.x -in epw1.in  > epw1.out
@@ -507,18 +494,20 @@ Since the proposed approach can be straightforwardly applied to any functional o
 
 ```julia 
 scf_parameters_hse = Dict(
-    :input_dft => "HSE",
-    :nqx1 => 1,
-    :nqx2 => 1,
-    :nqx3 => 1
+ :input_dft => "HSE",
+ :nqx1 => 1,
+ :nqx2 => 1,
+ :nqx3 => 1
 )
 
 merge!(scf_parameters, scf_parameters_hse)
 ```
-In case any other method beyond DFT is of interest, one could intervene after the electrons and phonons object is created and change the corresponding eigenvalues and eigenvectors. By following the same calculation as the previous step we could get acses to the electron-phonon coupling with HSE functional, previously inacesuble in standart DFT!  To plot electron-phonon coupling along the path specified in `path_k.kpt` and `path_q.kpt` files, use the `plot_epw.py` script.
+In case any other method beyond DFT is of interest, one could intervene after the electrons and phonons object is created and change the corresponding eigenvalues and eigenvectors. By following the same calculation as the previous step, we can gain access to the electron-phonon coupling with the HSE functional.  To plot electron-phonon coupling along the path specified in `path_k.kpt` and `path_q.kpt` files, use the `plot_epw.py` script.
 
 ```sh
 python $ELEPHANY_PATH/epw/plot_epw.py
 ```
 
 ![Comparison of electron phonon coupling with DFT and HSE on a path](assets/el_ph_coupling.png)
+
+On this plot, FD is obtained with the HSE functional, which is inaccessible to standard DFPT 💥 . As we can see, more complex functionals tend to increase the coupling, which, in the case of e.g., transport, would lower the carried drift mobility. See more [arXiv prepaper]() for more details on this.

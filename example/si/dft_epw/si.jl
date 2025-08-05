@@ -55,13 +55,13 @@ scf_parameters = Dict(
     :electron_maxstep => 1000,
 )
 
-# For HSE calculations, we can add the following parameters
-scf_parameters_hse = Dict(
-    :input_dft => "HSE",
-    :nqx1 => 1,
-    :nqx2 => 1,
-    :nqx3 => 1
-)
+# # For HSE calculations, we can add the following parameters
+# scf_parameters_hse = Dict(
+#     :input_dft => "HSE",
+#     :nqx1 => 1,
+#     :nqx2 => 1,
+#     :nqx3 => 1
+# )
 
 merge!(scf_parameters, scf_parameters_hse)
 
