@@ -59,39 +59,7 @@ pkg> add PythonCall
 3. **Export or analyze**: e.g. save in EPW format for further property calculations.
 
 ➡️ See the [**documentation**](#) for a full tutorial and API reference.
-
-## Theory Summary
-
-When atoms are displaced, the electronic potential changes, giving rise to an e–ph Hamiltonian:
-
-$$\hat{H}^{\mathrm{e-ph}} = \sum_{\kappa\alpha l} \frac{\partial \hat{V}}{\partial \tau_{\kappa\alpha l}}\,\delta \tau_{\kappa\alpha l}$$
-
-The matrix element is:
-
-$$g_{mn\nu}(\mathbf{k},\mathbf{q}) = \sum_{\kappa,\alpha} 
-\sqrt{\frac{\hbar}{2 M_\kappa \omega_{\mathbf{q}\nu}}}
-\, e_{\kappa\alpha\mathbf{q}\nu} 
-\langle \psi_{m,\mathbf{k+q}}| \tfrac{\partial V}{\partial \tau_{\kappa\alpha}}|\psi_{n,\mathbf{k}}\rangle$$
-
-**ElePhAny** evaluates braket of $\partial V/\partial\tau_{\kappa\alpha}$ via finite differences
-
-
-```math
-\frac{\partial V}{\partial \tau_{\kappa\alpha}} = \frac{\partial \hat{H}}{\partial \tau_{\kappa\alpha}} 
-\approx \frac{\hat{H}(+\Delta\tau_{\kappa\alpha}) - \hat{H}(-\Delta\tau_{\kappa\alpha})}{2\,\Delta\tau_{\kappa\alpha}}
-```
-
-and eigenvalues and overlaps from pristine/displaced systems:
-
-```math
-\langle \psi_{m,\mathbf{k+q}}|\tfrac{\partial V}{\partial \tau_{\kappa\alpha}}|\psi_{n,\mathbf{k}}\rangle 
-\approx \frac{1}{2\,\Delta\tau_{\kappa\alpha}}\sum_{j=1}^{N_{\max}}
-\Big[\;\varepsilon^{+}_j\,(u^{+}_{j,n\mathbf{k}})^* u^{+}_{j,m\mathbf{k+q}}
--\varepsilon^{-}_j\,(u^{-}_{j,n\mathbf{k}})^* u^{-}_{j,m\mathbf{k+q}}\Big]
-```
-
-
-➡️ See the [**preprint**](#) for full derivation and details.
+➡️ See the [**preprint**](#) for full derivation and details on theory.
 
 ## References and Resources
 
