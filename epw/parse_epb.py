@@ -7,6 +7,7 @@ import scipy as sc
 import os
 import sys
 import argparse
+import re
 
 # Helper function to read parameter from command line, else use default
 def get_param(idx, default, cast_func=int):
@@ -57,9 +58,10 @@ parser.add_argument("--path_to_epw", default="./", type=str, help="Path to EPW d
 parser.add_argument("--path_to_frozen", default="./displacements/", type=str, help="Path to frozen phonon data")
 parser.add_argument("--nbnd", default=4, type=int, help="Number of bands")
 parser.add_argument("--nbndep", default=4, type=int, help="Number of electron bands for EP")
-parser.add_argument("--mesh", default=4, type=int, help="Mesh size")
+parser.add_argument("--mesh", default=2, type=int, help="Mesh size")
 parser.add_argument("--nat", default=2, type=int, help="Number of atoms")
 parser.add_argument("--epb_name", default="si.epb1", type=str, help="EPB file name")
+parser.add_argument("--only_g", default=True, help="Only modify g array, skip dynq and et_loc")
 
 args = parser.parse_args()
 
@@ -70,6 +72,7 @@ nbndep          = args.nbndep
 mesh            = args.mesh
 nat             = args.nat
 epb_name        = args.epb_name
+only_g          = args.only_g
 
 nbnd            = nbndep  # If you want nbnd = nbndep, otherwise add another argument
 nbndep_skip     = nbnd - nbndep
@@ -112,7 +115,7 @@ real_vectors = np.linalg.inv(reciprocal_vectors) /a_factor
 
 ## creating the reshufling list to correctrly parse q points
 q_ph   = xqc
-q_nscf = [determine_q_point_cart(path_to_epw+'/scf.out', ik) for ik in range(1, nqtot + 1)]
+q_nscf = [determine_q_point_cart(path_to_epw, ik) for ik in range(1, nqtot + 1)]
 
 iq_ph_list =[]
 
@@ -177,10 +180,12 @@ file_path = path_to_epw+epb_name
 file = FortranFile(file_path,'w')
 epb_data_list = list(epb_data)
 
-epb_data_list[4] = g_frozen.T
-epb_data_list[3] = dynq_frozen.T
-epb_data_list[2] = et_loc_frozen #et_loc
-
+if only_g:
+    epb_data_list[4] = g_frozen.T
+else:
+    epb_data_list[4] = g_frozen.T
+    epb_data_list[3] = dynq_frozen.T
+    epb_data_list[2] = et_loc_frozen #et_loc
 new_epb_data = tuple(epb_data_list)
 
 file.write_record(*new_epb_data)

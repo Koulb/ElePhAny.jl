@@ -183,22 +183,6 @@ Inspecting the `out` folder, we could find the resulting comparison of electron-
 
 ![Comparison of electron-phonon matrix elements](assets/comparison_2_1.png)
 
-## Silicon with Hybrids
-
-Since the proposed approach can be straightforwardly applied to any functional of interest, we could perform the same calculation, for example, for the Hybrid functional. In QE, we could do it by just adding a few additional parameters and following the rest of the example. 
-
-```julia 
-scf_parameters_hse = Dict(
-    :input_dft => "HSE",
-    :nqx1 => 1,
-    :nqx2 => 1,
-    :nqx3 => 1
-)
-
-merge!(scf_parameters, scf_parameters_hse)
-```
-In case any other method beyond DFT is of interest, one could intervene after the electrons and phonons object is created and change the corresponding eigenvalues and eigenvectors.
-
 ## Interface with EPW
 
 !!! warn
@@ -508,17 +492,33 @@ echo "4, epw2 finished"
 
 For the additional explanation of different options of EPW, consult the [documentation](https://docs.epw-code.org/doc/Inputs.html). For the `scf` and `nscf` calculations, we are reusing data from the `displacements/scf_0` folder. After copying the ground state calculation, we are performing phonon calculations using the `ph.in` input file. After converting data to the EPW readable format using the `pp.py` script, we run `epw0.in`, which creates a `si.epb` file containing all the essential data related to the electron-phonon calculation. This is the file that we will modify using the `parse_epb.py` script. The script allows parsing of a Fortran binary file and modifying related electron eigenvalues, phonon dynamical matrices, and electron-phonon matrix elements in the Kohn-Sham basis (without multiplying by the phonon eigenvector). The important caveat here is that the electron-phonon matrix is not gauge invariant, which means that we have to carry initial wave functions that were used to create the matrix to be consistent with Wannier interpolation. For this, the second script `fake2nscf.py` is used to copy wavefunctions and eigenvalues that were obtained with any functional to the format QE could read. These scripts are the temporary solutions to the interface and are located in the `epw` folder of the source code. 
 
-After successfully parsing the electron-phonon matrix and modifying the wavefunction, we can rerun EPW using `epw2.in`, which will read the modified EPW files, perform wannierization, and then calculate interpolated quantities. To compare the results between DFPT and FD, we could use `compare_epw.py`. To plot electron-phonon coupling along the path specified in `path_k.kpt` and `path_q.kpt` files, use the `plot_epw.py` script.
+After successfully parsing the electron-phonon matrix and modifying the wavefunction, we can rerun EPW using `epw2.in`, which will read the modified EPW files, perform wannierization, and then calculate interpolated quantities. To compare the results between DFPT and FD, we could use `compare_epw.py`.
 
 
 ```sh
-python compare_epw.py
+python $ELEPHANY_PATH/epw/compare_epw.py
 ```
 
-![1](assets/epw_frozen_comp_2_new.pdf)
+![Comparison of electron phonon coupling with DFT and DFPT](assets/epw_frozen_comp.png)
+
+## Silicon with Hybrids
+
+Since the proposed approach can be straightforwardly applied to any functional of interest, we could perform the same calculation, for example, for the Hybrid functional. In QE, we could do it by just adding a few additional parameters and following the rest of the example. 
+
+```julia 
+scf_parameters_hse = Dict(
+    :input_dft => "HSE",
+    :nqx1 => 1,
+    :nqx2 => 1,
+    :nqx3 => 1
+)
+
+merge!(scf_parameters, scf_parameters_hse)
+```
+In case any other method beyond DFT is of interest, one could intervene after the electrons and phonons object is created and change the corresponding eigenvalues and eigenvectors. By following the same calculation as the previous step we could get acses to the electron-phonon coupling with HSE functional, previously inacesuble in standart DFT!  To plot electron-phonon coupling along the path specified in `path_k.kpt` and `path_q.kpt` files, use the `plot_epw.py` script.
 
 ```sh
-python plot_epw.py
+python $ELEPHANY_PATH/epw/plot_epw.py
 ```
 
-![2](assets/el_ph_coupling_4_all.pdf)
+![Comparison of electron phonon coupling with DFT and HSE on a path](assets/el_ph_coupling.png)

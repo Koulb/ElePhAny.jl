@@ -3,6 +3,8 @@ import sys
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
 
+plt.rcParams.update({'font.size': 22})
+plt.rcParams['figure.figsize'] = [20, 10]
 
 #Comparing results
 #### Electron-phonons
@@ -73,13 +75,9 @@ array_epw1 = np.array(data_epw1)
 fig, axes = plt.subplots(2, 1)
 
 axes[0].plot(array_epw2 - array_epw1, '-', c='blue')
-for iq in range(0, 9):
-    val_iq = iq * 8 * 6 * 4 * 4
-    axes[0].axvline(val_iq, color='red')
 
-# axes[0].set_xlabel('Reduced index I:{i,j,m,ik,iq}')
-ylabel1=r'g$^{EPW}$ - g$^{EPW}_{Frozen}$, meV'
-ylabel2=r'|g$^{EPW}$ - g$^{EPW}_{Frozen}|$, meV'
+ylabel1=r'g$^{EPW}_{DFPT}$ - g$^{EPW}_{FD}$, meV'
+ylabel2=r'|g$^{EPW}_{DFPT}$ - g$^{EPW}_{FD}$|, meV'
 axes[0].set_ylabel(ylabel1)
 axes[0].set_xlim([0-10, len(array_epw1)+10])
 axes[0].plot(-1,0, color = 'red', label = 'iq = [1..8]')

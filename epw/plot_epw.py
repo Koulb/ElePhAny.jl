@@ -37,7 +37,7 @@ g_dict_epw_frozen = {'{}        {}        1'.format(iband1,iband2):[],
                      '{}        {}        6'.format(iband1,iband2):[]}
 
 #EPW
-with open(path_to_data+'epw2.out', 'r') as f:
+with open(path_to_data+'epw1.out', 'r') as f:
     for line in f.readlines():
         for branch, temp_list in g_dict_epw.items():
             if branch in line:
@@ -46,10 +46,9 @@ k_epw = np.linspace(0, 1, len(g_dict_epw['{}        {}        1'.format(iband1,i
 
 for branch, values in g_dict_epw.items():
     plt.plot(k_epw,values, linewidth=1, alpha=0.5,color='blue')
-    #break
 
 #EPW frozen
-with open(path_to_data+'epw4.out', 'r') as f:
+with open(path_to_data+'epw2.out', 'r') as f:
     for line in f.readlines():
         for branch, temp_list in g_dict_epw_frozen.items():
             if branch in line:
@@ -66,7 +65,8 @@ labels = ['X', 'G', 'L']
 plt.xticks(ticks= ticks, labels=labels)
 
 plt.plot(min(k_epw)-1,0, color='blue',label='EPW-DFPT')
-plt.plot(min(k_epw)-1,0, color='red',label='EPW-FD')
+plt.plot(min(k_epw)-1,0, 's', color='red',label='EPW-FD')
+plt.xlim([0, 1])
 plt.legend()
 
 plt.ylabel(r"|g|$_{avg}$(meV)")
