@@ -31,7 +31,7 @@ The code interfaces with ab initio outputs from [Quantum Espresso](https://www
    pkg> add https://github.com/Koulb/ElePhAny.jl
 ```
 
-3. **(Alternative) Development mode:**
+2. **(Alternative) Development mode:**
 
 ```sh
 git clone https://github.com/Koulb/ElePhAny.jl.git
@@ -46,7 +46,7 @@ julia> ]
 pkg> dev .
 ```
 
-4. **For Python-like dictionaries support:**
+3. **For Python-like dictionaries support:**
 
 ```julia
 pkg> add PythonCall
@@ -64,32 +64,26 @@ pkg> add PythonCall
 
 When atoms are displaced, the electronic potential changes, giving rise to an e–ph Hamiltonian:
 
-$\hat{H}^{\mathrm{e-ph}} = \sum_{\kappa\alpha l} \frac{\partial \hat{V}}{\partial \tau_{\kappa\alpha l}}\,\delta \tau_{\kappa\alpha l}$
+$$\hat{H}^{\mathrm{e-ph}} = \sum_{\kappa\alpha l} \frac{\partial \hat{V}}{\partial \tau_{\kappa\alpha l}}\,\delta \tau_{\kappa\alpha l}$$
 
 The matrix element is:
 
-$$
-g_{mn\nu}(\mathbf{k},\mathbf{q}) = \sum_{\kappa,\alpha} 
+$$g_{mn\nu}(\mathbf{k},\mathbf{q}) = \sum_{\kappa,\alpha} 
 \sqrt{\frac{\hbar}{2 M_\kappa \omega_{\mathbf{q}\nu}}}
 \, e_{\kappa\alpha\mathbf{q}\nu} 
-\langle \psi_{m,\mathbf{k+q}}| \tfrac{\partial V}{\partial \tau_{\kappa\alpha}}|\psi_{n,\mathbf{k}}\rangle
-$$
+\langle \psi_{m,\mathbf{k+q}}| \tfrac{\partial V}{\partial \tau_{\kappa\alpha}}|\psi_{n,\mathbf{k}}\rangle$$
 
 **ElePhAny** evaluates braket of $\partial V/\partial\tau_{\kappa\alpha}$ via finite differences
 
-$$
-\frac{\partial V}{\partial \tau_{\kappa\alpha}} = \frac{\partial \hat{H}}{\partial \tau_{\kappa\alpha}} 
-\approx \frac{\hat{H}(+\Delta\tau_{\kappa\alpha}) - \hat{H}(-\Delta\tau_{\kappa\alpha})}{2\,\Delta\tau_{\kappa\alpha}}
-$$
+$$\frac{\partial V}{\partial \tau_{\kappa\alpha}} = \frac{\partial \hat{H}}{\partial \tau_{\kappa\alpha}} 
+\approx \frac{\hat{H}(+\Delta\tau_{\kappa\alpha}) - \hat{H}(-\Delta\tau_{\kappa\alpha})}{2\,\Delta\tau_{\kappa\alpha}}$$
 
 and eigenvalues and overlaps from pristine/displaced systems:
 
-$$
-\langle \psi_{m,\mathbf{k+q}}|\tfrac{\partial V}{\partial \tau_{\kappa\alpha}}|\psi_{n,\mathbf{k}}\rangle 
+$$\langle \psi_{m,\mathbf{k+q}}|\tfrac{\partial V}{\partial \tau_{\kappa\alpha}}|\psi_{n,\mathbf{k}}\rangle 
 \approx \frac{1}{2\,\Delta\tau_{\kappa\alpha}}\sum_{j=1}^{N_{\max}}
 \Big[\;\varepsilon^{+}_j\,(u^{+}_{j,n\mathbf{k}})^* u^{+}_{j,m\mathbf{k+q}}
--\varepsilon^{-}_j\,(u^{-}_{j,n\mathbf{k}})^* u^{-}_{j,m\mathbf{k+q}}\Big]
-$$
+-\varepsilon^{-}_j\,(u^{-}_{j,n\mathbf{k}})^* u^{-}_{j,m\mathbf{k+q}}\Big]$$
 
 
 ➡️ See the [**preprint**](#) for full derivation and details.
