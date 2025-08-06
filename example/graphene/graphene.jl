@@ -3,9 +3,9 @@ using ElectronPhonon, PythonCall, ProgressMeter, Base.Threads
 #flags
 create = true
 from_scratch = false
-run = false
-prepare = false
-calc_ep = false
+run = true
+prepare = true
+calc_ep = true
 
 # Example usage
 path_to_calc = pwd() * "/"
@@ -63,7 +63,7 @@ scf_parameters = Dict(
     :assume_isolated => "2D",
 )
 
-use_symm = true
+use_symm = false
 
 model = create_model(path_to_calc = path_to_calc,
                       abs_disp = abs_disp,
@@ -107,8 +107,8 @@ if calc_ep
     println("Calculating electron-phonon matrix elements for $(length(ik_list)*length(iq_list)) points:")
     for ik in ik_list #@threads
         for iq in iq_list
-            # electron_phonon_qe(model, ik, iq)# requires to compile special ph.x in testsuite/non_epw_comp
-            electron_phonon(model, ik, iq, electrons, phonons; save_qeraman = true) #save_epw = true
+            electron_phonon_qe(model, ik, iq)# requires to compile special ph.x in testsuite/non_epw_comp
+            electron_phonon(model, ik, iq, electrons, phonons; ) #save_qeraman = true #save_epw = true
             plot_ep_coupling(model, ik, iq, nbnd_max = 8)
             next!(progress)
         end
