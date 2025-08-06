@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Examples · ElePhAny</title><meta name="title" content="Examples · ElePhAny"/><meta property="og:title" content="Examples · ElePhAny"/><meta property="twitter:title" content="Examples · ElePhAny"/><meta name="description" content="Documentation for ElePhAny."/><meta property="og:description" content="Documentation for ElePhAny."/><meta property="twitter:description" content="Documentation for ElePhAny."/><script data-outdated-warner src="../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL=".."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../assets/documenter.js"></script><script src="../search_index.js"></script><script src="../siteinfo.js"></script><script src="../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-mocha.css" data-theme-name="catppuccin-mocha"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-macchiato.css" data-theme-name="catppuccin-macchiato"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-frappe.css" data-theme-name="catppuccin-frappe"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-latte.css" data-theme-name="catppuccin-latte"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><a class="docs-logo" href="../home/"><img src="../assets/logo.png" alt="ElePhAny logo"/></a><div class="docs-package-name"><span class="docs-autofit"><a href="../home/">ElePhAny</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../home/">Home</a></li><li><a class="tocitem" href="../theory/">Theory</a></li><li class="is-active"><a class="tocitem" href>Examples</a><ul class="internal"><li><a class="tocitem" href="#Silicon-with-PBE"><span>Silicon with PBE</span></a></li><li><a class="tocitem" href="#Running-code"><span>Running code</span></a></li><li><a class="tocitem" href="#Interface-with-EPW"><span>Interface with EPW</span></a></li><li><a class="tocitem" href="#Silicon-with-Hybrids"><span>Silicon with Hybrids</span></a></li></ul></li><li><a class="tocitem" href="../">Index</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li class="is-active"><a href>Examples</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Examples</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/Koulb/ElePhAny.jl" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/Koulb/ElePhAny.jl/blob/main/docs/src/examples.md" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="Examples"><a class="docs-heading-anchor" href="#Examples">Examples</a><a id="Examples-1"></a><a class="docs-heading-anchor-permalink" href="#Examples" title="Permalink"></a></h1><p>This example demonstrates the calculation of electron-phonon matrix elements for Silicon on a <span>$\mathbf{k}=\mathbf{q}=2\times2\times2$</span> grid using the projectability approach with PBE and HSE functionals.  </p><h2 id="Silicon-with-PBE"><a class="docs-heading-anchor" href="#Silicon-with-PBE">Silicon with PBE</a><a id="Silicon-with-PBE-1"></a><a class="docs-heading-anchor-permalink" href="#Silicon-with-PBE" title="Permalink"></a></h2><p>The first step is loading the ElePhAny module together with PythonCall, as we are using the ASE and Phonopy libraries to handle the creation of Quantum Espresso inputs and phonon calculations, respectively.</p><pre><code class="language-julia hljs"> using ElectronPhonon, PythonCall</code></pre><p>Then, we need to decide where to create the folder with the corresponding data for the finite difference (FD) calculation. Consider that we set <code>path_to_calc</code> to the same path where the <code>si.jl</code> script for the calculation is located. We expect the following structure of the calculation:</p><pre><code class="language-julia hljs">path_to_calc = pwd() * &quot;/&quot;</code></pre><pre><code class="language-md hljs">.
+├── si.jl
+├── run.sh
+└── displacements
+    ├── dyn_mat
+    ├── epw
+    ├── group_1
+    ...
+    ├── group_12
+    ├── out
+    ├── phonopy_params.yaml
+    ├── phonopy.yaml
+    ├── qpoints.yaml
+    ├── scf_0
+    └── sc_size.conf</code></pre><p>Let&#39;s break it down piece by piece. Inside <code>displacement</code> folder, there are <code>group_*</code> folders that contain input/output of the displaced configurations (<code>scf.in scf.out nscf.in nscf.out</code>) that we need for further post-processing.  <code>scf_0</code> folders contain information about pristine calculation together with <code>*jld2</code> files that are needed for restarting of the code once the post-processing is partially finished. <code>phonopy_params.yaml</code> and <code>phonopy.yaml qpoints.yaml sc_size.conf</code> contains information related to Phonopy calculation.  <code>out</code> folder contains information about electron-phonon elements calculated with DFPT and FD on the coarse-grid for a given <code>ik</code> and <code>iq</code> point per file. <code>epw</code> and <code>dyn_mat</code> folders are needed for further interface with EPW package.  If run.sh is also present in the root folder, then subsequent executions of QE are going to be done using Slurm, and <code>run.sh</code> is going to be copied in all the <code>group_*</code> and <code>scf_0</code> folders. </p><p>Now we need to set up additional settings for the FD calculation: <code>abs_disp</code> is the size of the finite displacement which we are going to apply to atoms (Bohr). <code>path_to_qe</code> is an optional path to the Quantum Espresso (QE) source folder, needed only when we want to compare results of FD with DFPT; otherwise, ElePhAny assumes that QE executables are on the path. To access electron-phonon elements, you will need to compile a special version of the ph.x code located in <code>testsuite/non_epw_comp</code> of QE. The following parameter, <code>mpi_ranks</code>, is required for the parallel execution of QE. It is ignored if <code>run.sh</code> is present and calculations are run using Slurm. The <code>use_symm</code> flag corresponds to whether symmetries of displaced configurations are going to be used or every atom of the unit cell is going to be perturbed. At last, <code>sc_size</code> corresponds to the supercell size, which corresponds to the <span>$\mathbf{q}$</span> grid. <code>k_mesh</code> corresponds to the k-points sampling of the <em>supercells</em>. To have consistency between pristine unit cells and displaced supercells, k-point sampling of the pristine unit cell is a product of <span>$sc\_size \times k\_mesh$</span>.</p><pre><code class="language-julia hljs">#Params
+abs_disp = 1e-3
+path_to_qe= &quot;/home/poliukhin/Soft/sourse/q-e/&quot;
+mpi_ranks = 8
+use_symm = false
+sc_size = [2,2,2]
+k_mesh  = [1,1,1]</code></pre><p>The final step in setting up the calculation is to create the QE input file for the pristine system. It is handled by ASE and Phonopy packages, for which we need to provide <code>unitcell</code> and <code>scf_parameters</code> python-like dictionaries. </p><pre><code class="language-julia hljs"># Lattice constant of Silicon
+a = 5.43052   in Angstrom
+
+unitcell = Dict(
+    :symbols =&gt;  pylist([&quot;Si&quot;, &quot;Si&quot;]),
+    :cell =&gt; pylist([[-0.5 * a, 0.0, 0.5 * a],
+    [0.0, 0.5 * a, 0.5 * a],
+    [-0.5 * a, 0.5 * a, 0.0]]),
+    :scaled_positions =&gt; pylist([(0, 0, 0), (0.75, 0.75, 0.75)]),
+    :masses =&gt; pylist([28.08550, 28.08550])
+)
+
+# Set up the calculation parameters as a Python dictionary
+scf_parameters = Dict(
+    :format =&gt; &quot;espresso-in&quot;,
+    :kpts =&gt; pytuple((k_mesh[1]*sc_size[1], k_mesh[2]*sc_size[2], k_mesh[3]*sc_size[3])),
+    :calculation =&gt;&quot;scf&quot;,
+    :prefix =&gt; &quot;scf&quot;,
+    :outdir =&gt; &quot;./tmp/&quot;,
+    :pseudo_dir =&gt; &quot;/home/poliukhin/Development/frozen_phonons/elph/example/pseudo&quot;,
+    :ecutwfc =&gt; 60,
+    :conv_thr =&gt;1.e-13,
+    :pseudopotentials =&gt; Dict(&quot;Si&quot; =&gt; &quot;Si.upf&quot;),
+    :diagonalization =&gt; &quot;ppcg&quot;,#david
+    :mixing_mode =&gt; &quot;plain&quot;,
+    :mixing_beta =&gt; 0.7,
+    :crystal_coordinates =&gt; true,
+    :verbosity =&gt; &quot;high&quot;,
+    :tstress =&gt; false,
+    :ibrav =&gt; 2,
+    :tprnfor =&gt; true,
+    :nbnd =&gt; 4,
+    :electron_maxstep =&gt; 1000
+)</code></pre><p>Once all the settings are set, we can create the model. If use_symm is set to <code>true</code>, the code will analyze and find the minimum amount of displacements that is consistent with Phonopy.</p><pre><code class="language-julia hljs">model = create_model(path_to_calc = path_to_calc,
+                      abs_disp = abs_disp,
+                      path_to_qe = path_to_qe,
+                      mpi_ranks = mpi_ranks,
+                      sc_size = sc_size,
+                      k_mesh  = k_mesh,
+                      unitcell = unitcell,
+                      scf_parameters = scf_parameters,
+                      use_symm = use_symm);</code></pre><h2 id="Running-code"><a class="docs-heading-anchor" href="#Running-code">Running code</a><a id="Running-code-1"></a><a class="docs-heading-anchor-permalink" href="#Running-code" title="Permalink"></a></h2><p>Once all the preparation is complete, all subsequent functions will operate directly with the model object. First, we could create the displaced configurations and run related DFT calculations.</p><pre><code class="language-julia hljs">create_disp_calc!(model; from_scratch = from_scratch)
+run_calculations(model)</code></pre><div class="admonition is-info" id="Note-cab6d28f2c243fff"><header class="admonition-header">Note<a class="admonition-anchor" href="#Note-cab6d28f2c243fff" title="Permalink"></a></header><div class="admonition-body"><p>If the calculations are run on the cluster and run.sh is present in the root directory, the calculations must be run sequentially, as <code>run_calculations(model)</code> is designed to execute both SCF and NSCF calculations. In this case, use the following functions, running them one by one (scf pristine and displaced, nscf pristine, nscf displaced):</p><pre><code class="language-julia hljs">create_disp_calc!(model; from_scratch = from_scratch)
+run_disp_calc(model)
+run_nscf_calc(model)
+run_disp_nscf_calc(model)</code></pre></div></div><p>Once all the calculations are done, we could post-process the results. The <code>prepare_model</code> function will unfold pristine wave functions to the supercell and save them in the binary &#39;*jld2&#39; format for further post-processing. It will also call Phonopy to create a diagonal force constant matrix to access phonon data. After this, the <code>create_electrons</code> and <code>create_phonons</code> functions will create and save data for the final electron-phonon matrix element calculations. To save space and computational time <code>create_electrons</code> will save braket matixes beetween displaced and undisplaced wave-functions <span>$U^{\pm}_{jn\mathbf{k}} = \langle \psi^{\pm}_{j} \mid \psi_{n\mathbf{k}} \rangle$</span> instead of wave functions itself.</p><pre><code class="language-julia hljs">prepare_model(model)
+electrons = create_electrons(model)
+phonons = create_phonons(model)</code></pre><div class="admonition is-info" id="Note-f88872b45255f58e"><header class="admonition-header">Note<a class="admonition-anchor" href="#Note-f88872b45255f58e" title="Permalink"></a></header><div class="admonition-body"><p>If the electrons and phonons objects were already created before, we could take advantage of the loading functions and not recalculate <span>$U^{\pm}_{jn\mathbf{k}}$</span> matrices.</p><pre><code class="language-julia hljs">electrons = load_electrons(model)
+phonons = load_phonons(model)</code></pre></div></div><div class="admonition is-success" id="Tip-3a15290d5698fe80"><header class="admonition-header">Tip<a class="admonition-anchor" href="#Tip-3a15290d5698fe80" title="Permalink"></a></header><div class="admonition-body"><p>Since part of this code allows manipulating wave functions that QE saves in binary or HDF5 format, it is helpful to present some examples. Considering that we have QE calculation with <code>tmp/scf.save/</code> folder, which contains several wave functions <code>wfc*.dat</code> or <code>wfc*.hdf5</code>, we could read them directly in Julia.</p><pre><code class="language-julia hljs">miller, psi_list = parse_wf(&quot;./tmp/scf.save/wfc1&quot;)</code></pre><p>QE saves wave function in reciprocal space <span>$\psi_{n\mathbf{k}}(\mathbf{r}) = \sum_{G}\psi_{n\mathbf{k}}(\mathbf{G}) e^{i(\mathbf{G} +\mathbf{k})\mathbf{r}}$</span>, where <code>psi_list</code> is a list of wave functions coefficient for every band with <span>$N_{\mathbf{G}}$</span> coefficients per band that coresponds to <span>$\psi_{n\mathbf{k}}(\mathbf{G})$</span>. <code>miller</code> is matrix <span>$3 \times N_{\mathbf{G}}$</span> that allows to resonstruct the <span>$\mathbf{G}$</span> vector of coresponding plane wave coefficient <span>$\psi_{n\mathbf{k}}(\mathbf{G})$</span> by using (read more about wave functions in QE on <a href="https://gitlab.com/QEF/q-e/-/wikis/Developers/Format-of-data-files">Gitlab Wiki page</a>):</p><p class="math-container">\[\mathbf{G}[i, j, k] = \text{miller}[1,i] \mathbf{b}_1 + \text{miller}[2,i] \mathbf{b}_2 + \text{miller}[3,i] \mathbf{b}_3\]</p><p>Having access to wave function coefficients and Miller indices, we could easily transform the wave function to real or reciprocal space as well as calculate brackets between them.</p><pre><code class="language-julia hljs">N_fft = determine_fft_grid(&quot;./tmp/scf.save/data-file-schema.xml&quot;; use_xml=true)
+psi_list_R = [wf_from_G(miller, psi_G, N_fft) for psi_G in psi_list]
+psi_list_G = [wf_to_G(miller, psi_R, N_fft) for psi_R in psi_list_R]
+braket_G = calculate_braket(psi_list_G[1],psi_list_G[2])
+braket_R = calculate_braket_real(psi_list_R[2], psi_list_R[2])</code></pre></div></div><p>Now, the final part of the calculation is the construction of the electron-phonon matrix for every k and q points of interest.  <code>electron_phonon_qe</code> function will try to calculate electron-phonon matrix elements directly in QE so that comparison between DFPT and FD could be made (provided a special version of ph.x is compiled). <code>plot_ep_coupling</code> allows simple visualization of the output quantities. </p><pre><code class="language-julia hljs"># Electron-phonon matrix elements
+ik_list = [i for i in 1:prod(k_mesh*sc_size)]
+iq_list = [i for i in 1:prod(k_mesh*sc_size)]
+
+for ik in ik_list
+    for iq in iq_list
+        electron_phonon_qe(model, ik, iq)# requires to compile special ph.x in testsuite/non_epw_comp
+        electron_phonon(model, ik, iq, electrons, phonons;) #save_epw = true
+        plot_ep_coupling(model, ik, iq)
+    end
+end</code></pre><p>Inspecting the <code>out</code> folder, we could find the resulting comparison of electron-phonon matrix elements. For example for <code>ik</code> = 1, <code>iq</code> = 2, we see that FD and DFPT mathes perfectly 😎:</p><p><img src="../assets/comparison_2_1.png" alt="Comparison of electron-phonon matrix elements"/></p><h2 id="Interface-with-EPW"><a class="docs-heading-anchor" href="#Interface-with-EPW">Interface with EPW</a><a id="Interface-with-EPW-1"></a><a class="docs-heading-anchor-permalink" href="#Interface-with-EPW" title="Permalink"></a></h2><div class="admonition is-category-warn" id="Warn-65ee25143b91432d"><header class="admonition-header">Warn<a class="admonition-anchor" href="#Warn-65ee25143b91432d" title="Permalink"></a></header><div class="admonition-body"><p>This section provides an interface to the EPW software. Since the usage of it is not very smooth and EPW developers are moving to storing data in HDF5 files, stay tuned for an improved version of the interface that does not require an explicit call to the Python script. </p></div></div><p>To run this section of the example we need to run part of the script that constructs electron-phonon matrix element, this time without explicit comparison with DFPT and adding aditional flag that saves data readable by EPW:</p><pre><code class="language-julia hljs">electron_phonon(model, ik, iq, electrons, phonons; save_epw = true)</code></pre><p>Having access to the electron-phonon matrix elements on the coarse grid, it is easy to build an interface with the relevant code that could obtain electron-phonon related properties. We are going with EPW code for this matter since it has a straightforward interface to the QE package. Continuing the example where we created <code>displacements</code> folder in the same place where we have the execution script, we will add a few additional files in the root folder.</p><pre><code class="language-sh hljs">touch ph.in
+touch epw0.in
+touch epw1.in
+touch epw2.in
+touch path_k.kpt
+touch path_q.kpt
+touch run.sh</code></pre><pre><code class="language-ini hljs">!ph.in
+&amp;inputph
+  recover=.false.
+  tr2_ph=1.0d-17,
+  prefix=&#39;si&#39;,
+  amass(1)=28.0855,
+  outdir=&#39;./&#39;,
+  fildyn=&#39;si.dyn.xml&#39;,
+  fildvscf=&#39;dvscf&#39;
+  ldisp=.true.,
+  nq1 = 2,
+  nq2 = 2,
+  nq3 = 2
+ /</code></pre><pre><code class="language-ini hljs">!epw0.in
+&amp;inputepw
+    prefix      = &#39;si&#39;
+    amass(1)    = 28.0855,
+    outdir      = &#39;./&#39;
+    dvscf_dir   = &#39;./save/&#39;
+    elph        = .true.
+    epbwrite    = .true.
+    epbread     = .false.
+    epwwrite    = .true.
+    epwread     = .false.
+    use_ws      = .true.
+    nbndsub     =  4
+    wannierize   = .true.
+    num_iter     = 50000
+    iprint       = 2
+    proj(1)     = &#39;f=0,0,0:sp3&#39;
+
+    nkf1 = 1
+    nkf2 = 1
+    nkf3 = 1
+    nqf1 = 1
+    nqf2 = 1
+    nqf3 = 1
+    nk1  = 2
+    nk2  = 2
+    nk3  = 2
+    nq1  = 2
+    nq2  = 2
+    nq3  = 2
+ /</code></pre><pre><code class="language-ini hljs">!epw1.in
+--
+&amp;inputepw
+  prefix      = &#39;si&#39;
+  amass(1)    = 28.0855,
+  outdir      = &#39;./&#39;
+  dvscf_dir   = &#39;./save/&#39;
+  elph        = .true.
+  epbwrite    = .false.
+  epbread     = .true.
+  epwwrite    = .true.
+  epwread     = .false.
+  use_ws      = .true.
+  nbndsub        =  4
+  wannierize     = .false.
+  num_iter       = 50000
+  iprint         = 2
+  proj(1)        = &#39;f=0,0,0:sp3&#39;
+  prtgkk = .true.
+  band_plot = .false.
+  
+  filkf = &#39;path_k.kpt&#39;
+  filqf = &#39;path_q.kpt&#39;
+  nk1  = 2
+  nk2  = 2
+  nk3  = 2
+  nq1  = 2
+  nq2  = 2
+  nq3  = 2
+ /</code></pre><pre><code class="language-ini hljs">!epw2.in
+&amp;inputepw
+  prefix      = &#39;si&#39;
+  amass(1)    = 28.0855,
+  outdir      = &#39;./&#39;
+  dvscf_dir   = &#39;./save/&#39;
+  elph        = .true.
+  epbwrite    = .false.
+  epbread     = .true.
+  epwwrite    = .true.
+  epwread     = .false.
+  use_ws      = .true.
+  nbndsub        =  4
+  wannierize     = .true.
+  num_iter       = 50000
+  iprint         = 2
+  proj(1)        = &#39;f=0,0,0:sp3&#39;
+  prtgkk = .true.
+  band_plot = .false.
+  
+  filkf = &#39;path_k.kpt&#39;
+  filqf = &#39;path_q.kpt&#39;
+  nk1  = 2
+  nk2  = 2
+  nk3  = 2
+  nq1  = 2
+  nq2  = 2
+  nq3  = 2
+ /</code></pre><pre><code class="language-ini hljs">!path_k.kpt
+1 cartesian
+ 0.0000000000      0.0000000000     0.0000000000  1.0</code></pre><pre><code class="language-ini hljs">!path_q.kpt
+101 cartesian
+    1.0000000000  0.000000000  0.000000000  1.0
+    0.9800000000  0.000000000  0.000000000  1.0
+    0.9600000000  0.000000000  0.000000000  1.0
+    0.9400000000  0.000000000  0.000000000  1.0
+    0.9200000000  0.000000000  0.000000000  1.0
+    0.9000000000  0.000000000  0.000000000  1.0
+    0.8800000000  0.000000000  0.000000000  1.0
+    0.8600000000  0.000000000  0.000000000  1.0
+    0.8400000000  0.000000000  0.000000000  1.0
+    0.8200000000  0.000000000  0.000000000  1.0
+    0.8000000000  0.000000000  0.000000000  1.0
+    0.7800000000  0.000000000  0.000000000  1.0
+    0.7600000000  0.000000000  0.000000000  1.0
+    0.7400000000  0.000000000  0.000000000  1.0
+    0.7200000000  0.000000000  0.000000000  1.0
+    0.7000000000  0.000000000  0.000000000  1.0
+    0.6800000000  0.000000000  0.000000000  1.0
+    0.6600000000  0.000000000  0.000000000  1.0
+    0.6400000000  0.000000000  0.000000000  1.0
+    0.6200000000  0.000000000  0.000000000  1.0
+    0.6000000000  0.000000000  0.000000000  1.0
+    0.5800000000  0.000000000  0.000000000  1.0
+    0.5600000000  0.000000000  0.000000000  1.0
+    0.5400000000  0.000000000  0.000000000  1.0
+    0.5200000000  0.000000000  0.000000000  1.0
+    0.5000000000  0.000000000  0.000000000  1.0
+    0.4800000000  0.000000000  0.000000000  1.0
+    0.4600000000  0.000000000  0.000000000  1.0
+    0.4400000000  0.000000000  0.000000000  1.0
+    0.4200000000  0.000000000  0.000000000  1.0
+    0.4000000000  0.000000000  0.000000000  1.0
+    0.3800000000  0.000000000  0.000000000  1.0
+    0.3600000000  0.000000000  0.000000000  1.0
+    0.3400000000  0.000000000  0.000000000  1.0
+    0.3200000000  0.000000000  0.000000000  1.0
+    0.3000000000  0.000000000  0.000000000  1.0
+    0.2800000000  0.000000000  0.000000000  1.0
+    0.2600000000  0.000000000  0.000000000  1.0
+    0.2400000000  0.000000000  0.000000000  1.0
+    0.2200000000  0.000000000  0.000000000  1.0
+    0.2000000000  0.000000000  0.000000000  1.0
+    0.1800000000  0.000000000  0.000000000  1.0
+    0.1600000000  0.000000000  0.000000000  1.0
+    0.1400000000  0.000000000  0.000000000  1.0
+    0.1200000000  0.000000000  0.000000000  1.0
+    0.1000000000  0.000000000  0.000000000  1.0
+    0.0800000000  0.000000000  0.000000000  1.0
+    0.0600000000  0.000000000  0.000000000  1.0
+    0.0400000000  0.000000000  0.000000000  1.0
+    0.0200000000  0.000000000  0.000000000  1.0
+    0.0000000000  0.000000000  0.000000000  1.0
+   -0.0100000000      0.0100000000      0.0100000000  1.0
+   -0.0200000000      0.0200000000      0.0200000000  1.0
+   -0.0300000000      0.0300000000      0.0300000000  1.0
+   -0.0400000000      0.0400000000      0.0400000000  1.0
+   -0.0500000000      0.0500000000      0.0500000000  1.0
+   -0.0600000000      0.0600000000      0.0600000000  1.0
+   -0.0700000000      0.0700000000      0.0700000000  1.0
+   -0.0800000000      0.0800000000      0.0800000000  1.0
+   -0.0900000000      0.0900000000      0.0900000000  1.0
+   -0.1000000000      0.1000000000      0.1000000000  1.0
+   -0.1100000000      0.1100000000      0.1100000000  1.0
+   -0.1200000000      0.1200000000      0.1200000000  1.0
+   -0.1300000000      0.1300000000      0.1300000000  1.0
+   -0.1400000000      0.1400000000      0.1400000000  1.0
+   -0.1500000000      0.1500000000      0.1500000000  1.0
+   -0.1600000000      0.1600000000      0.1600000000  1.0
+   -0.1700000000      0.1700000000      0.1700000000  1.0
+   -0.1800000000      0.1800000000      0.1800000000  1.0
+   -0.1900000000      0.1900000000      0.1900000000  1.0
+   -0.2000000000      0.2000000000      0.2000000000  1.0
+   -0.2100000000      0.2100000000      0.2100000000  1.0
+   -0.2200000000      0.2200000000      0.2200000000  1.0
+   -0.2300000000      0.2300000000      0.2300000000  1.0
+   -0.2400000000      0.2400000000      0.2400000000  1.0
+   -0.2500000000      0.2500000000      0.2500000000  1.0
+   -0.2600000000      0.2600000000      0.2600000000  1.0
+   -0.2700000000      0.2700000000      0.2700000000  1.0
+   -0.2800000000      0.2800000000      0.2800000000  1.0
+   -0.2900000000      0.2900000000      0.2900000000  1.0
+   -0.3000000000      0.3000000000      0.3000000000  1.0
+   -0.3100000000      0.3100000000      0.3100000000  1.0
+   -0.3200000000      0.3200000000      0.3200000000  1.0
+   -0.3300000000      0.3300000000      0.3300000000  1.0
+   -0.3400000000      0.3400000000      0.3400000000  1.0
+   -0.3500000000      0.3500000000      0.3500000000  1.0
+   -0.3600000000      0.3600000000      0.3600000000  1.0
+   -0.3700000000      0.3700000000      0.3700000000  1.0
+   -0.3800000000      0.3800000000      0.3800000000  1.0
+   -0.3900000000      0.3900000000      0.3900000000  1.0
+   -0.4000000000      0.4000000000      0.4000000000  1.0
+   -0.4100000000      0.4100000000      0.4100000000  1.0
+   -0.4200000000      0.4200000000      0.4200000000  1.0
+   -0.4300000000      0.4300000000      0.4300000000  1.0
+   -0.4400000000      0.4400000000      0.4400000000  1.0
+   -0.4500000000      0.4500000000      0.4500000000  1.0
+   -0.4600000000      0.4600000000      0.4600000000  1.0
+   -0.4700000000      0.4700000000      0.4700000000  1.0
+   -0.4800000000      0.4800000000      0.4800000000  1.0
+   -0.4900000000      0.4900000000      0.4900000000  1.0
+   -0.5000000000      0.5000000000      0.5000000000  1.0    </code></pre><pre><code class="language-ini hljs">#run.sh
+#!/bin/bash
+
+export QE_PATH=&quot;/home/poliukhin/Soft/sourse/q-e/bin/&quot;
+export NMPI=8
+export NPOOL=8
+export PARA_PREFIX=&quot;mpirun&quot;
+export ELEPHANY_PATH=&quot;/home/poliukhin/Development/ElectronPhonon/&quot;
+
+copy data ....
+cp -r ./displacements/scf_0/tmp/scf.save ./si.save
+cp -r ./displacements/scf_0/scf.out ./
+echo &quot;0, copy finished finished&quot;
+
+$PARA_PREFIX -n $NMPI $QE_PATH/pw.x -npool $NPOOL -in nscf.in &gt; nscf.out
+echo &quot;2, nscf finished&quot;   
+
+$PARA_PREFIX -n $NMPI $QE_PATH/ph.x -npool $NPOOL -in ph.in &gt; ph.out
+echo &quot;1, ph finished&quot;
+
+python3 /home/poliukhin/Soft/q-e/EPW/bin/pp.py &lt;&lt; EOF
+si
+EOF
+echo &quot;2, pp.py finished&quot;
+
+epw.x -in epw0.in  &gt; epw0.out
+echo &quot;3, epw0 finished&quot;
+
+$QE_PATH/epw.x -in epw1.in  &gt; epw1.out
+echo &quot;4, epw1 finished&quot;
+
+cp -r si.save/ si_dft.save/ 
+cp si.epb1 si_dft.save/
+
+python $ELEPHANY_PATH/epw/parse_epb.py
+python $ELEPHANY_PATH/epw/fake2nscf.py
+
+$QE_PATH/epw.x &lt; epw2.in  &gt; epw2.out
+echo &quot;4, epw2 finished&quot;</code></pre><p>For the additional explanation of different options of EPW, consult the <a href="https://docs.epw-code.org/doc/Inputs.html">documentation</a>. For the <code>scf</code> and <code>nscf</code> calculations, we are reusing data from the <code>displacements/scf_0</code> folder. After copying the ground state calculation, we are performing phonon calculations using the <code>ph.in</code> input file. After converting data to the EPW readable format using the <code>pp.py</code> script, we run <code>epw0.in</code>, which creates a <code>si.epb</code> file containing all the essential data related to the electron-phonon calculation. This is the file that we will modify using the <code>parse_epb.py</code> script. The script allows parsing of a Fortran binary file and modifying related electron eigenvalues, phonon dynamical matrices, and electron-phonon matrix elements in the Kohn-Sham basis (without multiplying by the phonon eigenvector). The important caveat here is that the electron-phonon matrix is not gauge invariant, which means that we have to carry initial wave functions that were used to create the matrix to be consistent with Wannier interpolation. For this, the second script <code>fake2nscf.py</code> is used to copy wavefunctions and eigenvalues that were obtained with any functional to the format QE could read. These scripts are the temporary solutions to the interface and are located in the <code>epw</code> folder of the source code. </p><p>After successfully parsing the electron-phonon matrix and modifying the wavefunction, we can rerun EPW using <code>epw2.in</code>, which will read the modified EPW files, perform wannierization, and then calculate interpolated quantities. To compare the results between DFPT and FD, we could use <code>compare_epw.py</code>.</p><pre><code class="language-sh hljs">python $ELEPHANY_PATH/epw/compare_epw.py</code></pre><p><img src="../assets/epw_frozen_comp.png" alt="Comparison of electron phonon coupling with DFT and DFPT"/></p><h2 id="Silicon-with-Hybrids"><a class="docs-heading-anchor" href="#Silicon-with-Hybrids">Silicon with Hybrids</a><a id="Silicon-with-Hybrids-1"></a><a class="docs-heading-anchor-permalink" href="#Silicon-with-Hybrids" title="Permalink"></a></h2><p>Since the proposed approach can be straightforwardly applied to any functional of interest, we could perform the same calculation, for example, for the Hybrid functional. In QE, we could do it by just adding a few additional parameters and following the rest of the example. </p><pre><code class="language-julia hljs">scf_parameters_hse = Dict(
+ :input_dft =&gt; &quot;HSE&quot;,
+ :nqx1 =&gt; 1,
+ :nqx2 =&gt; 1,
+ :nqx3 =&gt; 1
+)
+
+merge!(scf_parameters, scf_parameters_hse)</code></pre><p>In case any other method beyond DFT is of interest, one could intervene after the electrons and phonons object is created and change the corresponding eigenvalues and eigenvectors. By following the same calculation as the previous step, we can gain access to the electron-phonon coupling with the HSE functional.  To plot electron-phonon coupling along the path specified in <code>path_k.kpt</code> and <code>path_q.kpt</code> files, use the <code>plot_epw.py</code> script.</p><pre><code class="language-sh hljs">python $ELEPHANY_PATH/epw/plot_epw.py</code></pre><p><img src="../assets/el_ph_coupling.png" alt="Comparison of electron phonon coupling with DFT and HSE on a path"/></p><p>On this plot, FD is obtained using the HSE functional, which is inaccessible to standard DFPT 💥. As we can see, more complex functionals tend to increase the coupling, which, in the case of e.g., transport, would lower the carried drift mobility. See more <a href>arXiv prepaper</a> for more details on this. Also, take a look at the <code>example</code> folder for more examples (e.g., GaAs) and stay tuned for new features in the future!</p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../theory/">« Theory</a><a class="docs-footer-nextpage" href="../">Index »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.14.1 on <span class="colophon-date" title="Wednesday 6 August 2025 12:33">Wednesday 6 August 2025</span>. Using Julia version 1.11.6.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
