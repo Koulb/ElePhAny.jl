@@ -4,7 +4,7 @@
 
 *⚛️ **Electron–Phonon** interactions with **Any** functional*
 
-[![Build Status](https://github.com/Koulb/ElePhAny.jl/actions/workflows/CI.yml/badge.svg)](https://github.com/Koulb/ElePhAny.jl/actions) [![Documentation](https://img.shields.io/badge/docs-📖-blue.svg)](#) [![ArXiv](https://img.shields.io/badge/arXiv-preprint-orange.svg)](#) [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](#)
+[![Build Status](https://github.com/Koulb/ElePhAny.jl/actions/workflows/CI.yml/badge.svg)](https://github.com/Koulb/ElePhAny.jl/actions) [![Documentation](https://img.shields.io/badge/docs-📖-blue.svg)](koulb.github.io/ElePhAny.jl) [![ArXiv](https://img.shields.io/badge/arXiv-preprint-orange.svg)](#) [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](#)
 
 ## Overview
 
@@ -64,7 +64,7 @@ pkg> add PythonCall
 
 ## References and Resources
 
-* 📖 **Documentation:** *Full usage and API*
+* 📖 [Documentation](koulb.github.io/ElePhAny.jl)
 * 📄 **Preprint:** *arXiv link coming soon*
 * ⚙️ [Quantum Espresso](https://www.quantum-espresso.org/)
 * ⚙️ [EPW](https://epw-code.org/)
