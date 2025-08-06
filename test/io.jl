@@ -22,7 +22,7 @@ end
     unitcell, scf_parameters = ElectronPhonon.parse_qe_in(path_to_scf)
 
     a = 5.43052  # in Angstrom
-    mesh = 2
+    mesh = [2,2,2]
 
     #Defined slighly different so Python objects could be compared
     unitcell_check = Dict(
@@ -37,7 +37,7 @@ end
     # Set up the calculation parameters as a Python dictionary
     scf_parameters_check = Dict(
         :format => "espresso-in",
-        :kpts => pytuple((mesh, mesh, mesh)),
+        :kpts => pytuple((mesh[1], mesh[2], mesh[3])),
         :calculation =>"scf",
         :prefix => "scf",
         :outdir => "./tmp/",
@@ -95,7 +95,7 @@ end
                        "abs_disp" => 1e-3 ,
                        "path_to_qe"=>"/home/user/soft/qe",
                        "mpi_ranks" => 8,
-                       "sc_size" => 2
+                       "sc_size" => [2,2,2]
                        )
 
     for key in keys(params_check)

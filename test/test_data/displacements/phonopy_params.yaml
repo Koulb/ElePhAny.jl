@@ -1,5 +1,5 @@
 phonopy:
-  version: "2.26.6"
+  version: "2.38.2"
   calculator: qe
   frequency_unit_conversion_factor: 3634.873744
   symmetry_tolerance: 1.00000e-05

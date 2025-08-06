@@ -49,7 +49,7 @@ end
 
 @testset "Test transforming wavefunction to real space" begin
     path_tst_data = "test_data/displacements/scf_0/tmp/scf.save/wfc1"
-    Nxyz = 36
+    Nxyz = [36, 36, 36]
 
     miller, evc_list = ElectronPhonon.parse_wf(path_tst_data)
     wfc_list = [ElectronPhonon.wf_from_G(miller, evc, Nxyz) for evc in evc_list]
@@ -64,7 +64,7 @@ end
 @testset "Test transforming wavefunction to real space with slow fft" begin
     path_tst_data = "test_data/displacements/scf_0/tmp/scf.save/wfc1"
     miller, evc_list = ElectronPhonon.parse_wf(path_tst_data)
-    Nxyz = 20
+    Nxyz = [20, 20, 20]
 
     wfc_list = [ElectronPhonon.wf_from_G_slow(miller, evc, Nxyz) for evc in evc_list]
 
@@ -77,7 +77,7 @@ end
 
 @testset "Test transforming wavefunction back to reciprocal space" begin
     path_tst_data = "test_data/displacements/scf_0/tmp/scf.save/wfc1"
-    Nxyz = 36
+    Nxyz = [36, 36, 36]
 
     miller, evc_list = ElectronPhonon.parse_wf(path_tst_data)
     wfc_list = [ElectronPhonon.wf_from_G(miller, evc, Nxyz) for evc in evc_list]
@@ -92,11 +92,12 @@ end
 
 @testset "Test unfolding wavefunctions in supercell" begin
     path_tst_data = "test_data/displacements/scf_0/tmp/scf.save/wfc1"
-    Nxyz = 36
+    Nxyz = [36, 36, 36]
+    sc_size = [2, 2, 2]
 
     miller, evc_list = ElectronPhonon.parse_wf(path_tst_data)
     wfc_list = [ElectronPhonon.wf_from_G(miller, evc, Nxyz) for evc in evc_list]
-    wfc_list_sc = [ElectronPhonon.wf_pc_to_sc(wfc, 2) for wfc in wfc_list]
+    wfc_list_sc = [ElectronPhonon.wf_pc_to_sc(wfc, sc_size) for wfc in wfc_list]
 
     norm11 = abs(ElectronPhonon.calculate_braket_real(wfc_list_sc[1], wfc_list_sc[1]))
     norm12 = abs(ElectronPhonon.calculate_braket_real(wfc_list_sc[1], wfc_list_sc[2]))
@@ -109,7 +110,7 @@ end
     path_tst_data = "test_data/displacements/scf_0/scf.out"
     Nxyz = ElectronPhonon.determine_fft_grid(path_tst_data)
 
-    @test isapprox(Nxyz, 36; atol=1e-14)
+    @test isapprox(Nxyz, [36, 36, 36]; atol=1e-14)
 end
 
 @testset "Test determining the phase of ik != 0 wavefunction" begin
@@ -133,7 +134,7 @@ end
 @testset "Test unfolding undisplaced wavefunction to supercell" begin
     path_tst_data = "test_data/displacements/"
     ik = 2
-    sc_size = 2
+    sc_size = [2,2,2]
     Nxyz = ElectronPhonon.determine_fft_grid(path_tst_data * "scf_0/scf.out")
 
     miller, evc_list = ElectronPhonon.parse_wf(path_tst_data * "/scf_0/tmp/scf.save/wfc$ik")
@@ -143,10 +144,10 @@ end
     wfc_list_sc = [ElectronPhonon.wf_pc_to_sc(wfc, sc_size) for wfc in wfc_list]
 
     q_point = ElectronPhonon.determine_q_point(path_tst_data * "scf_0/", ik; sc_size=sc_size)
-    phase = ElectronPhonon.determine_phase(q_point, sc_size*Nxyz)
+    phase = ElectronPhonon.determine_phase(q_point, sc_size.*Nxyz)
 
     wfc_list_phase = [wfc .* phase for wfc in wfc_list_sc]
-    evc_list_new = [ElectronPhonon.wf_to_G(miller_sc, wfc, sc_size*Nxyz) for wfc in wfc_list_phase]
+    evc_list_new = [ElectronPhonon.wf_to_G(miller_sc, wfc, sc_size.*Nxyz) for wfc in wfc_list_phase]
 
     norm11 = abs(ElectronPhonon.calculate_braket(evc_list_new[1], evc_list_new[1]))
     norm12 = abs(ElectronPhonon.calculate_braket(evc_list_new[1], evc_list_new[2]))
@@ -160,7 +161,7 @@ end
 @testset "Test unfolding undisplaced wavefunction to supercell in automated way" begin
     path_tst_data = "test_data/displacements/"
     ik = 2
-    sc_size = 2
+    sc_size = [2,2,2]
     global_logger(ConsoleLogger(Warn))
     prepare_wave_functions_undisp(path_tst_data, sc_size)
 

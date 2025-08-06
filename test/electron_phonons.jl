@@ -6,7 +6,7 @@ using Test, PythonCall, Logging, ElectronPhonon
     nat = 2
 
     elph_dfpt = ElectronPhonon.parse_ph(path_tst_data*"scf_0/ph.out", nbands, 3*nat)
-    ωₐᵣᵣ_DFPT, _ = ElectronPhonon.parse_qe_ph(path_tst_data*"scf_0/dyn1")
+    ωₐᵣᵣ_DFPT, _ = ElectronPhonon.parse_qe_ph(path_tst_data*"scf_0/dyn1", nat)
     # println(ωₐᵣᵣ_DFPT)
     # println(elph_dfpt[2,:,3])
     elph_dfpt_test = ComplexF64[0.044206963440000004 + 0.0im, 0.044206963440000004 + 0.0im, 5.002807184e-10 + 0.0im, 5.002807184e-10 + 0.0im]
@@ -20,8 +20,8 @@ end
 @testset "Test calculating brakets using projectability approach" begin
     path_tst_data = "test_data/"
     path_to_qe = ""
-    sc_size = 2
-    k_mesh  = 1
+    sc_size = [2, 2, 2]
+    k_mesh  = [1, 1, 1]
     Ndispalce = 12
     mpi_ranks = 1
     use_symm = false
@@ -67,10 +67,10 @@ end
 @testset "Test calculating electron-phonon matrix elements and comparing with DFPT" begin
     path_tst_data = "test_data/"
     path_to_qe = ""
-    sc_size = 2
+    sc_size = [2, 2, 2]
     Ndispalce = 12
     mpi_ranks = 1
-    k_mesh = 1
+    k_mesh = [1, 1, 1]
     use_symm = false
     ik = 2   #[0.0 0.0 0.5]
     iq = 3   #[0.0 0.5 0.0]

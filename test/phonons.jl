@@ -51,7 +51,7 @@ end
   path_tst_data = "test_data/displacements/scf_0/"
   path_tst_xml  = "test_data/phonopy_params.yaml"
   abs_disp  = 0.001
-  sc_size      = 2
+  sc_size      = [2,2,2]
   a = 5.43052  # in Angstrom
   use_sym = false
 
@@ -85,8 +85,8 @@ end
   path_tst_xml  = "test_data/phonopy_params.yaml"
   path_tst_group = "test_data/displacements/group_1/"
   abs_disp  = 0.001
-  sc_size   = 2
-  k_mesh    = 1
+  sc_size   = [2,2,2]
+  k_mesh    = [1,1,1]
   use_sym   = false
   Ndispalce = 12
   a = 5.43052  # in Angstrom
@@ -101,7 +101,7 @@ end
   )
 
   force =  ElectronPhonon.read_forces_xml(path_tst_group * "tmp/scf.save/data-file-schema.xml")
-  number_atoms = length(unitcell[:symbols])*sc_size^3
+  number_atoms = length(unitcell[:symbols])*prod(sc_size)
   forces = Array{Float64}(undef, Ndispalce, number_atoms, 3)
   for i_disp in 1:Ndispalce
     forces[i_disp,:,:] = force * (-1)^(i_disp) # to have different forces
