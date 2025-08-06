@@ -4,7 +4,7 @@
 
 *⚛️ **Electron–Phonon** interactions with **Any** functional*
 
-[![Build Status](https://github.com/Koulb/ElePhAny.jl/actions/workflows/CI.yml/badge.svg)](https://github.com/Koulb/ElePhAny.jl/actions) [![Documentation](https://img.shields.io/badge/docs-📖-blue.svg)](koulb.github.io/ElePhAny.jl) [![ArXiv](https://img.shields.io/badge/arXiv-preprint-orange.svg)](#) [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](#)
+[![Build Status](https://github.com/Koulb/ElePhAny.jl/actions/workflows/CI.yml/badge.svg)](https://github.com/Koulb/ElePhAny.jl/actions) [![Documentation](https://img.shields.io/badge/docs-📖-blue.svg)](https://koulb.github.io/ElePhAny.jl) [![ArXiv](https://img.shields.io/badge/arXiv-preprint-orange.svg)](#) [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](#)
 
 ## Overview
 
@@ -58,14 +58,11 @@ pkg> add PythonCall
 2. **Process with ElePhAny**: load outputs, compute electron-phonon matrix elements.
 3. **Export or analyze**: e.g. save in EPW format for further property calculations.
 
-➡️ See the [**documentation**](#) for a full tutorial and API reference.
+➡️ See the [**documentation**](https://koulb.github.io/ElePhAny.jl) for a full tutorial and API reference.
 
 ➡️ See the [**preprint**](#) for full derivation and details on theory.
 
 ## References and Resources
-
-* 📖 [Documentation](koulb.github.io/ElePhAny.jl)
-* 📄 **Preprint:** *arXiv link coming soon*
 * ⚙️ [Quantum Espresso](https://www.quantum-espresso.org/)
 * ⚙️ [EPW](https://epw-code.org/)
 
