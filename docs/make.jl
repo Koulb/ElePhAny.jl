@@ -7,10 +7,10 @@ makedocs(
     modules=[ElectronPhonon],
     checkdocs=:exports,
     pages = [
-        "Home" => "home.md",
+        "Home" => "index.md",
         "Theory" => "theory.md",
         "Examples" => "examples.md",
-        "Index" => "index.md",
+        "Index" => "api.md",
         ]
 )
 

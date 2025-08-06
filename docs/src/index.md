@@ -1,112 +1,44 @@
-## Index
+# ElePhAny.jl
 
-```@index
+*⚛️ Electron Phonon interaction with Any functional*
+
+ElePhAny is a package for calculating electron-phonon matrix elements using a finite difference projectability approach, which allows obtaining electron-phonon coupling with any method beyond DFT (e.g., Hybrids, Koopmans, GW).
+
+## Capabilities
+
+The code allows the construction of the electron-phonon coupling matrix from **ab initio** calculations using [Quantum Espresso](https://www.quantum-espresso.org/) software. Additional interface with [EPW](https://epw-code.org/) allows the use of a constructed matrix to study any electron-phonon related properties of interest. Since the approach is very flexible, it enables seamless interface with any electronic structure software, especially if they are based on Quantum Espresso interface (e.g, [Koopmans](https://koopmans-functionals.org/en/latest/#), [Yambo](https://www.yambo-code.eu/))
+
+## Quick install
+
+1. [Download Julia](https://julialang.org/downloads/).
+
+2. Launch Julia and type
+
+```julia
+julia> ]
+
+pkg> https://github.com/Koulb/ElePhAny.jl
+```
+**(Alternatively)** In case you want more freedom in modifyng the code you could also clone it and install in development mode:
+
+```sh
+git clone https://github.com/Koulb/ElePhAny.jl.git
+cd ElePhAny.jl
+julia
 ```
 
-## Electrons
-
-```@docs
-ElectronPhonon.read_qe_xml
-ElectronPhonon.create_scf_calc
-ElectronPhonon.generate_kpoints
-ElectronPhonon.include_kpoins
-ElectronPhonon.create_disp_calc
-ElectronPhonon.create_disp_calc!
-ElectronPhonon.create_perturbed_kcw
-ElectronPhonon.run_scf
-ElectronPhonon.run_scf_cluster
-ElectronPhonon.run_nscf_calc
-ElectronPhonon.run_disp_calc
-ElectronPhonon.run_disp_nscf_calc
-ElectronPhonon.prepare_kcw_data
-ElectronPhonon.read_potential
-ElectronPhonon.save_potential
-ElectronPhonon.get_kpoint_list
-ElectronPhonon.fold_kpoint
-ElectronPhonon.prepare_eigenvalues
-ElectronPhonon.create_electrons
-ElectronPhonon.load_electrons
+```julia
+julia> ]
+pkg> dev .
 ```
 
-## Phonons
-
-```@docs
-ElectronPhonon.determine_q_point
-ElectronPhonon.determine_q_point_cart
-ElectronPhonon.read_forces_xml
-ElectronPhonon.dislpaced_unitecells
-ElectronPhonon.collect_forces
-ElectronPhonon.save_dyn_matirx
-ElectronPhonon.prepare_phonons_data
-ElectronPhonon.prepare_phonons
-ElectronPhonon.create_phonons
-ElectronPhonon.load_phonons
+Also, for creating inputs with Python like dictionaries, consider adding the PythonCall package to your active environment:
+```julia
+julia> ]
+pkg> add PythonCall
 ```
 
-## Electron-phonon coupling
+If you're [new to Julia](https://docs.julialang.org/en/v1/manual/getting-started/) and its [`Pkg` manager](https://docs.julialang.org/en/v1/stdlib/Pkg/), you should definitely check out these references.
 
-```@docs
-ElectronPhonon.run_calculations
-ElectronPhonon.prepare_model
-ElectronPhonon.electron_phonon_qe
-ElectronPhonon.find_degenerate
-ElectronPhonon.parse_ph
-ElectronPhonon.electron_phonon
-ElectronPhonon.plot_ep_coupling
-```
 
-## Symmetries
-
-```@docs
-ElectronPhonon.check_symmetries
-ElectronPhonon.check_symmetries!
-ElectronPhonon.fold_component
-ElectronPhonon.rotate_grid
-ElectronPhonon.rotate_deriv
-```
-
-## Wave functions
-
-```@docs
-ElectronPhonon.parse_wf
-ElectronPhonon.parse_hdf
-ElectronPhonon.parse_fortran_bin
-ElectronPhonon.wf_from_G
-ElectronPhonon.wf_from_G_slow
-ElectronPhonon.wf_from_G_list
-ElectronPhonon.wf_to_G
-ElectronPhonon.wf_to_G_list
-ElectronPhonon.wf_pc_to_sc
-ElectronPhonon.determine_fft_grid
-ElectronPhonon.determine_phase
-ElectronPhonon.prepare_unfold_to_sc
-ElectronPhonon.wf_phase!
-ElectronPhonon.prepare_wave_functions_to_R
-ElectronPhonon.prepare_wave_functions_to_G
-ElectronPhonon.prepare_wave_functions_undisp
-ElectronPhonon.prepare_wave_functions_disp
-ElectronPhonon.calculate_braket_real
-ElectronPhonon.calculate_braket
-```
-
-## Model
-
-```@docs
-ElectronPhonon.Symmetries
-ElectronPhonon.ModelQE
-ElectronPhonon.ModelKCW
-ElectronPhonon.create_model
-ElectronPhonon.create_model_kcw
-ElectronPhonon.Electrons
-ElectronPhonon.Phonons
-```
-
-## IO
-
-```@docs
-ElectronPhonon.parse_frozen_params
-ElectronPhonon.parse_qe_in
-ElectronPhonon.getfirst
-ElectronPhonon.parse_file
-```
 
