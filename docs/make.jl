@@ -13,3 +13,7 @@ makedocs(
         "Index" => "index.md",
         ]
 )
+
+deploydocs(
+    repo = "github.com/Koulb/ElePhAny.jl.git",
+)
