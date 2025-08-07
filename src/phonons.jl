@@ -325,6 +325,28 @@ function prepare_phonons_data(path_to_in::String, unitcell, abs_disp, sc_size, k
     return true
 end
 
+"""
+    renorm_mass_eps(eps_qe, masses)
+
+Convert `eps_qe` (QE Cartesian eigenvectors) to the Phonopy
+mass-weighted normalisation and return a new array.
+
+  * `eps_qe` : Array{ComplexF64,3}  (nq , 3Nat , 3Nat)
+  * `masses` : Vector{<:Real}       length = Nat   (one value per atom)
+
+The function assumes the atom order in `masses` matches the
+Cartesian order in `eps_qe`.
+"""
+function renorm_mass_eps(eps_qe::Array{ComplexF64,3}, masses::AbstractVector)
+    nqp, nb, _ = size(eps_qe)
+    w = repeat(sqrt.(masses), inner = 3)
+    eps_out = copy(eps_qe)
+    for iq in 1:nqp, ib in 1:nb
+        eps_out[iq, ib, :] .= eps_out[iq, ib, :] .* w # Mass-weighting
+        eps_out[iq, ib, :] .= eps_out[iq, ib, :] ./ sqrt(sum(abs2, eps_out[iq, ib, :]))
+    end
+    return eps_out
+end
 
 """
     parse_qe_ph(path_to_dyn)
