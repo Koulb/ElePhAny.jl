@@ -1119,54 +1119,297 @@ function determine_phase_optimized(q_point, Nxyz)
     return exp_factor
 end
 
-# Optimized braket calculation using BLAS
-function calculate_braket_optimized(bra::Array{Complex{Float64}}, ket::Array{Complex{Float64}})
-    return LinearAlgebra.dot(bra, ket)
-end
-
-function calculate_braket_real_optimized(bra::Array{Complex{Float64}, 3}, ket::Array{Complex{Float64}, 3})
-    Nxyz = size(ket)
-    result = LinearAlgebra.dot(vec(bra), vec(ket))
-    return result / prod(Nxyz)
-end
-
-# Memory-efficient wave function preparation with streaming
-function prepare_wave_functions_to_R_optimized(path_to_in::String; ik::Int=1, chunk_size::Int=10)
-    file_path = path_to_in*"/tmp/scf.save/wfc$ik"
-    miller, evc_list = parse_wf(file_path)
-    Nxyz = determine_fft_grid(path_to_in*"/scf.out")
+# Optimized version of prepare_u_matrixes with MPI parallelization and memory optimization
+function prepare_u_matrixes_optimized(path_to_in::String, natoms::Int, sc_size::Vector{Int}, k_mesh::Vector{Int}; 
+                                     symmetries::Symmetries = Symmetries([], [], []), save_matrixes::Bool=true)
+    """Highly optimized version of prepare_u_matrixes with MPI parallelization"""
     
-    wfc_list = Dict()
-    n_bands = length(evc_list)
-    
-    # Process in chunks to manage memory
-    for chunk_start in 1:chunk_size:n_bands
-        chunk_end = min(chunk_start + chunk_size - 1, n_bands)
-        chunk_indices = chunk_start:chunk_end
-        
-        # Process chunk in parallel
-        chunk_results = Dict()
-        @threads for index in chunk_indices
-            wfc = wf_from_G_optimized(miller, evc_list[index], Nxyz)
-            chunk_results["wfc$index"] = wfc
-        end
-        
-        # Merge results
-        merge!(wfc_list, chunk_results)
-        
-        # Force garbage collection for this chunk
-        GC.gc()
+    if is_master()
+        println("Starting optimized U matrix preparation with MPI parallelization...")
+        println("MPI Processes: $(mpi_size())")
+        println("Threads per process: $(Threads.nthreads())")
     end
     
-    @info "Data saved in "*path_to_in*"wfc_list_$ik.jld2"
-    save(path_to_in*"/wfc_list_$ik.jld2", wfc_list)
+    U_list = []
+    V_list = []
+    Ndisplace_nosym = 6 * natoms
     
-    return wfc_list
+    # Determine FFT grid size
+    N_fft = 1
+    if any(sc_size .!= 1)
+        N_fft = determine_fft_grid(path_to_in*"group_1/tmp/scf.save/data-file-schema.xml"; use_xml = true).* k_mesh
+    else
+        N_fft = determine_fft_grid(path_to_in*"group_1/tmp/scf.save/data-file-schema.xml"; use_xml = true)
+    end
+    
+    # Pre-load and cache wave functions for inequivalent atoms
+    if is_master()
+        println("Pre-loading wave functions for inequivalent atoms...")
+    end
+    
+    ψₚ0_real_list = []
+    miller_list = []
+    use_symm = isempty(symmetries.trans_list) && isempty(symmetries.rot_list)
+    
+    # Use MPI to distribute inequivalent atom processing
+    ineq_atoms = unique(symmetries.ineq_atoms_list)
+    rank = mpi_rank()
+    size = mpi_size()
+    
+    # Distribute inequivalent atoms across MPI ranks
+    local_ineq_atoms = rank+1:size:length(ineq_atoms)
+    
+    local_ψₚ0_real_list = []
+    local_miller_list = []
+    
+    for (local_idx, global_idx) in enumerate(local_ineq_atoms)
+        ind = ineq_atoms[global_idx]
+        ψₚ0_real_ip = []
+        miller_ip = []
+        
+        # Process k-points for this inequivalent atom
+        for ip in 1:prod(k_mesh)
+            if use_symm && any(k_mesh .!= 1)
+                miller1 = load(path_to_in*"/scf_0/miller_list_sc.jld2")["miller_list"]
+                ψₚ0_list_raw = load(path_to_in*"/group_$ind/g_list_sc_$ip.jld2")
+                ψₚ0_list = [ψₚ0_list_raw["wfc$iband"] for iband in 1:length(ψₚ0_list_raw)]
+                
+                # Use optimized wave function conversion
+                ψₚ0_real_phase = [wf_from_G_optimized(miller1, evc, N_fft) for evc in ψₚ0_list]
+                K = determine_q_point(path_to_in*"/scf_0", ip; sc_size = k_mesh, use_sc = true)
+                ψₚ0_real = [wf .* conj(determine_phase_optimized(K, N_fft)) for wf in ψₚ0_real_phase]
+            else
+                miller1, ψₚ0 = parse_wf(path_to_in*"/group_$ind/tmp/scf.save/wfc$ip")
+                ψₚ0_real = [wf_from_G_optimized(miller1, evc, N_fft) for evc in ψₚ0]
+            end
+            push!(ψₚ0_real_ip, ψₚ0_real)
+            push!(miller_ip, miller1)
+        end
+        push!(local_ψₚ0_real_list, ψₚ0_real_ip)
+        push!(local_miller_list, miller_ip)
+    end
+    
+    # Gather results from all ranks
+    if use_mpi()
+        ψₚ0_real_list = mpi_gather(local_ψₚ0_real_list)
+        miller_list = mpi_gather(local_miller_list)
+    else
+        ψₚ0_real_list = local_ψₚ0_real_list
+        miller_list = local_miller_list
+    end
+    
+    # Get number of bands
+    nbnds = length(parse_wf(path_to_in*"/scf_0/tmp/scf.save/wfc1")[2])
+    
+    # Pre-compute k-points
+    kpoints = []
+    if any(sc_size .!= 1)
+        kpoints = [determine_q_point(path_to_in*"/scf_0",ik; sc_size=k_mesh, use_sc = true) for ik in 1:prod(k_mesh)]
+    else
+        kpoints = [determine_q_point(path_to_in*"/scf_0",ik) for ik in 1:prod(k_mesh)]
+    end
+    
+    if is_master()
+        println("nbnds = $nbnds")
+        println("Preparing U matrices with optimized symmetry operations...")
+    end
+    
+    # Distribute displacement calculations across MPI ranks
+    local_displacements = rank+1:size:Ndisplace_nosym
+    
+    local_U_list = []
+    local_V_list = []
+    
+    for local_idx in 1:length(local_displacements)
+        ind = local_displacements[local_idx]
+        ψₚ = []
+        local tras, rot
+        
+        # Determine symmetry operation
+        if use_symm
+            tras = [0.0,0.0,0.0]
+            rot  = [[1.0,0.0,0.0] [0.0,1.0,0.0] [0.0,0.0,1.0]]
+            ind_k_list = [1:prod(k_mesh)]
+            append!(symmetries.ineq_atoms_list, ind)
+        else
+            tras  = symmetries.trans_list[ind]
+            if any(sc_size .!= 1)
+                tras = tras ./ k_mesh
+            end
+            rot   = symmetries.rot_list[ind]
+            ind_k_list = symmetries.ind_k_list[ind]
+        end
+        
+        # Pre-allocate U matrix
+        Uₚₖᵢⱼ = zeros(ComplexF64, prod(k_mesh), prod(k_mesh)*prod(sc_size), nbnds*prod(sc_size), nbnds)
+        
+        # Process k-points with threading
+        @threads for ip in 1:prod(k_mesh)
+            if all(isapprox.(tras,[0.0,0.0,0.0], atol = 1e-15)) &&
+               all(isapprox.(rot, [[1.0,0.0,0.0] [0.0,1.0,0.0] [0.0,0.0,1.0]], atol = 1e-15))
+                # Identity operation - load directly
+                if any(sc_size .!= 1) && any(k_mesh .!= 1)
+                    ψₚ_list = load(path_to_in*"/group_$(symmetries.ineq_atoms_list[ind])/g_list_sc_$ip.jld2")
+                    ψₚ = [ψₚ_list["wfc$iband"] for iband in 1:length(ψₚ_list)]
+                else
+                    _, ψₚ = parse_wf(path_to_in*"/group_$(symmetries.ineq_atoms_list[ind])/tmp/scf.save/wfc$ip")
+                end
+            else
+                # Apply symmetry operation with optimized functions
+                ψₚ0_real = ψₚ0_real_list[symmetries.ineq_atoms_list[ind]][ind_k_list[ip]]
+                miller1 = miller_list[symmetries.ineq_atoms_list[ind]][ip]
+                
+                # Use optimized grid rotation
+                map1 = rotate_grid_optimized(N_fft[1], N_fft[2], N_fft[3], rot, tras)
+                ψₚ_real = [rotate_deriv_optimized(N_fft[1], N_fft[2], N_fft[3], map1, wfc) for wfc in ψₚ0_real]
+                
+                # Apply phase factors with optimized calculation
+                kpoint_rotated = transpose(inv(rot)) * kpoints[ind_k_list[ip]]
+                phase_in = determine_phase_optimized(kpoint_rotated, N_fft)
+                phase_out = 1.0 
+                
+                if all(sc_size .== 1)
+                    phase_out = determine_phase_optimized(kpoints[ip], N_fft) 
+                end
+                
+                ψₚ_real = [wf .* phase_in .* conj(phase_out) for wf in ψₚ_real]
+                ψₚ = [wf_to_G_optimized(miller1, evc, N_fft) for evc in ψₚ_real]
+            end
+            
+            # Calculate matrix elements with optimized braket calculation
+            for ik in 1:prod(sc_size)*prod(k_mesh)
+                if any(sc_size .!= 1)
+                    ψkᵤ_list = load(path_to_in*"/scf_0/g_list_sc_$ik.jld2")
+                    ψkᵤ = [ψkᵤ_list["wfc$iband"] for iband in 1:length(ψkᵤ_list)]
+                else
+                    _, ψkᵤ = parse_wf(path_to_in*"scf_0/tmp/scf.save/wfc$ik")
+                end
+                
+                if all(sc_size .== 1) && ik != ip
+                    Uₚₖᵢⱼ[ip, ik, :, :] .= 0.0
+                else
+                    Uₚₖᵢⱼ[ip, ik, :, :] = calculate_braket_optimized(ψₚ, ψkᵤ)
+                end
+            end
+        end
+        
+        # Store results
+        if isodd(ind)
+            push!(local_U_list, Uₚₖᵢⱼ)
+        else
+            push!(local_V_list, Uₚₖᵢⱼ)
+        end
+        
+        if is_master()
+            @info "Rank $rank: displacement $ind/$(length(local_displacements)) completed"
+        end
+    end
+    
+    # Gather results from all ranks
+    if use_mpi()
+        all_U_list = mpi_gather(local_U_list)
+        all_V_list = mpi_gather(local_V_list)
+        
+        # Combine results on master
+        if is_master()
+            U_list = vcat(all_U_list...)
+            V_list = vcat(all_V_list...)
+        end
+    else
+        U_list = local_U_list
+        V_list = local_V_list
+    end
+    
+    # Save results
+    if save_matrixes && is_master()
+        save(path_to_in * "scf_0/U_list.jld2", "U_list", U_list)
+        save(path_to_in * "scf_0/V_list.jld2", "V_list", V_list)
+        println("U and V matrices saved successfully")
+    end
+    
+    # Clear caches
+    clear_fft_buffers()
+    clear_symmetry_cache()
+    
+    return U_list, V_list
 end
 
-#TEST
-#path_to_in = "/home/apolyukhin/Development/julia_tests/qe_inputs/displacements/"
-# path_to_in = "/home/apolyukhin/Development/frozen_phonons/elph/example/supercell_disp/group_1/tmp_001/silicon.save"
-# N = 72
-# ik = 1
-# prepare_wave_functions_opt(path_to_in, ik,N)
+# Optimized braket calculation with BLAS
+function calculate_braket_optimized(ψₚ, ψkᵤ)
+    """Optimized braket calculation using BLAS operations"""
+    
+    nbands_p = length(ψₚ)
+    nbands_k = length(ψkᵤ)
+    
+    # Pre-allocate result matrix
+    result = zeros(ComplexF64, nbands_p, nbands_k)
+    
+    # Use BLAS for matrix multiplication
+    for i in 1:nbands_p, j in 1:nbands_k
+        # Calculate inner product efficiently
+        result[i, j] = dot(ψₚ[i], ψkᵤ[j])
+    end
+    
+    return result
+end
+
+# Optimized wave function to G-space conversion
+function wf_to_G_optimized(miller, wf, N_fft)
+    """Optimized wave function to G-space conversion"""
+    
+    # Use optimized FFT with pre-allocated buffers
+    fft_buffer = get_fft_buffer(N_fft)
+    copy!(fft_buffer, wf)
+    
+    # Perform FFT
+    wf_g = fft(fft_buffer)
+    
+    # Extract coefficients at Miller indices
+    result = zeros(ComplexF64, size(miller, 2))
+    
+    shift = div.(N_fft, 2)
+    
+    @inbounds for idx in 1:size(miller, 2)
+        i, j, k = miller[:, idx] .+ shift
+        if 1 <= i <= N_fft[1] && 1 <= j <= N_fft[2] && 1 <= k <= N_fft[3]
+            result[idx] = wf_g[i, j, k]
+        end
+    end
+    
+    return result
+end
+
+# MPI utility functions
+function use_mpi()
+    """Check if MPI is being used"""
+    return mpi_size() > 1
+end
+
+function mpi_gather(local_data)
+    """Gather data from all MPI ranks"""
+    if !use_mpi()
+        return [local_data]
+    end
+    
+    if is_master()
+        # Master receives data from all ranks
+        all_data = [local_data]
+        for src in 1:mpi_size()-1
+            received_data = MPI.recv(src, 0, MPI_COMM[])
+            push!(all_data, received_data)
+        end
+        return all_data
+    else
+        # Other ranks send data to master
+        MPI.send(local_data, 0, 0, MPI_COMM[])
+        return []
+    end
+end
+
+# Replace the original function with the optimized version
+function prepare_u_matrixes(path_to_in::String, natoms::Int, sc_size::Vector{Int}, k_mesh::Vector{Int}; 
+                           symmetries::Symmetries = Symmetries([], [], []), save_matrixes::Bool=true)
+    """Optimized U matrix preparation with MPI parallelization"""
+    return prepare_u_matrixes_optimized(path_to_in, natoms, sc_size, k_mesh; 
+                                      symmetries=symmetries, save_matrixes=save_matrixes)
+end

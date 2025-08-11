@@ -89,6 +89,9 @@ export run_calculations, prepare_model, electron_phonon, electron_phonon_qe, plo
 export electron_phonon_mpi, prepare_wave_functions_disp_mpi, run_disp_calc_mpi, prepare_wave_functions_hybrid
 export mpi_rank, mpi_size, is_master, mpi_barrier, mpi_bcast!, mpi_gather!, mpi_reduce!, mpi_scatter!
 export clear_fft_buffers
+export prepare_u_matrixes_optimized, calculate_braket_optimized, wf_to_G_optimized
+export rotate_grid_optimized, rotate_deriv_optimized, determine_phase_optimized
+export apply_symmetries_batch, clear_symmetry_cache, check_symmetries_mpi
 include("electron_phonons.jl")
 
 export parse_qe_in, parse_frozen_params

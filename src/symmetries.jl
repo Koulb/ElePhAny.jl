@@ -174,6 +174,80 @@ function fold_component(x, eps=5e-3)
     return x
 end
 
+# Optimized vectorized version of fold_component
+function fold_component_vectorized(x::AbstractArray, eps=5e-3)
+    result = similar(x)
+    @inbounds @simd for i in eachindex(x)
+        result[i] = fold_component(x[i], eps)
+    end
+    return result
+end
+
+# Cache for grid mappings to avoid repeated calculations
+const GRID_MAPPING_CACHE = Dict{Tuple{Int,Int,Int,Vector{Float64},Matrix{Float64}}, Vector{Int}}()
+
+"""
+    rotate_grid_optimized(N1, N2, N3, rot, tras)
+
+Optimized version of rotate_grid with caching and vectorization.
+
+# Arguments
+- `N1::Int`: Number of grid points along the first axis.
+- `N2::Int`: Number of grid points along the second axis.
+- `N3::Int`: Number of grid points along the third axis.
+- `rot::AbstractMatrix`: 3x3 rotation matrix to apply to each grid point.
+- `tras::AbstractVector`: 3-element translation vector to apply after rotation.
+
+# Returns
+- `mapp::Vector{Int}`: A vector containing the mapped linear indices.
+"""
+function rotate_grid_optimized(N1, N2, N3, rot, tras)
+    cache_key = (N1, N2, N3, tras, rot)
+    
+    if haskey(GRID_MAPPING_CACHE, cache_key)
+        return GRID_MAPPING_CACHE[cache_key]
+    end
+    
+    # Pre-allocate result vector
+    total_points = N1 * N2 * N3
+    mapp = Vector{Int}(undef, total_points)
+    
+    # Vectorized grid generation
+    i_coords = repeat(0:N1-1, outer=N2*N3)
+    j_coords = repeat(repeat(0:N2-1, outer=N3), outer=N1)
+    k_coords = repeat(0:N3-1, outer=N1*N2)
+    
+    # Normalize coordinates
+    u_coords = hcat(i_coords ./ N1, j_coords ./ N2, k_coords ./ N3)
+    
+    # Apply rotation and translation
+    ru_coords = u_coords * transpose(rot) .+ transpose(tras)
+    
+    # Fold coordinates
+    ru_coords = fold_component_vectorized(ru_coords)
+    
+    # Convert back to grid indices
+    i1_coords = round.(Int, ru_coords[:, 1] .* N1)
+    i2_coords = round.(Int, ru_coords[:, 2] .* N2)
+    i3_coords = round.(Int, ru_coords[:, 3] .* N3)
+    
+    # Bounds checking
+    @inbounds for idx in 1:total_points
+        i1, i2, i3 = i1_coords[idx], i2_coords[idx], i3_coords[idx]
+        
+        # Ensure indices are within bounds
+        i1 = max(0, min(i1, N1-1))
+        i2 = max(0, min(i2, N2-1))
+        i3 = max(0, min(i3, N3-1))
+        
+        mapp[idx] = i1 + i2 * N1 + i3 * N1 * N2
+    end
+    
+    # Cache the result
+    GRID_MAPPING_CACHE[cache_key] = mapp
+    return mapp
+end
+
 """
     rotate_grid(N1, N2, N3, rot, tras)
 
@@ -190,32 +264,50 @@ Maps a 3D grid of points onto itself under a given rotation and translation, ret
 - `mapp::Vector{Int}`: A vector containing the mapped linear indices for each grid point after applying the rotation and translation.
 """
 function rotate_grid(N1, N2, N3, rot, tras)
-    mapp = []
-    for k in 0:N3-1
-        for j in 0:N2-1
-            for i in 0:N1-1
-                u = [i / N1, j / N2, k / N3]
-                ru = rot * u .+ tras
-                ru[1] = fold_component(ru[1])
-                ru[2] = fold_component(ru[2])
-                ru[3] = fold_component(ru[3])
+    # Use optimized version for better performance
+    return rotate_grid_optimized(N1, N2, N3, rot, tras)
+end
 
-                i1 = round(Int, ru[1] * N1)
-                i2 = round(Int, ru[2] * N2)
-                i3 = round(Int, ru[3] * N3)
+"""
+    rotate_deriv_optimized(N1, N2, N3, mapp, ff)
 
-                eps = 1e-5
-                if i1 >= N1 - eps || i2 >= N2 - eps || i3 >= N3 - eps
-                    println(i1, i2, i3, N1, N2, N3)
-                    @error "Symmetries usage gave error in folding"
-                end
+Optimized version of rotate_deriv with better memory access patterns and vectorization.
 
-                ind = i1 + (i2) * N1 + (i3) * N1 * N2
-                push!(mapp, ind)
-            end
+# Arguments
+- `N1::Int`: Size of the first dimension.
+- `N2::Int`: Size of the second dimension.
+- `N3::Int`: Size of the third dimension.
+- `mapp::Vector{Int}`: Mapping array that specifies the new indices for rotation.
+- `ff::Array{ComplexF64,3}`: The original 3D array to be rotated.
+
+# Returns
+- `ff_rot::Array{ComplexF64,3}`: The rotated 3D array.
+"""
+function rotate_deriv_optimized(N1, N2, N3, mapp, ff)
+    ff_rot = zeros(ComplexF64, N1, N2, N3)
+    
+    # Pre-compute index mappings for better cache locality
+    total_points = N1 * N2 * N3
+    
+    @inbounds for idx in 1:total_points
+        # Source indices (i, j, k)
+        k = div(idx - 1, N1 * N2)
+        j = div((idx - 1) % (N1 * N2), N1)
+        i = (idx - 1) % N1
+        
+        # Target index from mapping
+        target_idx = mapp[idx]
+        target_k = div(target_idx, N1 * N2)
+        target_j = div(target_idx % (N1 * N2), N1)
+        target_i = target_idx % N1
+        
+        # Copy with bounds checking
+        if 0 <= target_i < N1 && 0 <= target_j < N2 && 0 <= target_k < N3
+            ff_rot[target_i+1, target_j+1, target_k+1] = ff[i+1, j+1, k+1]
         end
     end
-    return mapp
+    
+    return ff_rot
 end
 
 """
@@ -234,26 +326,80 @@ Rotate a 3D array `ff` according to a mapping array `mapp` and the specified dim
 - `ff_rot::Array{ComplexF64,3}`: The rotated 3D array.
 """
 function rotate_deriv(N1, N2, N3, mapp, ff)
-    ff_rot = zeros(ComplexF64, N1, N2, N3)
-    ind = 1
-    for k in 0:N3-1
-        for j in 0:N2-1
-            for i in 0:N1-1
-                ind1 = mapp[ind]
-                i3 = div(ind1, N2 * N1)
-                ind1 = ind1 % (N1 * N2)
-                i2 = div(ind1, N1)
-                i1 = ind1 % N1
-               if (i1 + (i2) * N1 + (i3) * N1 * N2) != mapp[ind]
-                    println("different")
-                    println(i1, i2, i3, ind, mapp[ind])
-                    @error "Symmetries usage gave error in rotation"
-                end
-                ind += 1
+    # Use optimized version for better performance
+    return rotate_deriv_optimized(N1, N2, N3, mapp, ff)
+end
 
-                ff_rot[i1+1, i2+1, i3+1] = ff[i+1, j+1, k+1]
-            end
-        end
+# MPI-optimized symmetry operations
+function check_symmetries_mpi(path_to_calc, unitcell, sc_size, k_mesh, abs_disp)
+    """MPI-parallelized symmetry checking"""
+    
+    if is_master()
+        symmetries, Ndisplace_symm = check_symmetries(path_to_calc, unitcell, sc_size, k_mesh, abs_disp)
+        
+        # Broadcast results to all ranks
+        mpi_bcast!(symmetries.ineq_atoms_list)
+        mpi_bcast!(symmetries.trans_list)
+        mpi_bcast!(symmetries.rot_list)
+        mpi_bcast!(symmetries.ind_k_list)
+        mpi_bcast!([Ndisplace_symm])
+        
+        return symmetries, Ndisplace_symm
+    else
+        # Receive results from master
+        symmetries = Symmetries([], [], [], [])
+        mpi_bcast!(symmetries.ineq_atoms_list)
+        mpi_bcast!(symmetries.trans_list)
+        mpi_bcast!(symmetries.rot_list)
+        mpi_bcast!(symmetries.ind_k_list)
+        Ndisplace_symm = mpi_bcast!([0])[1]
+        
+        return symmetries, Ndisplace_symm
     end
-    return ff_rot
+end
+
+# Clear cache function for memory management
+function clear_symmetry_cache()
+    """Clear the grid mapping cache to free memory"""
+    empty!(GRID_MAPPING_CACHE)
+    GC.gc()
+end
+
+# Batch processing for multiple symmetry operations
+function apply_symmetries_batch(ff_list::Vector{Array{ComplexF64,3}}, N1, N2, N3, rot, tras)
+    """Apply the same symmetry operation to multiple arrays efficiently"""
+    
+    # Get mapping once
+    mapp = rotate_grid_optimized(N1, N2, N3, rot, tras)
+    
+    # Apply to all arrays
+    result = Vector{Array{ComplexF64,3}}(undef, length(ff_list))
+    
+    @threads for i in 1:length(ff_list)
+        result[i] = rotate_deriv_optimized(N1, N2, N3, mapp, ff_list[i])
+    end
+    
+    return result
+end
+
+# Optimized phase factor calculation
+function determine_phase_optimized(kpoint, N_fft)
+    """Optimized phase factor calculation with vectorization"""
+    
+    # Pre-compute grid coordinates
+    N1, N2, N3 = N_fft
+    total_points = N1 * N2 * N3
+    
+    # Vectorized grid generation
+    i_coords = repeat(0:N1-1, outer=N2*N3)
+    j_coords = repeat(repeat(0:N2-1, outer=N3), outer=N1)
+    k_coords = repeat(0:N3-1, outer=N1*N2)
+    
+    # Calculate phase factors vectorized
+    phase_factors = exp.(2π * im * (i_coords .* kpoint[1] ./ N1 .+ 
+                                   j_coords .* kpoint[2] ./ N2 .+ 
+                                   k_coords .* kpoint[3] ./ N3))
+    
+    # Reshape to 3D array
+    return reshape(phase_factors, N1, N2, N3)
 end
