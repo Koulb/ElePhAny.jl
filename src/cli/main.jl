@@ -97,3 +97,150 @@ Comonicon.@main function epjl(; qe_in_file::String="scf.in",
     end
 
 end
+
+# MPI-optimized main function
+function main_mpi()
+    # Parse command line arguments
+    args = parse_command_line_args()
+    
+    # Initialize model
+    model = create_model_from_args(args)
+    
+    # Check if we should use MPI
+    use_mpi = mpi_size() > 1
+    
+    if is_master()
+        @info "Starting calculation with $(mpi_size()) MPI processes and $(Threads.nthreads()) threads per process"
+    end
+    
+    # Prepare model (only master does this)
+    if is_master()
+        prepare_model(model)
+    end
+    mpi_barrier()
+    
+    # Load electrons and phonons
+    electrons = load_electrons(model)
+    phonons = load_phonons(model)
+    
+    # Broadcast data to all ranks
+    if use_mpi
+        # Broadcast model parameters
+        mpi_bcast!(model.sc_size)
+        mpi_bcast!(model.k_mesh)
+        mpi_bcast!(model.Ndispalce)
+        
+        # Broadcast electron and phonon data
+        # Note: This is simplified - in practice you'd need to serialize/deserialize
+        # the complex data structures for MPI communication
+    end
+    
+    if args.ep_calculations
+        # Distribute k-point and q-point calculations across MPI ranks
+        sc_size = model.sc_size[1]  # Assuming cubic supercell
+        ik_list = collect(1:sc_size^3)
+        iq_list = collect(1:sc_size^3)
+        
+        rank = mpi_rank()
+        size = mpi_size()
+        
+        # Distribute (ik, iq) pairs across ranks
+        all_pairs = [(ik, iq) for ik in ik_list for iq in iq_list]
+        local_pairs = all_pairs[rank+1:size:end]
+        
+        if is_master()
+            println("Calculating electron-phonon matrix elements for $(length(all_pairs)) points across $(size) MPI processes:")
+        end
+        
+        for (ik, iq) in local_pairs
+            if args.save_epw
+                electron_phonon_mpi(model, ik, iq, electrons, phonons; save_epw=args.save_epw)
+                if is_master()
+                    println("Rank $rank: ik = $ik, iq = $iq done")
+                end
+            else
+                electron_phonon_qe(model, ik, iq)
+                electron_phonon_mpi(model, ik, iq, electrons, phonons; save_epw=args.save_epw)
+                if is_master()
+                    plot_ep_coupling(model, ik, iq)
+                    println("Rank $rank: ik = $ik, iq = $iq done")
+                end
+            end
+        end
+        
+        mpi_barrier()
+        
+        if is_master()
+            println("All electron-phonon calculations completed")
+        end
+    end
+end
+
+# Hybrid MPI + threading wave function preparation
+function prepare_wave_functions_hybrid(path_to_in::String, sc_size::Vector{Int}; k_mesh::Vector{Int} = [1,1,1])
+    rank = mpi_rank()
+    size = mpi_size()
+    
+    total_kpoints = prod(sc_size) * prod(k_mesh)
+    local_kpoints = rank+1:size:total_kpoints
+    
+    if is_master()
+        @info "Preparing wave functions for $total_kpoints k-points across $size MPI processes"
+    end
+    
+    for (local_idx, ik) in enumerate(local_kpoints)
+        file_path = path_to_in*"/scf_0/"
+        
+        # Use optimized wave function preparation
+        prepare_wave_functions_to_R_optimized(file_path; ik=ik, chunk_size=5)
+        prepare_unfold_to_sc(file_path, sc_size, ik)
+        prepare_wave_functions_to_G(path_to_in; ik=ik)
+        
+        if is_master()
+            @info "Rank $rank: ik = $ik/$(length(local_kpoints)) is ready"
+        end
+    end
+    
+    mpi_barrier()
+end
+
+# MPI-optimized displacement calculations
+function run_disp_calc_mpi(path_to_in::String, Ndispalce::Int, mpi_ranks::Int = 0)
+    rank = mpi_rank()
+    size = mpi_size()
+    
+    # Distribute displacements across MPI ranks
+    local_disps = rank+1:size:Ndispalce
+    
+    if is_master()
+        println("Running scf_0:")
+    end
+    
+    # Only master runs scf_0
+    if is_master()
+        if isfile(path_to_in*"scf_0/"*"run.sh")
+            run_scf_cluster(path_to_in*"scf_0/")
+        else
+            run_scf(path_to_in*"scf_0/", mpi_ranks)
+        end
+    end
+    
+    mpi_barrier()
+    
+    # Distribute displacement calculations
+    for i_disp in local_disps
+        if is_master()
+            println("Rank $rank: Running displacement # $i_disp:")
+        end
+        
+        dir_name = "group_"*string(i_disp)*"/"
+        if isfile(path_to_in*dir_name*"run.sh")
+            run_scf_cluster(path_to_in*dir_name)
+        else
+            run_scf(path_to_in*dir_name, mpi_ranks)
+        end
+    end
+    
+    mpi_barrier()
+    return true
+end

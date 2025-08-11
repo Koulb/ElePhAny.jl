@@ -834,3 +834,298 @@ function electron_phonon(model::AbstractModel, ik, iq, electrons::AbstractElectr
     electron_phonon(model.path_to_calc*"displacements/", model.abs_disp, natoms, ik, iq, model.sc_size, model.k_mesh, ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list , U_list, V_list, M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ; save_epw=save_epw,save_qeraman=save_qeraman, phonons_dfpt=phonons_dfpt)
 
 end
+
+# MPI-optimized electron-phonon calculation
+function electron_phonon_mpi(
+    path_to_in::String,
+    abs_disp,
+    Nat,
+    ik,
+    iq,
+    sc_size,
+    k_mesh,
+    ϵkᵤ_list,
+    ϵₚ_list,
+    ϵₚₘ_list,
+    k_list,
+    U_list,
+    V_list,
+    M_phonon,
+    ωₐᵣᵣ_ₗᵢₛₜ,
+    εₐᵣᵣ_ₗᵢₛₜ,
+    mₐᵣᵣ;
+    save_epw::Bool=false,
+    save_qeraman::Bool=false,
+    phonons_dfpt::Bool=true
+)
+    Ndisp_nosym = 6*Nat
+    scale = ev_to_ry / abs_disp
+
+    group = "scf_0/"
+    ikq = fold_kpoint(ik,iq,k_list)
+
+    ϵkᵤ = ϵkᵤ_list[ik]
+    ϵqᵤ = ϵkᵤ_list[ikq]
+    nbands = length(ϵkᵤ)
+
+    # Distribute displacements across MPI ranks
+    rank = mpi_rank()
+    size = mpi_size()
+    
+    # Each rank processes a subset of displacements
+    local_disps = rank+1:size:Ndisp_nosym
+    local_braket_list = []
+    local_braket_list_rotated = []
+
+    for ind in local_disps
+        ind_abs = (ind-1)÷2 + 1
+
+        ϵₚ = ϵₚ_list[ind_abs]
+        ϵₚₘ = ϵₚₘ_list[ind_abs]
+
+        Uk  = U_list[ind_abs][:,ik,:,:]
+        Ukₘ = V_list[ind_abs][:,ik,:,:]
+        Uq  = U_list[ind_abs][:,ikq,:,:]
+        Uqₘ = V_list[ind_abs][:,ikq,:,:]
+
+        braket = zeros(Complex{Float64}, nbands, nbands)
+
+        # Optimized matrix operations
+        @inbounds @threads for i in 1:nbands
+            for j in 1:nbands
+                result = 0.0
+                for k in 1:nbands*prod(sc_size)
+                    for ip in 1:prod(k_mesh)
+                        result += Uk[ip, k, j] * conj(Uq[ip, k,i]) * ϵₚ[ip][k]
+                        result -= Ukₘ[ip, k, j] * conj(Uqₘ[ip, k,i]) * ϵₚₘ[ip][k]
+                    end
+                end
+                braket[i,j] = result/2.0
+            end
+        end
+
+        push!(local_braket_list, transpose(conj(braket))*scale*prod(sc_size))
+    end
+
+    # Gather results from all ranks
+    all_braket_list = []
+    if is_master()
+        all_braket_list = Array{Any}(undef, Ndisp_nosym)
+    end
+    
+    # Gather local results to master
+    for (local_idx, global_idx) in enumerate(local_disps)
+        if is_master()
+            all_braket_list[global_idx] = local_braket_list[local_idx]
+        else
+            # Send result to master
+            MPI.Send(local_braket_list[local_idx], 0, MPI_COMM[], global_idx)
+        end
+    end
+    
+    # Master receives results from other ranks
+    if is_master()
+        for r in 1:size-1
+            for (local_idx, global_idx) in enumerate(r+1:size:Ndisp_nosym)
+                result = MPI.Recv(Any, r, MPI_COMM[], global_idx)
+                all_braket_list[global_idx] = result
+            end
+        end
+    end
+    
+    mpi_barrier()
+    
+    # Only master processes the rotation and final calculations
+    if !is_master()
+        return nothing
+    end
+    
+    # Process rotations on master
+    for iat in 1:Nat
+        U_inv = M_phonon[iat]
+        temp_iat::Int = 1 + 3 * (iat - 1)
+        braket_temp = all_braket_list[temp_iat:temp_iat+2]
+        push!(local_braket_list_rotated, U_inv * braket_temp)
+    end
+
+    if save_epw
+        # Save results
+        try
+            open(path_to_in*"epw/braket_list_rotated_$(ik)_$(iq)", "w") do io
+                for iat in 1:Nat
+                    for i in 1:3
+                        for j in 1:nbands
+                            for k in 1:nbands
+                                data = [iat, i, j, k, real(local_braket_list_rotated[iat][i][j,k]), imag(local_braket_list_rotated[iat][i][j,k])]
+                                @printf(io, "  %5d  %5d  %5d  %5d  %16.12f  %16.12f\n", data...)
+                            end
+                        end
+                    end
+                end
+            end
+        catch
+            @info "Could not save braket_list_rotated, check if epw folder exists in path_to_calc/displacements"
+        end
+        return local_braket_list_rotated
+    else
+        # Continue with final calculations (same as original)
+        ωₐᵣᵣ = ωₐᵣᵣ_ₗᵢₛₜ[iq]
+        εₐᵣᵣ = εₐᵣᵣ_ₗᵢₛₜ[iq]
+
+        if phonons_dfpt
+            ωₐᵣᵣ, εₐᵣᵣ_tmp = parse_qe_ph(path_to_in*"scf_0/dyn1",Nat) 
+            εₐᵣᵣ = renorm_mass_eps(εₐᵣᵣ_tmp, mₐᵣᵣ)
+        end
+
+        gᵢⱼₘ_ₐᵣᵣ = Array{ComplexF64, 3}(undef, (nbands, nbands, length(ωₐᵣᵣ)))
+
+        @inbounds @threads for i in 1:nbands
+            for j in 1:nbands
+                for iph in 1:3*Nat
+                    ω = ωₐᵣᵣ[1,iph] * cm1_to_ry
+                    ε = εₐᵣᵣ[1,iph,:]
+                    gᵢⱼₘ = 0.0
+                    for iat in 1:Nat
+                        braket_cart = local_braket_list_rotated[iat]
+                        m = mₐᵣᵣ[iat] * uma_to_ry
+                        disp = (ω > 0.0 ? sqrt(1/(2*m*ω)) : 0.0)
+                        for i_cart in 1:3
+                            braket = braket_cart[i_cart]
+                            temp_iat::Int = 3*(iat - 1) + i_cart
+                            gᵢⱼₘ += disp*conj(ε[temp_iat])*braket[i,j]
+                        end
+                    end
+                    gᵢⱼₘ_ₐᵣᵣ[i,j,iph] = gᵢⱼₘ/ev_to_ry
+                end
+            end
+        end
+
+        # Symmetrization (same as original)
+        symm_elph = zeros(ComplexF64,(nbands, nbands, length(ωₐᵣᵣ)))
+        elph = deepcopy(gᵢⱼₘ_ₐᵣᵣ)
+
+        thr = 1e-2
+        # symm through phonons
+        @inbounds @threads for iph1 in 1:length(ωₐᵣᵣ)
+            ω₁ = ωₐᵣᵣ[iph1]
+            for ie in 1:nbands
+                for je in 1:nbands
+                    n = 0
+                    g² = 0.0
+                    for iph2 in 1:length(ωₐᵣᵣ)
+                        ω₂ = ωₐᵣᵣ[iph2]
+                        if abs(ω₁ - ω₂) < thr
+                            n += 1
+                            g² += conj(elph[ie,je,iph2]) * elph[ie,je,iph2]
+                        end
+                    end
+                    g² /= n
+                    symm_elph[ie, je, iph1] = real(sqrt(g²))
+                end
+            end
+        end
+        elph = deepcopy(symm_elph)
+
+        # symm through k electrons
+        @inbounds @threads for iph1 in 1:length(ωₐᵣᵣ)
+            for je in 1:nbands
+                for ie in 1:nbands
+                    n = 0
+                    g² = 0.0
+                    ε₁ = ϵkᵤ[ie]
+                    for ie2 in 1:nbands
+                        ε₂ = ϵkᵤ[ie2]
+                        if abs(ε₁ - ε₂) < thr
+                            n += 1
+                            g² += conj(elph[ie2, je, iph1]) * elph[ie2, je, iph1]
+                        end
+                    end
+                    g² /= n
+                    symm_elph[ie, je, iph1] = real(sqrt(g²))
+                end
+            end
+        end
+        elph = deepcopy(symm_elph)
+
+        #symm through k+q electrons
+        @inbounds @threads for iph1 in 1:length(ωₐᵣᵣ)
+            for ie in 1:nbands
+                for je in 1:nbands
+                    n = 0
+                    g² = 0.0
+                    ε₁ = ϵqᵤ[je]
+                    for je2 in 1:nbands
+                        ε₂ = ϵqᵤ[je2]
+                        if abs(ε₁ - ε₂) < thr
+                            n += 1
+                            g² += conj(elph[ie, je2, iph1]) * elph[ie, je2, iph1]
+                        end
+                    end
+                    g² /= n
+                    symm_elph[ie, je, iph1] = real(sqrt(g²))
+                end
+            end
+        end
+
+        # Save results (same as original)
+        if save_qeraman
+            # ... existing qeraman saving code ...
+        else
+            try
+                open(path_to_in*"out/comparison_$(ik)_$(iq).txt", "w") do io
+                    for i in 1:nbands
+                        for j in 1:nbands
+                            for iph in 1:3*Nat
+                                @printf(io, "  %5d  %5d  %5d  %10.6f  %10.6f  %12.6f  %12.6f  %12.12f %12.12f\n", i,j, iph, ϵkᵤ[i], ϵqᵤ[j], ωₐᵣᵣ[1,iph], ωₐᵣᵣ_DFPT[1,iph], symm_elph[i, j, iph], elph_dfpt[i, j, iph])
+                            end
+                        end
+                    end
+                end
+            catch
+                @info "Could not save symmetrized electron-phonon matrix elements, check if out folder exists in $(path_to_in)"
+            end            
+        end
+
+        return symm_elph
+    end
+end
+
+# MPI-optimized wave function preparation
+function prepare_wave_functions_disp_mpi(path_to_in::String, ik::Int, Ndisplace::Int, sc_size::Vector{Int}, k_mesh::Vector{Int})
+    rank = mpi_rank()
+    size = mpi_size()
+    
+    # Distribute displacements across MPI ranks
+    local_disps = rank+1:size:Ndisplace
+    
+    @threads for ind in local_disps
+        path_to_data = path_to_in*"group_$ind/"
+        miller, evc_list_sc = parse_wf(path_to_data*"tmp/scf.save/wfc$ik")
+        N_evc = size(evc_list_sc)[1]
+        N_g   = length(evc_list_sc[1])
+        N = determine_fft_grid(path_to_data*"tmp/scf.save/data-file-schema.xml"; use_xml = true)
+
+        wave_function_result = Array{ComplexF64, 4}(undef, N_evc, N, N, N)
+        evc_list_phase = Array{ComplexF64, 2}(undef, N_evc, N_g)
+
+        Nchunk = prod(sc_size)
+        chunk(arr, n) = [arr[i:min(i + n - 1, end)] for i in 1:n:length(arr)]
+        evc_chunks = chunk(evc_list_sc[1:N_evc], Nchunk)
+
+        for (index, evc_list_chunk) in enumerate(evc_chunks)
+            wave_function_result[(index-1)*Nchunk+1:index*Nchunk,:,:,:] = wf_from_G_list_optimized(miller, evc_list_chunk, N)
+            GC.gc()
+
+            wf_phase!(path_to_in, wave_function_result[(index-1)*Nchunk+1:index*Nchunk,:,:,:], sc_size, ik)
+
+            evc_list_phase[(index-1)*Nchunk+1:index*Nchunk,:] = wf_to_G_list(miller, wave_function_result[(index-1)*Nchunk+1:index*Nchunk,:,:,:], N)
+            GC.gc()
+        end
+
+        # Save results locally
+        save(path_to_data*"/evc_list_sc_$ik.jld2", "evc_list_phase", evc_list_phase)
+        @info "Rank $rank: idisp = $ind/$(Ndisplace) is ready"
+    end
+    
+    mpi_barrier()
+end

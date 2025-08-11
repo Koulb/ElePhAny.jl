@@ -1,4 +1,5 @@
 using JSON3
+using BlockArrays, LinearAlgebra, Mmap
 
 """
     parse_frozen_params(path_to_json)
@@ -280,3 +281,156 @@ const QE_PW_PARSE_FUNCTIONS::Vector{Pair{NeedleType, Any}}  = [
 # unitcell, scf_parameters = parse_qe_in(path_to_scf)
 # println(unitcell)
 # println(scf_parameters)
+
+# Memory-mapped wave function loading for large datasets
+function load_wave_functions_mmap(path_to_in::String, ik::Int)
+    file_path = path_to_in*"/tmp/scf.save/wfc$ik"
+    
+    if isfile(file_path*".dat")
+        return load_wave_functions_mmap_dat(file_path*".dat")
+    elseif isfile(file_path*".hdf5")
+        return load_wave_functions_mmap_hdf5(file_path*".hdf5")
+    else
+        error("No wave function file found: $file_path")
+    end
+end
+
+function load_wave_functions_mmap_dat(file_path::String)
+    # Memory-map the binary file for efficient reading
+    mmap_file = Mmap.mmap(file_path)
+    
+    # Parse header information
+    ik = reinterpret(Int32, mmap_file[1:4])[1]
+    xkx, xky, xkz, ispin = reinterpret(Float64, mmap_file[5:20])
+    ngw, igwx, npol, nbnd = reinterpret(Int32, mmap_file[21:28])
+    
+    # Calculate offsets
+    header_size = 28
+    dummy_size = 9 * 8  # 9 Float64 values
+    miller_size = 3 * igwx * 4  # 3*igwx Int32 values
+    
+    miller_offset = header_size + dummy_size
+    evc_offset = miller_offset + miller_size
+    
+    # Extract Miller indices
+    miller_data = reinterpret(Int32, mmap_file[miller_offset+1:miller_offset+miller_size])
+    miller = reshape(miller_data, (3, igwx))
+    
+    # Extract eigenvector coefficients
+    evc_list = []
+    current_offset = evc_offset
+    
+    for band in 1:nbnd
+        evc_data = reinterpret(ComplexF64, mmap_file[current_offset+1:current_offset+igwx*16])
+        push!(evc_list, copy(evc_data))
+        current_offset += igwx * 16
+    end
+    
+    Mmap.munmap(mmap_file)
+    return miller, evc_list
+end
+
+function load_wave_functions_mmap_hdf5(file_path::String)
+    # For HDF5 files, we still use the regular HDF5 interface
+    # but can optimize the reading of large datasets
+    return parse_hdf(file_path)
+end
+
+# Optimized wave function saving with compression
+function save_wave_functions_optimized(path_to_in::String, wfc_list::Dict, ik::Int; compress::Bool=true)
+    if compress
+        # Use compression for large datasets
+        save(path_to_in*"/wfc_list_$ik.jld2", wfc_list, compress=true)
+    else
+        save(path_to_in*"/wfc_list_$ik.jld2", wfc_list)
+    end
+end
+
+# Streaming wave function processing for very large datasets
+function process_wave_functions_streaming(path_to_in::String, ik::Int; batch_size::Int=5)
+    file_path = path_to_in*"/tmp/scf.save/wfc$ik"
+    miller, evc_list = parse_wf(file_path)
+    Nxyz = determine_fft_grid(path_to_in*"/scf.out")
+    
+    n_bands = length(evc_list)
+    wfc_list = Dict()
+    
+    # Process in batches to manage memory
+    for batch_start in 1:batch_size:n_bands
+        batch_end = min(batch_start + batch_size - 1, n_bands)
+        batch_indices = batch_start:batch_end
+        
+        # Process batch in parallel
+        batch_results = Dict()
+        @threads for index in batch_indices
+            wfc = wf_from_G_optimized(miller, evc_list[index], Nxyz)
+            batch_results["wfc$index"] = wfc
+        end
+        
+        # Save batch immediately
+        for (key, value) in batch_results
+            wfc_list[key] = value
+        end
+        
+        # Force garbage collection
+        GC.gc()
+    end
+    
+    save_wave_functions_optimized(path_to_in, wfc_list, ik)
+    return wfc_list
+end
+
+# Optimized force collection with MPI
+function collect_forces_mpi(path_to_in::String, unitcell, sc_size, Ndispalce)
+    rank = mpi_rank()
+    size = mpi_size()
+    
+    number_atoms = length(unitcell[:symbols])*sc_size[1]*sc_size[2]*sc_size[3]
+    
+    # Distribute displacements across MPI ranks
+    local_disps = rank+1:size:Ndispalce
+    local_forces = Array{Float64}(undef, length(local_disps), number_atoms, 3)
+    
+    for (local_idx, i_disp) in enumerate(local_disps)
+        dir_name = "group_"*string(i_disp)*"/"
+        force = nothing
+        
+        if isfile(path_to_in*dir_name*"/tmp/scf.save/data-file-schema-scf.xml")
+            force = read_forces_xml(path_to_in*dir_name*"/tmp/scf.save/data-file-schema-scf.xml")
+        else
+            force = read_forces_xml(path_to_in*dir_name*"/tmp/scf.save/data-file-schema.xml")
+        end
+        
+        local_forces[local_idx,:,:] = force
+    end
+    
+    # Gather all forces to master
+    if is_master()
+        forces = Array{Float64}(undef, Ndispalce, number_atoms, 3)
+        
+        # Copy local forces
+        for (local_idx, global_idx) in enumerate(local_disps)
+            forces[global_idx,:,:] = local_forces[local_idx,:,:]
+        end
+        
+        # Receive forces from other ranks
+        for r in 1:size-1
+            for (local_idx, global_idx) in enumerate(r+1:size:Ndispalce)
+                force_data = MPI.Recv(Array{Float64,3}, r, MPI_COMM[], global_idx)
+                forces[global_idx,:,:] = force_data
+            end
+        end
+        
+        return forces
+    else
+        # Send forces to master
+        for (local_idx, global_idx) in enumerate(local_disps)
+            MPI.Send(local_forces[local_idx,:,:], 0, MPI_COMM[], global_idx)
+        end
+        return nothing
+    end
+end
+
+export parse_qe_in, parse_frozen_params
+export load_wave_functions_mmap, save_wave_functions_optimized, process_wave_functions_streaming, collect_forces_mpi
+include("io.jl")

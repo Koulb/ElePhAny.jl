@@ -1,0 +1,103 @@
+# Silicon (Si) DFT Configuration
+# Electron-phonon calculation parameters for diamond structure silicon
+
+# Crystal structure
+crystal:
+  lattice_constant: 5.43  # Å
+  cell_vectors:
+    - [2.715, 2.715, 0.0]      # a1
+    - [0.0, 2.715, 2.715]      # a2
+    - [2.715, 0.0, 2.715]      # a3
+  atomic_positions:
+    - [0.0, 0.0, 0.0]          # Si at origin
+    - [0.25, 0.25, 0.25]       # Si at (1/4, 1/4, 1/4)
+  atomic_species:
+    - "Si"
+    - "Si"
+  atomic_masses:
+    - 28.0855
+    - 28.0855
+
+# Calculation parameters
+calculation:
+  supercell_size: [2, 2, 2]    # 2x2x2 supercell
+  k_mesh: [8, 8, 8]            # 8x8x8 k-point mesh
+  q_mesh: [4, 4, 4]            # 4x4x4 q-point mesh for phonons
+  energy_cutoffs:
+    wave_function: 30.0         # Ry
+    charge_density: 120.0       # Ry
+  displacement_amplitude: 0.01  # Å
+  smearing:
+    type: "gaussian"
+    width: 0.01                # Ry
+  convergence:
+    energy: 1.0e-8             # Ry
+    force: 1.0e-4              # Ry/Bohr
+
+# Quantum ESPRESSO settings
+quantum_espresso:
+  prefix: "si"
+  outdir: "./si_calculation"
+  pseudo_dir: "./pseudos"
+  verbosity: "high"
+  diagonalization: "david"
+  mixing:
+    mode: "plain"
+    beta: 0.7
+  occupations: "smearing"
+  nbnd: 20
+
+# HPC optimization settings
+hpc:
+  mpi:
+    enabled: true
+    processes: 4
+  threading:
+    enabled: true
+    threads_per_process: "auto"
+  memory:
+    fft_buffer_reuse: true
+    streaming_processing: true
+    chunk_size: 1000
+  fft:
+    provider: "FFTW_MEASURE"
+    threads: "auto"
+
+# Output settings
+output:
+  save_epw: true               # Save EPW format
+  save_qeraman: false          # Save QE-Raman format
+  save_hdf5: true              # Save HDF5 format
+  save_text: true              # Save text format
+  plot_results: true           # Generate plots
+  verbose: true                # Verbose output
+
+# Analysis settings
+analysis:
+  calculate_eliashberg: true   # Calculate Eliashberg function
+  calculate_lambda: true       # Calculate electron-phonon coupling λ
+  calculate_alpha2f: true      # Calculate α²F(ω)
+  temperature_range: [0, 300]  # K
+  frequency_range: [0, 50]     # THz
+
+# Silicon-specific physical properties
+physical_properties:
+  band_gap: 1.12               # eV (indirect)
+  effective_mass:
+    electron: 0.98             # m₀
+    hole: 0.49                 # m₀
+  phonon_frequencies:
+    acoustic: [0.1, 0.15, 0.2] # THz
+    optical: [15.0, 15.5, 16.0] # THz
+  electron_phonon_coupling:
+    lambda: 0.5                # Expected λ value
+    typical_energy: 0.06       # eV (typical phonon energy)
+
+# Validation settings
+validation:
+  compare_with_literature: true
+  literature_values:
+    lambda: 0.5
+    alpha2f_peak: 15.0         # THz
+    tc_estimate: 1.0           # K (if superconducting)
+  tolerance: 0.1               # 10% tolerance for validation

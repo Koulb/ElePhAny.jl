@@ -1,5 +1,28 @@
 using FortranFiles, LinearAlgebra, Base.Threads, ProgressMeter, JLD2, FFTW, HDF5, Statistics
 
+# Configure FFTW for optimal performance
+function __init__()
+    # Set FFTW to use all available threads
+    FFTW.set_num_threads(Threads.nthreads())
+    # Use FFTW_MEASURE for optimal planning
+    FFTW.set_provider(FFTW.FFTW_MEASURE)
+end
+
+# Pre-allocate buffers for FFT operations to avoid repeated allocations
+const FFT_BUFFERS = Dict{Tuple{Int,Int,Int}, Array{ComplexF64,3}}()
+
+function get_fft_buffer(dims)
+    if !haskey(FFT_BUFFERS, dims)
+        FFT_BUFFERS[dims] = zeros(ComplexF64, dims...)
+    end
+    return FFT_BUFFERS[dims]
+end
+
+function clear_fft_buffers()
+    empty!(FFT_BUFFERS)
+    GC.gc()
+end
+
 """
     parse_wf(path::String)
 
@@ -1023,6 +1046,123 @@ function calculate_braket(bras, kets)
     return result
 end
 
+# Optimized wave function conversion with buffer reuse
+function wf_from_G_optimized(miller::Matrix{Int32}, evc::Vector{ComplexF64}, Nxyz)
+    reciprocal_space_grid = get_fft_buffer(Nxyz)
+    fill!(reciprocal_space_grid, 0.0)
+    
+    # Determine the shift needed to map Miller indices to grid indices
+    shift = div.(Nxyz, 2)
+    
+    # Vectorized mapping of Miller indices
+    @inbounds for idx in 1:size(miller, 2)
+        g_vector = Int.(miller[:, idx])
+        i, j, k = ((g_vector .+ shift) .% Nxyz) .+ 1
+        reciprocal_space_grid[i, j, k] = evc[idx]
+    end
+    
+    # Use in-place FFT operations
+    wave_function = similar(reciprocal_space_grid)
+    plan = plan_ifft!(wave_function)
+    copy!(wave_function, reciprocal_space_grid)
+    ifftshift!(wave_function)
+    plan * wave_function
+    
+    return wave_function
+end
+
+# Optimized list version with batched FFTs
+function wf_from_G_list_optimized(miller::Matrix{Int32}, evc_list::AbstractArray{Any}, Nxyz)
+    evc_matrix = permutedims(hcat(evc_list...))
+    N_evc = size(evc_matrix, 1)
+    
+    # Pre-allocate buffers
+    reciprocal_space_grid = zeros(ComplexF64, N_evc, Nxyz[1], Nxyz[2], Nxyz[3])
+    wave_function = zeros(ComplexF64, N_evc, Nxyz[1], Nxyz[2], Nxyz[3])
+    
+    shift = div.(Nxyz, 2)
+    
+    # Vectorized filling of reciprocal space grid
+    @inbounds @threads for idx in 1:size(miller, 2)
+        i = (Int(miller[1, idx]) + shift[1]) % Nxyz[1] + 1
+        j = (Int(miller[2, idx]) + shift[2]) % Nxyz[2] + 1
+        k = (Int(miller[3, idx]) + shift[3]) % Nxyz[3] + 1
+        reciprocal_space_grid[:, i, j, k] .= evc_matrix[:, idx]
+    end
+    
+    # Batched FFT operations
+    wave_function_raw = ifftshift(reciprocal_space_grid, (2, 3, 4))
+    wave_function = ifft(wave_function_raw, (2, 3, 4))
+    
+    return wave_function
+end
+
+# Optimized phase determination with vectorization
+function determine_phase_optimized(q_point, Nxyz)
+    x = range(0, 1-1/Nxyz[1], Nxyz[1])
+    y = range(0, 1-1/Nxyz[2], Nxyz[2])
+    z = range(0, 1-1/Nxyz[3], Nxyz[3])
+    
+    exp_factor = zeros(Complex{Float64}, Nxyz[1], Nxyz[2], Nxyz[3])
+    
+    # Vectorized computation using broadcasting
+    @inbounds @threads for i in eachindex(x)
+        for j in eachindex(y)
+            for k in eachindex(z)
+                r_ijk = [x[i], y[j], z[k]]
+                temp = dot(r_ijk, q_point)
+                exp_factor[i, j, k] = exp(2im * π * temp)
+            end
+        end
+    end
+    
+    return exp_factor
+end
+
+# Optimized braket calculation using BLAS
+function calculate_braket_optimized(bra::Array{Complex{Float64}}, ket::Array{Complex{Float64}})
+    return LinearAlgebra.dot(bra, ket)
+end
+
+function calculate_braket_real_optimized(bra::Array{Complex{Float64}, 3}, ket::Array{Complex{Float64}, 3})
+    Nxyz = size(ket)
+    result = LinearAlgebra.dot(vec(bra), vec(ket))
+    return result / prod(Nxyz)
+end
+
+# Memory-efficient wave function preparation with streaming
+function prepare_wave_functions_to_R_optimized(path_to_in::String; ik::Int=1, chunk_size::Int=10)
+    file_path = path_to_in*"/tmp/scf.save/wfc$ik"
+    miller, evc_list = parse_wf(file_path)
+    Nxyz = determine_fft_grid(path_to_in*"/scf.out")
+    
+    wfc_list = Dict()
+    n_bands = length(evc_list)
+    
+    # Process in chunks to manage memory
+    for chunk_start in 1:chunk_size:n_bands
+        chunk_end = min(chunk_start + chunk_size - 1, n_bands)
+        chunk_indices = chunk_start:chunk_end
+        
+        # Process chunk in parallel
+        chunk_results = Dict()
+        @threads for index in chunk_indices
+            wfc = wf_from_G_optimized(miller, evc_list[index], Nxyz)
+            chunk_results["wfc$index"] = wfc
+        end
+        
+        # Merge results
+        merge!(wfc_list, chunk_results)
+        
+        # Force garbage collection for this chunk
+        GC.gc()
+    end
+    
+    @info "Data saved in "*path_to_in*"wfc_list_$ik.jld2"
+    save(path_to_in*"/wfc_list_$ik.jld2", wfc_list)
+    
+    return wfc_list
+end
 
 #TEST
 #path_to_in = "/home/apolyukhin/Development/julia_tests/qe_inputs/displacements/"
