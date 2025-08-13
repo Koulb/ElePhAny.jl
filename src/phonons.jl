@@ -432,19 +432,31 @@ Saves the following files in the `scf_0` subdirectory of `path_to_in`:
 - `omega_arr_list.jld2`: Contains the list of phonon frequencies.
 - `eps_arr_list.jld2`: Contains the list of phonon eigenvectors.
 """
-function prepare_phonons(path_to_in::String, sc_size::Vector{Int})
+function prepare_phonons(path_to_in::String, sc_size::Vector{Int}, displacements::Vector{Vector{Float64}})
 
-    local phonon_params
+    # if isfile(path_to_in * "phonopy_params_nosym.yaml") # to get all the possible displacements
+        # phonon_params = phonopy.load(path_to_in * "phonopy_params_nosym.yaml")
+    # else
+    phonon_params = phonopy.load(path_to_in*"phonopy_params.yaml")
+    Uᶜʳʸˢᵗ = pyconvert(Matrix{Float64},phonon_params.supercell.cell)
+    # end
 
-    if isfile(path_to_in * "phonopy_params_nosym.yaml") # to get all the possible displacements
-        phonon_params = phonopy.load(path_to_in * "phonopy_params_nosym.yaml")
-    else
-        phonon_params = phonopy.load(path_to_in*"phonopy_params.yaml")
-    end
+    use_sym = isempty(displacements) ? false : true
 
     Nat = Int(size(pyconvert(Vector,phonon_params.masses))[1])
     Ndisp_nosym = 6 * Nat
-    displacements = phonon_params.displacements[pyslice(0,Ndisp_nosym,2)]
+
+    displacements_plus = []
+    if use_sym
+        displacements_plus_crystal  = displacements[1:2:end]
+        for ind in 1:length(displacements_plus_crystal)
+            disp_cart = Uᶜʳʸˢᵗ' * displacements_plus_crystal[ind]
+            push!(displacements_plus, disp_cart / norm(disp_cart))
+        end
+    else
+        displacements_plus = phonon_params.displacements[pyslice(0,Ndisp_nosym,2)]
+    end
+    
     M_phonon  = []
     ωₐᵣᵣ_ₗᵢₛₜ = []
     εₐᵣᵣ_ₗᵢₛₜ = []
@@ -453,11 +465,22 @@ function prepare_phonons(path_to_in::String, sc_size::Vector{Int})
     for iat in 1:Nat
         U = []
         temp_iat::Int = 1 + 3 *(iat-1)
-        for row_py in displacements[pyslice(temp_iat-1,temp_iat+2)]
-            row = pyconvert(Vector,row_py)[2:end]
-            push!(U,row/norm(row))
+        
+        if use_sym
+            chunk  = displacements_plus[temp_iat:temp_iat+2]
+            for row in chunk
+                push!(U, row/norm(row))
+            end
+        else
+            chunk = displacements_plus[pyslice(temp_iat-1,temp_iat+2)]
+            for row_py in chunk
+                row = pyconvert(Vector,row_py)[2:end]
+                push!(U,row/norm(row))
+            end
         end
-        U_inv =  vcat(U'...)^-1
+
+        U_mat = vcat(U'...)
+        U_inv =  U_mat^-1
         push!(M_phonon, U_inv)
     end
 
@@ -512,8 +535,8 @@ Creates a `Phonons` object by preparing phonon data.
 - `Phonons`: An instance of the `Phonons` type containing the mass matrix, frequency array, eigenvector array, and mass array.
 
 """
-function create_phonons(path_to_in::String, sc_size::Vector{Int})
-    M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ = prepare_phonons(path_to_in, sc_size)
+function create_phonons(path_to_in::String, sc_size::Vector{Int}, displacements::Vector{Vector{Float64}})
+    M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ = prepare_phonons(path_to_in, sc_size, displacements)
 
     return Phonons(M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ)
 end
@@ -533,7 +556,7 @@ frequencies, eigenvectors, and atomic masses from the specified displacement cal
 """
 function create_phonons(model::AbstractModel)
     sc_size = model.k_mesh .* model.sc_size
-    M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ = prepare_phonons(model.path_to_calc*"displacements/", sc_size)
+    M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ = prepare_phonons(model.path_to_calc*"displacements/", sc_size, model.symmetries.dR_nosym)
 
     return Phonons(M_phonon, ωₐᵣᵣ_ₗᵢₛₜ, εₐᵣᵣ_ₗᵢₛₜ, mₐᵣᵣ)
 end
