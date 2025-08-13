@@ -44,10 +44,6 @@ This function performs the following steps:
 function prepare_model(model::ModelQE; save_dynq=true)
     # save_potential(model.path_to_calc*"displacements/", model.Ndispalce, model.sc_size, model.mpi_ranks)
 
-    # if model.use_symm == true && all(model.k_mesh .!= 1)
-    #     @error "Symmetry usage is not implemented for supercell calculations with kpoints"
-    # end
-
     if any(model.k_mesh .!= 1) && any(model.sc_size .!= 1) && all(==(model.sc_size[1]), model.sc_size) #for now only ostropic case
         #additioanl data for creating unified grid
         data = ase_io.read(model.path_to_calc*"displacements/scf_0/scf.in")

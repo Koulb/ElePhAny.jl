@@ -27,13 +27,10 @@ function check_symmetries(path_to_calc, unitcell, sc_size, k_mesh, abs_disp)
     supercell_matrix=pylist([[sc_size[1], 0, 0], [0, sc_size[2], 0], [0, 0, sc_size[3]]])
 
     phonon_symm = phonopy.Phonopy(unitcell_phonopy,supercell_matrix=supercell_matrix)
-    phonon_nosymm = phonopy.Phonopy(unitcell_phonopy, is_symmetry=false,supercell_matrix=supercell_matrix)
     symm_ops = phonon_symm.symmetry.get_symmetry_operations()
     scaled_pos = phonon_symm.supercell.scaled_positions
 
     phonon_symm.generate_displacements(distance=abs_disp)
-    # phonon_nosymm.generate_displacements(distance=abs_disp)
-    # phonon_nosymm.save(path_to_calc*"displacements/phonopy_params_nosym.yaml")
 
     scaled_pos = pyconvert(Vector{Vector{Float64}},scaled_pos)
     Uᶜʳʸˢᵗ = pyconvert(Matrix{Float64},phonon_symm.supercell.cell)
@@ -43,25 +40,12 @@ function check_symmetries(path_to_calc, unitcell, sc_size, k_mesh, abs_disp)
     Rˢʸᵐ  = [scaled_pos[convert(Int64, vec[1])+1] for vec in dataˢʸᵐ]
     Ndisplace_symm = length(Rˢʸᵐ)
 
-    # dataⁿᵒˢʸᵐ = pyconvert(Vector{Vector{Float64}},phonon_nosymm.get_displacements())
-    # dRⁿᵒˢʸᵐ = [round.(transpose(Uᶜʳʸˢᵗ^-1) * vec[2:4], digits=16) for vec in dataⁿᵒˢʸᵐ]
-    # Rⁿᵒˢʸᵐ  = [scaled_pos[convert(Int64, vec[1])+1] for vec in dataⁿᵒˢʸᵐ]
-
     use_sc = false
     if any(sc_size .!= 1)
         use_sc = true
     end
 
     kpoints = [determine_q_point(path_to_calc*"displacements/scf_0",ik; use_sc = use_sc) for ik in 1:prod(k_mesh)]
-
-    # trans_list = []
-    # rot_list   = []
-    # ineq_atoms_list = []
-    # ind_k_list = []
-    # index = 1
-    # isym = 1
-    # dR_nosym = Vector{Vector{Float64}}()
-
     Ndisplace_nosym = length(scaled_pos) * 6
     R_nosym = repeat(scaled_pos, inner=6)
 
@@ -100,7 +84,6 @@ function check_symmetries(path_to_calc, unitcell, sc_size, k_mesh, abs_disp)
                         @info "translation: $trans"
                         @info "rotation   : $rot"
                         push!(dR_candidates, dR_tmp)
-                        #plus disp
                         rot_list[ind_plus] = rot
                         trans_list[ind_plus] = trans
                         ineq_atoms_list[ind_plus] = isym
@@ -171,49 +154,7 @@ function check_symmetries(path_to_calc, unitcell, sc_size, k_mesh, abs_disp)
         inosym += 1
     end
 
-
-#old implementation
-    # inosym = 1
-    # isym   = 1
-    # while inosym <= length(Rⁿᵒˢʸᵐ)
-    #     R2 = Rⁿᵒˢʸᵐ[inosym] + dRⁿᵒˢʸᵐ[inosym]
-    #     check  = true
-    #     isym = 1
-    #     while check == true && isym <= length(Rˢʸᵐ)
-    #         R1 = Rˢʸᵐ[isym] + dRˢʸᵐ[isym]
-    #         ind_sym = 1
-    #         for (tras_py, rot_py) in zip(symm_ops["translations"], symm_ops["rotations"])
-    #             trans = pyconvert(Vector{Float64}, tras_py)
-    #             rot = pyconvert(Matrix{Float64}, rot_py)
-    #             rotR1 = fold_component.(rot * R1 .+ trans)
-    #             ind_sym += 1
-
-    #             if all(abs.(R2 - rotR1) .< 1e-8)
-    #                 @info "Found symmetry $index out of $(length(Rⁿᵒˢʸᵐ))"
-    #                 index += 1
-    #                 @info "translation: $trans"
-    #                 @info "rotation   : $rot"
-    #                 push!(trans_list, trans)
-    #                 push!(rot_list, rot)
-    #                 push!(ineq_atoms_list, isym)
-
-    #                 #saving k points ind list
-    #                 kpoints_rotated = [transpose(inv(rot)) * k_point for k_point in kpoints]  
-    #                 ind_k_point = find_matching_qpoints(kpoints, kpoints_rotated)
-    #                 push!(ind_k_list, ind_k_point)
-
-    #                 check = false
-    #                 break
-    #             end
-    #         end
-    #         isym += 1
-    #     end
-    #     inosym += 1
-    # end
-
     return Symmetries(ineq_atoms_list, trans_list, rot_list, dR_nosym, ind_k_list), Ndisplace_symm #
-    # return Symmetries(ineq_atoms_list, trans_list, rot_list, dRⁿᵒˢʸᵐ, ind_k_list), Ndisplace_symm #
-
 end
 
 """
@@ -229,10 +170,8 @@ function check_symmetries!(model::AbstractModel)
     model.Ndispalce = Ndisplace_symm #length(unique(symmetries.ineq_atoms_list))
 
     if model.Ndispalce != length(unique(symmetries.ineq_atoms_list))
-        # model.use_symm = false
         @error "Not all the symmmetries for EP were found, only phonons could be calculated"
     else
-        # model.use_symm = true
         model.symmetries = symmetries
     end
 
