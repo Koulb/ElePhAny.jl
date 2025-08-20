@@ -212,7 +212,7 @@ Create and initialize a `ModelKCW` object with the specified parameters.
 - `unitcell::Dict`: Dictionary describing the unit cell. Defaults to an empty `Dict()`.
 - `scf_parameters::Dict`: Dictionary of self-consistent field (SCF) parameters. Defaults to an empty `Dict()`.
 - `use_symm::Bool`: Whether to use symmetries. Defaults to `false`.
-- `symmetries::Symmetries`: Symmetries object. Defaults to `Symmetries([],[],[])`.
+- `symmetries::Symmetries`: Symmetries object. Defaults to `Symmetries([],[],[],[])`.
 
 # Returns
 - `ModelKCW`: An initialized `ModelKCW` object.
@@ -228,7 +228,7 @@ function create_model_kcw(;path_to_calc::String = "./",
     unitcell::Dict       = Dict(),
     scf_parameters::Dict = Dict(),
     use_symm::Bool       = false,
-    symmetries::Symmetries = Symmetries([],[],[]))
+    symmetries::Symmetries = Symmetries([],[],[],[]))
 
     if use_symm && k_mesh > 1
         @error "Symmetry usage is not implemented for supercell calculations with kpoints"
