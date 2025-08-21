@@ -4,7 +4,7 @@
 
 *⚛️ **Electron–Phonon** interactions with **Any** functional*
 
-[![Build Status](https://github.com/Koulb/ElePhAny.jl/actions/workflows/CI.yml/badge.svg)](https://github.com/Koulb/ElePhAny.jl/actions) [![Documentation](https://img.shields.io/badge/docs-📖-blue.svg)](https://koulb.github.io/ElePhAny.jl) [![ArXiv](https://img.shields.io/badge/arXiv-preprint-orange.svg)](#) [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](#)
+[![Build Status](https://github.com/Koulb/ElePhAny.jl/actions/workflows/CI.yml/badge.svg)](https://github.com/Koulb/ElePhAny.jl/actions) [![Documentation](https://img.shields.io/badge/docs-📖-blue.svg)](https://koulb.github.io/ElePhAny.jl) [![ArXiv](https://img.shields.io/badge/arXiv-preprint-orange.svg)](https://arxiv.org/abs/2508.14852) [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](#)
 
 ## Overview
 
@@ -60,7 +60,7 @@ pkg> add PythonCall
 
 ➡️ See the [**documentation**](https://koulb.github.io/ElePhAny.jl) for a full tutorial and API reference.
 
-➡️ See the [**preprint**](#) for full derivation and details on theory.
+➡️ See the [**preprint**](https://arxiv.org/abs/2508.14852) for full derivation and details on theory.
 
 ## References and Resources
 * ⚙️ [Quantum Espresso](https://www.quantum-espresso.org/)
