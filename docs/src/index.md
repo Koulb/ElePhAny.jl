@@ -8,6 +8,10 @@ ElePhAny is a package for calculating electron-phonon matrix elements using a fi
 
 The code allows the construction of the electron-phonon coupling matrix from **ab initio** calculations using [Quantum Espresso](https://www.quantum-espresso.org/) software. Additional interface with [EPW](https://epw-code.org/) allows the use of a constructed matrix to study any electron-phonon related properties of interest. Since the approach is very flexible, it enables seamless interface with any electronic structure software, especially if they are based on Quantum Espresso interface (e.g, [Koopmans](https://koopmans-functionals.org/en/latest/#), [Yambo](https://www.yambo-code.eu/))
 
+## Theory
+
+For full derivation and details on theory as well as application to semiconductors see the preprint: Aleksandr Poliukhin *et al.* [arXiv:2508.14852](https://arxiv.org/abs/2508.14852) (2025). For a brief introduction, see the [theory section](@ref theory) of the documentation.
+
 ## Quick install
 
 1. [Download Julia](https://julialang.org/downloads/).

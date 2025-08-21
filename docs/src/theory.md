@@ -1,4 +1,4 @@
-# Electron-Phonon Coupling – Theory Recap
+# [Electron-Phonon Coupling – Theory Recap](@id theory)
 
 ## Effective Potential Expansion and E–ph Hamiltonian
 
