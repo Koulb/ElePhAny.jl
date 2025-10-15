@@ -643,7 +643,7 @@ function prepare_wave_functions_undisp(path_to_in::String, miller_final_map, ik:
     save(path_to_in*"/scf_0/g_list_sc_$ik.jld2", g_list)
 end
 
-function prepare_wave_functions_undisp(path_to_in::String, miller_final_map, sc_size::Vector{Int}, k_mesh::Vector{Int} = [1,1,1])
+function prepare_wave_functions_undisp(path_to_in::String, miller_final_map, sc_size::Vector{Int}; k_mesh::Vector{Int} = [1,1,1])
     for ik in 1:prod(sc_size)*prod(k_mesh)
         prepare_wave_functions_undisp(path_to_in,miller_final_map,ik,sc_size.*k_mesh)
         @info "ik = $ik/$(prod(sc_size)*prod(k_mesh)) is ready"
@@ -672,7 +672,6 @@ function prepare_wave_functions_disp(path_to_in::String, miller_final_map, Ndisp
         @info "ik = $ik/$(prod(k_mesh)) is ready"
     end
 end
-
 #End of block
 
 
