@@ -186,8 +186,8 @@ function save_dyn_matirx(path_to_in::String, sc_size::Vector{Int})
     scaled_pos = pyconvert(Matrix, phonon_params.primitive.get_scaled_positions())
 
     nat = size(scaled_pos)[1]
-    phase_block = [[3,3] for _ in 1:nat]
-    phase_matrix = BlockArray{ComplexF64}(undef_blocks, phase_block...)
+    phase_block = fill(3, nat)
+    phase_matrix = BlockArray{ComplexF64}(undef, phase_block, phase_block)
     masses = pyconvert(Vector{Float64},phonon_params.masses)
     #phonon_params.symmetrize_force_constants()
 
