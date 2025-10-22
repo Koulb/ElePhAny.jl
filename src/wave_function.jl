@@ -91,7 +91,7 @@ function parse_fortran_bin(file_path::String)
 
     evc_list = []
     for _ in 1:nbnd
-        evc = read(f, (ComplexF64,igwx))
+        evc = read(f, (ComplexF64,npol*igwx))
         push!(evc_list,evc)
     end
     return miller, evc_list
