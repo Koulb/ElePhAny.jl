@@ -27,13 +27,10 @@ function check_symmetries(path_to_calc, unitcell, sc_size, k_mesh, abs_disp)
     supercell_matrix=pylist([[sc_size[1], 0, 0], [0, sc_size[2], 0], [0, 0, sc_size[3]]])
 
     phonon_symm = phonopy.Phonopy(unitcell_phonopy,supercell_matrix=supercell_matrix)
-    phonon_nosymm = phonopy.Phonopy(unitcell_phonopy, is_symmetry=false,supercell_matrix=supercell_matrix)
     symm_ops = phonon_symm.symmetry.get_symmetry_operations()
     scaled_pos = phonon_symm.supercell.scaled_positions
 
     phonon_symm.generate_displacements(distance=abs_disp)
-    phonon_nosymm.generate_displacements(distance=abs_disp)
-    phonon_nosymm.save(path_to_calc*"displacements/phonopy_params_nosym.yaml")
 
     scaled_pos = pyconvert(Vector{Vector{Float64}},scaled_pos)
     Uᶜʳʸˢᵗ = pyconvert(Matrix{Float64},phonon_symm.supercell.cell)
@@ -43,51 +40,110 @@ function check_symmetries(path_to_calc, unitcell, sc_size, k_mesh, abs_disp)
     Rˢʸᵐ  = [scaled_pos[convert(Int64, vec[1])+1] for vec in dataˢʸᵐ]
     Ndisplace_symm = length(Rˢʸᵐ)
 
-    dataⁿᵒˢʸᵐ = pyconvert(Vector{Vector{Float64}},phonon_nosymm.get_displacements())
-    dRⁿᵒˢʸᵐ = [round.(transpose(Uᶜʳʸˢᵗ^-1) * vec[2:4], digits=16) for vec in dataⁿᵒˢʸᵐ]
-    Rⁿᵒˢʸᵐ  = [scaled_pos[convert(Int64, vec[1])+1] for vec in dataⁿᵒˢʸᵐ]
-
     use_sc = false
     if any(sc_size .!= 1)
         use_sc = true
     end
 
     kpoints = [determine_q_point(path_to_calc*"displacements/scf_0",ik; use_sc = use_sc) for ik in 1:prod(k_mesh)]
+    Ndisplace_nosym = length(scaled_pos) * 6
+    R_nosym = repeat(scaled_pos, inner=6)
 
-    trans_list = []
-    rot_list   = []
-    ineq_atoms_list = []
-    ind_k_list = []
+    trans_list = Vector{Vector{Float64}}(undef, Ndisplace_nosym)
+    rot_list   = Vector{Matrix{Float64}}(undef, Ndisplace_nosym)
+    ineq_atoms_list = Vector{Int}(undef, Ndisplace_nosym)
+    ind_k_list = Vector{Vector{Int}}(undef, Ndisplace_nosym)
+
+    dR_nosym = Vector{Vector{Float64}}()
     index = 1
+
+    for inosym in 1:length(scaled_pos)
+        dR_candidates = Vector{Vector{Float64}}()
+        check = true
+        isym = 1
+        R2 = scaled_pos[inosym] 
+
+        while check && isym <= length(Rˢʸᵐ)
+            R1 = Rˢʸᵐ[isym]
+            found = false
+
+            for (tras_py, rot_py) in zip(symm_ops["translations"], symm_ops["rotations"])
+                trans = pyconvert(Vector{Float64}, tras_py)
+                rot   = pyconvert(Matrix{Float64}, rot_py)
+
+                # only consider operations that transfrom R1 to R2
+                if all(abs.(R2 .- ElectronPhonon.fold_component.(rot*R1 .+ trans)) .< 1e-8)
+                    dR_tmp = ElectronPhonon.fold_component.(rot * dRˢʸᵐ[isym])
+
+                    # only add it if it increases the rank of the candidate set
+                    M_tmp = hcat(dR_candidates..., dR_tmp)
+                    if rank(M_tmp; atol = 1e-8) == length(dR_candidates) + 1
+                        ind_plus = 2*index-1
+
+                        @info "Found symmetry $(ind_plus) out of $(6*length(scaled_pos))"
+                        @info "translation: $trans"
+                        @info "rotation   : $rot"
+                        push!(dR_candidates, dR_tmp)
+                        rot_list[ind_plus] = rot
+                        trans_list[ind_plus] = trans
+                        ineq_atoms_list[ind_plus] = isym
+
+                        #saving k points ind list
+                        kpoints_rotated = [transpose(inv(rot)) * k_point for k_point in kpoints]  
+                        ind_k_point = ElectronPhonon.find_matching_qpoints(kpoints, kpoints_rotated)
+                        ind_k_list[ind_plus] = ind_k_point # minus displacement
+                        index += 1
+                    end
+
+                    # if we've now got 3, mark for exit
+                    if length(dR_candidates) == 3
+                        check = false
+                        found = true
+                        break  
+                    end
+                end
+            end
+
+            if found
+                break
+            end
+        
+            isym += 1
+        end
+        append!(dR_nosym, [dR_candidates[1],-dR_candidates[1], dR_candidates[2], -dR_candidates[2], dR_candidates[3], -dR_candidates[3]])
+    end
 
     inosym = 1
     isym   = 1
-    while inosym <= length(Rⁿᵒˢʸᵐ)
-        R2 = Rⁿᵒˢʸᵐ[inosym] + dRⁿᵒˢʸᵐ[inosym]
+    while inosym <= length(R_nosym)
+        #skip positive displacements
+        if isodd(inosym)
+            inosym += 1
+        continue
+        end
+
+        R2 = R_nosym[inosym] + dR_nosym[inosym]
         check  = true
         isym = 1
         while check == true && isym <= length(Rˢʸᵐ)
             R1 = Rˢʸᵐ[isym] + dRˢʸᵐ[isym]
-            ind_sym = 1
             for (tras_py, rot_py) in zip(symm_ops["translations"], symm_ops["rotations"])
                 trans = pyconvert(Vector{Float64}, tras_py)
                 rot = pyconvert(Matrix{Float64}, rot_py)
-                rotR1 = fold_component.(rot * R1 .+ trans)
-                ind_sym += 1
+                rotR1 = ElectronPhonon.fold_component.(rot * R1 .+ trans)
 
                 if all(abs.(R2 - rotR1) .< 1e-8)
-                    @info "Found symmetry $index out of $(length(Rⁿᵒˢʸᵐ))"
-                    index += 1
+                    @info "Found symmetry $inosym out of $(length(R_nosym))"
                     @info "translation: $trans"
                     @info "rotation   : $rot"
-                    push!(trans_list, trans)
-                    push!(rot_list, rot)
-                    push!(ineq_atoms_list, isym)
+                    trans_list[inosym] = trans
+                    rot_list[inosym] = rot
+                    ineq_atoms_list[inosym] = isym
 
                     #saving k points ind list
                     kpoints_rotated = [transpose(inv(rot)) * k_point for k_point in kpoints]  
-                    ind_k_point = find_matching_qpoints(kpoints, kpoints_rotated)
-                    push!(ind_k_list, ind_k_point)
+                    ind_k_point = ElectronPhonon.find_matching_qpoints(kpoints, kpoints_rotated)
+                    ind_k_list[inosym] = ind_k_point
 
                     check = false
                     break
@@ -97,7 +153,8 @@ function check_symmetries(path_to_calc, unitcell, sc_size, k_mesh, abs_disp)
         end
         inosym += 1
     end
-    return Symmetries(ineq_atoms_list, trans_list, rot_list, ind_k_list), Ndisplace_symm
+
+    return Symmetries(ineq_atoms_list, trans_list, rot_list, dR_nosym, ind_k_list), Ndisplace_symm #
 end
 
 """
@@ -113,10 +170,8 @@ function check_symmetries!(model::AbstractModel)
     model.Ndispalce = Ndisplace_symm #length(unique(symmetries.ineq_atoms_list))
 
     if model.Ndispalce != length(unique(symmetries.ineq_atoms_list))
-        # model.use_symm = false
         @error "Not all the symmmetries for EP were found, only phonons could be calculated"
     else
-        # model.use_symm = true
         model.symmetries = symmetries
     end
 
@@ -159,9 +214,9 @@ If `x` is less than `0 - eps`, repeatedly adds 1 until `x` falls within the inte
 
 # Arguments
 - `x`: The value to be folded.
-- `eps`: (optional) Tolerance for the interval boundaries. Default is `5e-3`.
+- `eps`: (optional) Tolerance for the interval boundaries. Default is `1e-3`.
 """
-function fold_component(x, eps=5e-3)
+function fold_component(x, eps=1e-3)
     if x >= 1 - eps
         while x >= 1 - eps
             x = x - 1

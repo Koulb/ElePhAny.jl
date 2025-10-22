@@ -1268,7 +1268,7 @@ function create_electrons(model::AbstractModel)
         spin_channel = model.spin_channel
     end
 
-    symmetries = Symmetries([],[],[],[])
+    symmetries = Symmetries([],[],[],[],[])
     if hasproperty(model, :symmetries)
         symmetries = model.symmetries
     end
