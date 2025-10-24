@@ -17,8 +17,8 @@ path_to_qe= "/home/poliukhin/Soft/sourse/q-e/"
 mpi_ranks = 8
 
 #Params
-sc_size::Vec3{Int} = [2,2,2]
-k_mesh::Vec3{Int}  = [1,1,1]
+sc_size = [2,2,2]
+k_mesh  = [1,1,1]
 
 # Lattice constant of Silicon
 a = 5.43052  # in Angstrom
@@ -63,7 +63,7 @@ scf_parameters = Dict(
 #     :nqx3 => 1
 # )
 
-merge!(scf_parameters, scf_parameters_hse)
+# merge!(scf_parameters, scf_parameters_hse)
 
 use_symm = false
 
