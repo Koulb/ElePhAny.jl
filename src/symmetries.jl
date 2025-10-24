@@ -68,9 +68,6 @@ function check_symmetries(path_to_calc, unitcell, sc_size, k_mesh, abs_disp)
         while check && isym <= length(Rˢʸᵐ)
             R1 = Rˢʸᵐ[isym]
             found = false
-            # println("all Rsym:")
-            # println(Rˢʸᵐ)
-            # println("R1 = $R1")
 
             for (tras_py, rot_py) in zip(symm_ops["translations"], symm_ops["rotations"])
                 trans = pyconvert(Vector{Float64}, tras_py)
