@@ -110,6 +110,29 @@ end
 
 
 """
+   parse_qe_version(path_to_file::String)
+
+Parses a Quantum ESPRESSO version from the scf.out file.
+"""
+function parse_qe_version(path_to_file::String)
+    file = open(path_to_file, "r")
+    version = 0.0
+
+    for line in eachline(file)
+        if occursin("Program PWSCF", line)
+            split_line = split(line)
+            version_str = split_line[3][3:5]
+            version = parse(Float64, version_str)
+            break
+        end
+    end
+
+    close(file)
+    return version
+
+end
+
+"""
     electron_phonon_qe(path_to_in::String, ik::Int, iq::Int, mpi_ranks::Int, path_to_qe::String)
 
 Runs a Quantum ESPRESSO phonon calculation for electron-phonon coupling at specified k- and q-points.
@@ -167,7 +190,15 @@ function electron_phonon_qe(path_to_in::String, ik::Int, iq::Int, mpi_ranks::Int
             write(f,"$(qpoint[1]) $(qpoint[2]) $(qpoint[3]) 1 #\n")
         end
 
-        path_to_ph = path_to_qe*"test-suite/not_epw_comp/ph.x"
+        qe_version = parse_qe_version(path_to_in*dir_name*"scf.out")
+        path_to_ph = ""
+        
+        if qe_version < 7.3
+            path_to_ph = path_to_qe*"test-suite/not_epw_comp/ph.x"
+        else
+            path_to_ph = "ph.x"
+        end
+        
         command = `mpirun -np $mpi_ranks $path_to_ph -in ph.in`
         #println(command)
         run(pipeline(command, stdout="ph.out", stderr="errs_ph.txt"))
