@@ -46,8 +46,9 @@ function check_symmetries(path_to_calc, unitcell, sc_size, k_mesh, abs_disp)
     end
 
     kpoints = [determine_q_point(path_to_calc*"displacements/scf_0",ik; use_sc = use_sc) for ik in 1:prod(k_mesh)]
-    Ndisplace_nosym = length(scaled_pos) * 6
-    R_nosym = repeat(scaled_pos, inner=6)
+    R_nosym_raw = [pyconvert(Vector{Float64}, pos) ./ sc_size for pos in unitcell[:scaled_positions]]
+    Ndisplace_nosym = length(R_nosym_raw) * 6
+    R_nosym = repeat(R_nosym_raw, inner=6)
 
     trans_list = Vector{Vector{Float64}}(undef, Ndisplace_nosym)
     rot_list   = Vector{Matrix{Float64}}(undef, Ndisplace_nosym)
@@ -57,15 +58,19 @@ function check_symmetries(path_to_calc, unitcell, sc_size, k_mesh, abs_disp)
     dR_nosym = Vector{Vector{Float64}}()
     index = 1
 
-    for inosym in 1:length(scaled_pos)
+    for inosym in 1:length(R_nosym_raw)
         dR_candidates = Vector{Vector{Float64}}()
         check = true
         isym = 1
-        R2 = scaled_pos[inosym] 
+        R2 = R_nosym_raw[inosym]
 
+        # println("R2 = $R2")
         while check && isym <= length(Rˢʸᵐ)
             R1 = Rˢʸᵐ[isym]
             found = false
+            # println("all Rsym:")
+            # println(Rˢʸᵐ)
+            # println("R1 = $R1")
 
             for (tras_py, rot_py) in zip(symm_ops["translations"], symm_ops["rotations"])
                 trans = pyconvert(Vector{Float64}, tras_py)
@@ -80,7 +85,7 @@ function check_symmetries(path_to_calc, unitcell, sc_size, k_mesh, abs_disp)
                     if rank(M_tmp; atol = 1e-8) == length(dR_candidates) + 1
                         ind_plus = 2*index-1
 
-                        @info "Found symmetry $(ind_plus) out of $(6*length(scaled_pos))"
+                        @info "Found symmetry $(ind_plus) out of $(length(R_nosym))"
                         @info "translation: $trans"
                         @info "rotation   : $rot"
                         push!(dR_candidates, dR_tmp)
