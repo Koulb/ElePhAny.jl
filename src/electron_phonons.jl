@@ -177,6 +177,16 @@ function electron_phonon_qe(path_to_in::String, ik::Int, iq::Int, mpi_ranks::Int
             )
         )
 
+        qe_version = parse_qe_version(path_to_in*dir_name*"scf.out")
+        path_to_ph = ""
+        
+        if qe_version < 7.3
+            path_to_ph = path_to_qe*"test-suite/not_epw_comp/ph.x"
+        else
+            path_to_ph = "ph.x"
+            parameters["inputph"]["electron_phonon"] = "'prt'"
+        end
+
         # Write the ph.x input file
         open("ph.in", "w") do f
             for (section, section_data) in parameters
@@ -188,15 +198,6 @@ function electron_phonon_qe(path_to_in::String, ik::Int, iq::Int, mpi_ranks::Int
             end
             write(f,"1\n")
             write(f,"$(qpoint[1]) $(qpoint[2]) $(qpoint[3]) 1 #\n")
-        end
-
-        qe_version = parse_qe_version(path_to_in*dir_name*"scf.out")
-        path_to_ph = ""
-        
-        if qe_version < 7.3
-            path_to_ph = path_to_qe*"test-suite/not_epw_comp/ph.x"
-        else
-            path_to_ph = "ph.x"
         end
         
         command = `mpirun -np $mpi_ranks $path_to_ph -in ph.in`
