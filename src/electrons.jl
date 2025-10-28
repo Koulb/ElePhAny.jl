@@ -711,7 +711,7 @@ Runs self-consistent field (SCF) calculations for a set of atomic displacements 
 # Description
 The function first runs an SCF calculation in the `scf_0` subdirectory. If a `run.sh` script is present, it uses `run_scf_cluster`; otherwise, it uses `run_scf`. Then, for each displacement group (from 1 to `Ndispalce`), it runs the corresponding SCF calculation in the `group_i` subdirectory, using the same logic for `run.sh`.
 """
-function run_disp_calc(path_to_in::String, Ndispalce::Int, mpi_ranks::Int = 0)
+function run_disp_calc(path_to_in::String, Ndispalce::Int, mpi_ranks::Int = 0, pristine_only::Bool = false)
     # Change to the specified directory
     #FIXME Only run scf in the DFT case (not Hybrids)
 
@@ -721,16 +721,16 @@ function run_disp_calc(path_to_in::String, Ndispalce::Int, mpi_ranks::Int = 0)
     else
         run_scf(path_to_in*"scf_0/", mpi_ranks)
     end
-    # Get a number of displacements
-    files = readdir(path_to_in; join=true)
 
-    for i_disp in 1:Ndispalce
-        println("Running displacement # $i_disp:")
-        dir_name = "group_"*string(i_disp)*"/"
-        if(isfile(path_to_in*dir_name*"run.sh"))
-            run_scf_cluster(path_to_in*dir_name)
-        else
-            run_scf(path_to_in*dir_name, mpi_ranks)
+    if !pristine_only
+        for i_disp in 1:Ndispalce
+            println("Running displacement # $i_disp:")
+            dir_name = "group_"*string(i_disp)*"/"
+            if(isfile(path_to_in*dir_name*"run.sh"))
+                run_scf_cluster(path_to_in*dir_name)
+            else
+                run_scf(path_to_in*dir_name, mpi_ranks)
+            end
         end
     end
 
