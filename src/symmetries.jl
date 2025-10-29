@@ -46,7 +46,8 @@ function check_symmetries(path_to_calc, unitcell, sc_size, k_mesh, abs_disp)
     end
 
     kpoints = [determine_q_point(path_to_calc*"displacements/scf_0",ik; use_sc = use_sc) for ik in 1:prod(k_mesh)]
-    R_nosym_raw = [pyconvert(Vector{Float64}, pos) ./ sc_size for pos in unitcell[:scaled_positions]]
+    R_nosym_raw = [fold_component.(pyconvert(Vector{Float64}, pos) ./ sc_size) for pos in unitcell[:scaled_positions]]
+
     Ndisplace_nosym = length(R_nosym_raw) * 6
     R_nosym = repeat(R_nosym_raw, inner=6)
 
@@ -188,7 +189,7 @@ function find_matching_qpoints(q_ph, q_nscf)
             delta_q_all = abs.(q_nscf_crystal .- q_ph_crystal)
             check = falses(3)
             for (ind_q, delta_q) in enumerate(delta_q_all)
-                if isapprox(delta_q, 0; atol=1e-5) || isapprox(delta_q, 1; atol=1e-5)#|| isapprox(delta_q, 2; atol=1e-5)
+                if isapprox(delta_q, 0; atol=1e-5) || isapprox(delta_q, 1; atol=1e-5) || isapprox(delta_q, 2; atol=1e-5)
                     check[ind_q] = true
                 end
             end
