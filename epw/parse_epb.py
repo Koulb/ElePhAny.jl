@@ -77,8 +77,8 @@ only_g          = args.only_g
 nbnd            = nbndep  # If you want nbnd = nbndep, otherwise add another argument
 nbndep_skip     = nbnd - nbndep
 
-nks   = mesh**3 
-nqtot = mesh**3
+nks   = mesh#mesh**3 
+nqtot = 1#mesh**3
 
 nmodes = 3 * nat
 
@@ -119,6 +119,7 @@ q_nscf = [determine_q_point_cart(path_to_epw, ik) for ik in range(1, nqtot + 1)]
 
 iq_ph_list =[]
 
+
 for i_ph in range(len(q_ph)):
     for i_nscf in range(len(q_nscf)):
         q_nscf_crystal = real_vectors @ q_nscf[i_nscf]
@@ -137,9 +138,11 @@ for i_ph in range(len(q_ph)):
 ## WITH RESHUFLING
 ## WITH change of i and j
 ## gathering frozen phonon data in the same format as in the .epb file
+
+
 g_frozen = np.zeros((nbndep,nbndep,nks,nmodes,nqtot),dtype=complex)
 sum = 0
-for ik in range(1,nqtot+1):
+for ik in range(1,nks+1):
     for iq_ph,iq_nscf in enumerate(iq_ph_list):
         path_to_file = path_to_frozen + 'epw/braket_list_rotated_{}_{}'.format(ik,iq_nscf+1)
         data = np.loadtxt(path_to_file)
@@ -180,7 +183,7 @@ file_path = path_to_epw+epb_name
 file = FortranFile(file_path,'w')
 epb_data_list = list(epb_data)
 
-if only_g:
+if only_g == True:
     epb_data_list[4] = g_frozen.T
 else:
     epb_data_list[4] = g_frozen.T
