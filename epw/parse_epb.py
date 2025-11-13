@@ -58,7 +58,8 @@ parser.add_argument("--path_to_epw", default="./", type=str, help="Path to EPW d
 parser.add_argument("--path_to_frozen", default="./displacements/", type=str, help="Path to frozen phonon data")
 parser.add_argument("--nbnd", default=4, type=int, help="Number of bands")
 parser.add_argument("--nbndep", default=4, type=int, help="Number of electron bands for EP")
-parser.add_argument("--mesh", default=2, type=int, help="Mesh size")
+parser.add_argument("--mesh", default=8, type=int, help="Mesh size of k-grid")
+parser.add_argument("--mesh_q", default=1, type=int, help="Mesh size of q-grid")
 parser.add_argument("--nat", default=2, type=int, help="Number of atoms")
 parser.add_argument("--epb_name", default="si.epb1", type=str, help="EPB file name")
 parser.add_argument("--only_g", default=True, help="Only modify g array, skip dynq and et_loc")
@@ -70,6 +71,7 @@ path_to_frozen  = args.path_to_frozen
 nbnd            = args.nbnd
 nbndep          = args.nbndep
 mesh            = args.mesh
+mesh_q          = args.mesh_q
 nat             = args.nat
 epb_name        = args.epb_name
 only_g          = args.only_g
@@ -77,8 +79,8 @@ only_g          = args.only_g
 nbnd            = nbndep  # If you want nbnd = nbndep, otherwise add another argument
 nbndep_skip     = nbnd - nbndep
 
-nks   = mesh#mesh**3 
-nqtot = 1#mesh**3
+nks   = mesh 
+nqtot = mesh_q
 
 nmodes = 3 * nat
 
