@@ -845,6 +845,11 @@ function prepare_u_matrixes(path_to_in::String, natoms::Int, sc_size::Vector{Int
     end
 
     println("Preparing u matrixes:")
+
+    if no_symm
+        symmetries.ineq_atoms_list = collect(1:Ndisplace_nosym)
+    end
+
     @threads for ind in 1:Ndisplace_nosym
         ψₚ = []
         local tras, rot, inv_rot_T
@@ -854,11 +859,10 @@ function prepare_u_matrixes(path_to_in::String, natoms::Int, sc_size::Vector{Int
             tras = [0.0,0.0,0.0]
             rot  = [[1.0,0.0,0.0] [0.0,1.0,0.0] [0.0,0.0,1.0]]
             ind_k_list = [1:prod(k_mesh)]
-            append!(symmetries.ineq_atoms_list, ind)
         else
             tras  = symmetries.trans_list[ind] #./sc_size
 
-            if any(sc_size .!= 1) #TODO understand corner case with sc size and k_mesh != 1
+            if any(sc_size .!= 1)
                 tras = tras ./ k_mesh
             end
 
