@@ -18,8 +18,8 @@ Returns a tuple `(miller, evc_list)` containing the Miller indices and the eigen
 - An error if neither a `.dat` nor a `.hdf5` file is found at the specified path.
 """
 function parse_wf(path::String)
-    evc_list = []
-    miller = []
+    evc_list::Vector{Vector{ComplexF64}} = []
+    miller::Matrix{Int32} = Array{Int32}(undef, 3, 0)
 
     #check if path*".dat" or path*".hdf5" exists
     if isfile(path*".dat")
@@ -45,8 +45,8 @@ Parse an HDF5 file at the given `path` to extract Miller indices and eigenvector
 - `evc_list`: Vector of complex eigenvector coefficients, where each element corresponds to a band.
 """
 function parse_hdf(path::String)
-    evc_list = []
-    miller = []
+    evc_list::Vector{Vector{ComplexF64}} = []
+    miller::Matrix{Int32} = Array{Int32}(undef, 3, 0)
 
     miller, evc_list = h5open(path, "r") do f
         fkeys = collect(keys(f))
@@ -87,9 +87,9 @@ function parse_fortran_bin(file_path::String)
     ik, xkx, xky, xkz, ispin = read(f, (Int32,5))
     ngw, igwx, npol, nbnd = read(f, (Int32,4))
     dummy_vector = read(f, (Float64,9))
-    miller = reshape(read(f, (Int32,3*igwx)),(3, igwx))
+    miller::Matrix{Int32} = reshape(read(f, (Int32,3*igwx)),(3, igwx))
 
-    evc_list = []
+    evc_list::Vector{Vector{ComplexF64}} = []
     for _ in 1:nbnd
         evc = read(f, (ComplexF64,npol*igwx))
         push!(evc_list,evc)
@@ -130,7 +130,7 @@ function wf_from_G(miller::Matrix{Int32}, evc::Vector{ComplexF64}, Nxyz)
     end
 
     # Perform the inverse FFT to obtain the real-space wave function
-    wave_function = bfft(ifftshift(reciprocal_space_grid))
+    wave_function = ifft(ifftshift(reciprocal_space_grid))
     return wave_function
 end
 
@@ -201,7 +201,7 @@ function wf_from_G_list(miller::Matrix{Int32}, evc_list::AbstractArray{Any}, Nxy
     # Determine the shift needed to map Miller indices to grid indices
     shift = div.(Nxyz, 2)
 
-    @threads for idx in 1:size(miller, 2)
+    for idx in 1:size(miller, 2)
         i = (Int(miller[1, idx]) + shift[1]) % Nxyz[1] + 1
         j = (Int(miller[2, idx]) + shift[2]) % Nxyz[2] + 1
         k = (Int(miller[3, idx]) + shift[3]) % Nxyz[3] + 1
@@ -246,9 +246,8 @@ function wf_to_G(miller::Matrix{Int32}, wfc, Nxyz)
         evc_sc[idx] = wfc_g[i, j, k]
     end
 
-    #TODO Is it possible to not calculate this norm? Could reduce the computational cost
-    norm = sqrt(1/calculate_braket(evc_sc,evc_sc))
-    evc_sc = evc_sc .* norm
+    # norm = sqrt(1/calculate_braket(evc_sc,evc_sc))
+    # evc_sc = evc_sc .* norm
 
     return evc_sc
 end
@@ -383,7 +382,7 @@ function determine_phase(q_point, Nxyz)
     z = range(0, 1-1/Nxyz[3], Nxyz[3])
 
     exp_factor = zeros(Complex{Float64}, Nxyz[1], Nxyz[2], Nxyz[3])
-    @threads for i in eachindex(x)
+    for i in eachindex(x)
         for j in eachindex(y)
             for k in eachindex(z)
                 x_i = x[i]
@@ -651,7 +650,7 @@ function prepare_wave_functions_undisp(path_to_in::String, miller_final_map, sc_
 end
 
 function prepare_wave_functions_disp(path_to_in::String, miller_final_map, ik::Int, Ndisplace::Int, mesh_scale::Vector{Int})
-    @threads for ind in 1:Ndisplace
+    for ind in 1:Ndisplace
         miller_sc_ik, wfc_sc_ik =  ElectronPhonon.parse_wf(path_to_in*"group_$ind/tmp/scf.save/wfc$(ik)")
         K = ElectronPhonon.determine_q_point(path_to_in*"scf_0", ik; sc_size = mesh_scale, use_sc = true)
         wfc_sc_ik1_unf = get_unfolded_wf(miller_final_map, miller_sc_ik, wfc_sc_ik, K, mesh_scale)
@@ -729,7 +728,7 @@ For each displacement group, this function:
 """
 function prepare_wave_functions_disp(path_to_in::String, ik::Int, Ndisplace::Int, sc_size::Vector{Int}, k_mesh::Vector{Int})
 
-    @threads for ind in 1:Ndisplace
+    for ind in 1:Ndisplace
         path_to_data = path_to_in*"group_$ind/"
         miller, evc_list_sc = parse_wf(path_to_data*"tmp/scf.save/wfc$ik")
         N_evc = size(evc_list_sc)[1]
@@ -778,10 +777,15 @@ function prepare_wave_functions_disp(path_to_in::String, Ndisplace::Int, sc_size
 end
 
 function prepare_u_matrixes(path_to_in::String, natoms::Int, sc_size::Vector{Int}, k_mesh::Vector{Int}; symmetries::Symmetries = Symmetries([], [], []), save_matrixes::Bool=true)
-    U_list = []
-    V_list = []
-
+    nbnds = length(parse_wf(path_to_in*"/scf_0/tmp/scf.save/wfc1")[2])
     Ndisplace_nosym = 6 * natoms
+    nk = prod(k_mesh)
+
+    U_list = Vector{Array{ComplexF64,4}}(undef, Ndisplace_nosym ÷ 2)
+    V_list = similar(U_list)
+    ψₚ0_real_list = Vector{Vector{Vector{Array{ComplexF64,3}}}}(undef, length(unique(symmetries.ineq_atoms_list)))
+    miller_list   = Vector{Vector{Matrix{Int32}}}(undef, length(unique(symmetries.ineq_atoms_list)))
+    kpoints       = Vector{Vector{Float64}}(undef, nk)  # Static arrays help here
 
     N_fft = 1
     if any(sc_size .!= 1)
@@ -790,14 +794,12 @@ function prepare_u_matrixes(path_to_in::String, natoms::Int, sc_size::Vector{Int
         N_fft = determine_fft_grid(path_to_in*"group_1/tmp/scf.save/data-file-schema.xml"; use_xml = true)
     end
 
-    ψₚ0_real_list = []
-    miller_list = []
     use_symm = isempty(symmetries.trans_list) && isempty(symmetries.rot_list)
 
     for (ind, _) in enumerate(unique(symmetries.ineq_atoms_list))
-        ψₚ0_real_ip = []
-        miller_ip = []
-        for ip in 1:prod(k_mesh)
+        ψₚ0_real_ip = Vector{Vector{Array{ComplexF64,3}}}(undef, nk)
+        miller_ip   = Vector{Matrix{Int32}}(undef, nk)
+        for ip in 1:nk
             if use_symm && any(k_mesh .!= 1)
                 miller1 = load(path_to_in*"/scf_0/miller_list_sc.jld2")["miller_list"]
                 ψₚ0_list_raw = load(path_to_in*"/group_$ind/g_list_sc_$ip.jld2")
@@ -806,23 +808,17 @@ function prepare_u_matrixes(path_to_in::String, natoms::Int, sc_size::Vector{Int
                 ψₚ0_real_phase = [wf_from_G(miller1, evc, N_fft) for evc in ψₚ0_list]
                 K = determine_q_point(path_to_in*"/scf_0", ip; sc_size = k_mesh, use_sc = true)
                 ψₚ0_real = [wf .* conj(determine_phase(K, N_fft)) for wf in ψₚ0_real_phase]
-                
-                # miller1, ψₚ0 = parse_wf(path_to_in*"/group_$ind/tmp/scf.save/wfc$ip")
-                # ψₚ0_real = [wf_from_G(miller1, evc, N_fft) for evc in ψₚ0]
             else
                 miller1, ψₚ0 = parse_wf(path_to_in*"/group_$ind/tmp/scf.save/wfc$ip")
                 ψₚ0_real = [wf_from_G(miller1, evc, N_fft) for evc in ψₚ0]
             end
-            push!(ψₚ0_real_ip, ψₚ0_real)
-            push!(miller_ip, miller1)
+            ψₚ0_real_ip[ip] = ψₚ0_real
+            miller_ip[ip]   = miller1
         end
-        push!(ψₚ0_real_list, ψₚ0_real_ip)
-        push!(miller_list, miller_ip)
+        ψₚ0_real_list[ind] = ψₚ0_real_ip
+        miller_list[ind]   = miller_ip
     end
 
-    nbnds = length(parse_wf(path_to_in*"/scf_0/tmp/scf.save/wfc1")[2])
-    
-    kpoints = []
     if any(sc_size .!= 1)
         kpoints = [determine_q_point(path_to_in*"/scf_0",ik; sc_size=k_mesh, use_sc = true) for ik in 1:prod(k_mesh)]
     else
@@ -830,8 +826,22 @@ function prepare_u_matrixes(path_to_in::String, natoms::Int, sc_size::Vector{Int
     end
     println("nbnds = $nbnds")
 
+    #loading undisaplced wave functions
+    Nk_tot = prod(k_mesh)* prod(sc_size)
+    ψkᵤ_all = Vector{Vector{Vector{ComplexF64}}}(undef, Nk_tot)
+
+    for ik in 1:Nk_tot
+        if any(sc_size .!= 1)
+            ψkᵤ_list = load(path_to_in*"/scf_0/g_list_sc_$ik.jld2")
+            ψkᵤ_all[ik] = [ψkᵤ_list["wfc$iband"] for iband in 1:length(ψkᵤ_list)]
+        else
+            _, ψkᵤ = parse_wf(path_to_in*"scf_0/tmp/scf.save/wfc$ik")
+            ψkᵤ_all[ik] = ψkᵤ
+        end
+    end
+
     println("Preparing u matrixes:")
-    for ind in 1:Ndisplace_nosym
+    @threads for ind in 1:Ndisplace_nosym
         ψₚ = []
         local tras, rot
 
@@ -854,7 +864,7 @@ function prepare_u_matrixes(path_to_in::String, natoms::Int, sc_size::Vector{Int
 
         Uₚₖᵢⱼ = zeros(ComplexF64, prod(k_mesh), prod(k_mesh)*prod(sc_size), nbnds*prod(sc_size), nbnds)
 
-        for ip in 1:prod(k_mesh)
+        @threads for ip in 1:prod(k_mesh)
             if all(isapprox.(tras,[0.0,0.0,0.0], atol = 1e-15)) &&
             all(isapprox.(rot, [[1.0,0.0,0.0] [0.0,1.0,0.0] [0.0,0.0,1.0]], atol = 1e-15))
                 if any(sc_size .!= 1) && any(k_mesh .!= 1)
@@ -891,16 +901,9 @@ function prepare_u_matrixes(path_to_in::String, natoms::Int, sc_size::Vector{Int
             end
 
             for ik in 1:prod(sc_size)*prod(k_mesh)
-                if any(sc_size .!= 1)
-                    ψkᵤ_list = load(path_to_in*"/scf_0/g_list_sc_$ik.jld2")
-                    ψkᵤ = [ψkᵤ_list["wfc$iband"] for iband in 1:length(ψkᵤ_list)]
-                else
-                    _, ψkᵤ = parse_wf(path_to_in*"scf_0/tmp/scf.save/wfc$ik")
-                end
+                ψkᵤ = ψkᵤ_all[ik]
 
-                if all(sc_size .== 1) && ik != ip #orthogonality in unitcell at different k-points
-                    Uₚₖᵢⱼ[ip, ik, :, :] .= 0.0
-                else
+                if !(all(sc_size .== 1) && ik != ip) #orthogonality in unitcell at different k-points
                     Uₚₖᵢⱼ[ip, ik, :, :] = calculate_braket(ψₚ, ψkᵤ)
                 end
                 @info ("idisp = $(ind), ik = $ik")
@@ -910,9 +913,9 @@ function prepare_u_matrixes(path_to_in::String, natoms::Int, sc_size::Vector{Int
         end
 
         if isodd(ind)
-            push!(U_list, Uₚₖᵢⱼ)
+            U_list[(ind+1) ÷ 2] = Uₚₖᵢⱼ
         else
-            push!(V_list, Uₚₖᵢⱼ)
+            V_list[ind ÷ 2] = Uₚₖᵢⱼ
         end
         @info ("group_$ind is ready")
     end
@@ -986,9 +989,9 @@ Computes the inner product ⟨bra|ket⟩ between two complex-valued vectors.
 # Returns
 - `Complex{Float64}`: The resulting inner product as a complex number.
 """
-function calculate_braket(bra::Array{Complex{Float64}}, ket::Array{Complex{Float64}})
+function calculate_braket(bra::Vector{ComplexF64}, ket::Vector{ComplexF64})
     Nevc = length(bra)
-    result = zero(Complex{Float64})
+    result = zero(ComplexF64)
 
     @inbounds @simd for i in 1:Nevc
         result += conj(bra[i]) * ket[i]
@@ -996,6 +999,7 @@ function calculate_braket(bra::Array{Complex{Float64}}, ket::Array{Complex{Float
 
     return result
 end
+
 
 """
     calculate_braket(bras, kets)
@@ -1010,10 +1014,10 @@ Compute the matrix of inner products ⟨bra|ket⟩ between two collections of qu
 - A matrix of complex numbers where the element at position (i, j) is the inner product between `bras[i]` and `kets[j]`.
 
 """
-function calculate_braket(bras, kets)
+function calculate_braket(bras::Vector{Vector{ComplexF64}}, kets::Vector{Vector{ComplexF64}})
     result = zeros(Complex{Float64}, length(bras), length(kets))
 
-    @threads for i in eachindex(bras)
+    for i in eachindex(bras)
         for j in eachindex(kets)
             result[i,j] = calculate_braket(bras[i],kets[j])
         end
@@ -1022,10 +1026,13 @@ function calculate_braket(bras, kets)
     return result
 end
 
+# function calculate_braket(ψₚ::Vector{Vector{ComplexF64}}, ψkᵤ::Vector{Vector{ComplexF64}})
+#     nbnds1 = length(ψₚ)
+#     nbnds2 = length(ψkᵤ)
+#     Ng = length(ψₚ[1])
 
-#TEST
-#path_to_in = "/home/apolyukhin/Development/julia_tests/qe_inputs/displacements/"
-# path_to_in = "/home/apolyukhin/Development/frozen_phonons/elph/example/supercell_disp/group_1/tmp_001/silicon.save"
-# N = 72
-# ik = 1
-# prepare_wave_functions_opt(path_to_in, ik,N)
+#     Ψₚ = reshape(reduce(hcat, ψₚ), Ng, nbnds1)
+#     Ψkᵤ = reshape(reduce(hcat, ψkᵤ), Ng, nbnds2)
+
+#     return Ψₚ' * Ψkᵤ       # nbnds1 × nbnds2
+# end
