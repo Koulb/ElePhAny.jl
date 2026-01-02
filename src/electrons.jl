@@ -1261,7 +1261,7 @@ Creates an `Electrons` object based on the provided `model`. This function extra
 # Returns
 - `Electrons`: An object containing the prepared U and V matrices, eigenvalues, and k-point list for the electron system.
 """
-function create_electrons(model::AbstractModel)
+function create_electrons(model::AbstractModel; restart::Bool = false)
 
     spin_channel = ""
     if hasproperty(model, :spin_channel)
@@ -1275,7 +1275,7 @@ function create_electrons(model::AbstractModel)
 
     natoms = length(model.unitcell[:symbols])
 
-    U_list, V_list = prepare_u_matrixes(model.path_to_calc*"displacements/", natoms, model.sc_size, model.k_mesh; symmetries=symmetries)
+    U_list, V_list = prepare_u_matrixes(model.path_to_calc*"displacements/", natoms, model.sc_size, model.k_mesh; symmetries=symmetries, restart=restart)
     ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list = prepare_eigenvalues(model.path_to_calc*"displacements/", natoms; Ndisplace=model.Ndispalce, ineq_atoms_list=symmetries.ineq_atoms_list, ind_k_list=symmetries.ind_k_list, spin_channel=spin_channel)
 
     return Electrons(U_list, V_list, ϵkᵤ_list, ϵₚ_list, ϵₚₘ_list, k_list)

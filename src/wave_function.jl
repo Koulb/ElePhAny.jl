@@ -776,14 +776,69 @@ function prepare_wave_functions_disp(path_to_in::String, Ndisplace::Int, sc_size
     end
 end
 
-function prepare_u_matrixes(path_to_in::String, natoms::Int, sc_size::Vector{Int}, k_mesh::Vector{Int}; symmetries::Symmetries = Symmetries([], [], []), save_matrixes::Bool=true)
+function prepare_u_matrixes(path_to_in::String, 
+                            natoms::Int, sc_size::Vector{Int}, 
+                            k_mesh::Vector{Int}; 
+                            symmetries::Symmetries = Symmetries([], [], []), 
+                            save_matrixes::Bool=true,
+                            restart::Bool=false)
     nbnds = length(parse_wf(path_to_in*"/scf_0/tmp/scf.save/wfc1")[2])
     Ndisplace_nosym = 6 * natoms
     Nk = prod(k_mesh)
     Nk_tot = prod(k_mesh)* prod(sc_size)
 
+    #Restart: load previous U_list/V_list
+    dispfile(ind) = path_to_in * "scf_0/U_disp_$ind.jld2"
     U_list = Vector{Array{ComplexF64,4}}(undef, Ndisplace_nosym ÷ 2)
     V_list = similar(U_list)
+
+    ufile = path_to_in * "scf_0/U_list.jld2"
+    vfile = path_to_in * "scf_0/V_list.jld2"
+
+    # restart bookkeeping
+    done_disp = falses(Ndisplace_nosym)
+
+    if restart
+        for ind in 1:Ndisplace_nosym
+            if isfile(dispfile(ind))
+                done_disp[ind] = true
+            end
+        end
+
+        N_to_do = count(!, done_disp)
+        if N_to_do == 0
+            @info "All displacements already completed. Assembling U_list / V_list from per-displacement files."
+
+            for ind in 1:Ndisplace_nosym
+                U_disp = load(dispfile(ind), "U_disp")
+                if isodd(ind)
+                    U_list[(ind + 1) ÷ 2] = U_disp
+                else
+                    V_list[ind ÷ 2] = U_disp
+                end
+            end
+
+            if save_matrixes
+                save(ufile, "U_list", U_list)
+                save(vfile, "V_list", V_list)
+            end
+            return U_list, V_list
+        else
+            @info "Restarting prepare_u_matrixes, displacements to do: $N_to_do."
+
+            for ind in 1:Ndisplace_nosym
+                if done_disp[ind]
+                    U_disp = load(dispfile(ind), "U_disp")
+                    if isodd(ind)
+                        U_list[(ind + 1) ÷ 2] = U_disp
+                    else
+                        V_list[ind ÷ 2] = U_disp
+                    end
+                end
+            end
+        end
+    end
+
     ψₚ0_real_list = Vector{Vector{Vector{Array{ComplexF64,3}}}}(undef, length(unique(symmetries.ineq_atoms_list)))
     miller_list   = Vector{Vector{Matrix{Int32}}}(undef, length(unique(symmetries.ineq_atoms_list)))
     kpoints       = Vector{Vector{Float64}}(undef, Nk) 
@@ -851,6 +906,12 @@ function prepare_u_matrixes(path_to_in::String, natoms::Int, sc_size::Vector{Int
     end
 
     @threads for ind in 1:Ndisplace_nosym
+
+        if restart && done_disp[ind]
+            @info "idisp = $ind already done, skipping"
+            continue
+        end
+
         ψₚ = []
         local tras, rot, inv_rot_T
 
@@ -858,14 +919,12 @@ function prepare_u_matrixes(path_to_in::String, natoms::Int, sc_size::Vector{Int
         if no_symm
             tras = [0.0,0.0,0.0]
             rot  = [[1.0,0.0,0.0] [0.0,1.0,0.0] [0.0,0.0,1.0]]
-            ind_k_list = [1:prod(k_mesh)]
+            ind_k_list = collect(1:Nk)
         else
             tras  = symmetries.trans_list[ind] #./sc_size
-
             if any(sc_size .!= 1)
                 tras = tras ./ k_mesh
             end
-
             rot   = symmetries.rot_list[ind]
             ind_k_list = symmetries.ind_k_list[ind]
             inv_rot_T = transpose(inv(rot))
@@ -944,12 +1003,16 @@ function prepare_u_matrixes(path_to_in::String, natoms::Int, sc_size::Vector{Int
             V_list[ind ÷ 2] = Uₚₖᵢⱼ
         end
         @info ("group_$ind is ready")
+
+        # Save this displacement to its own file (thread-safe)
+        if save_matrixes && restart
+            save(dispfile(ind), "U_disp", Uₚₖᵢⱼ)
+        end
     end
 
-    # Save U_list to a hdf5-like file
-    if save_matrixes == true
-        save(path_to_in * "scf_0/U_list.jld2", "U_list", U_list)
-        save(path_to_in * "scf_0/V_list.jld2", "V_list", V_list)
+    if save_matrixes
+        save(ufile, "U_list", U_list)
+        save(vfile, "V_list", V_list)
     end
 
     return U_list, V_list
