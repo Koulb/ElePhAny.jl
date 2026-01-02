@@ -219,15 +219,23 @@ If `x` is less than `0 - eps`, repeatedly adds 1 until `x` falls within the inte
 - `x`: The value to be folded.
 - `eps`: (optional) Tolerance for the interval boundaries. Default is `1e-3`.
 """
-function fold_component(x, eps=1e-3)
+# function fold_component(x, eps=1e-3)
+#     if x >= 1 - eps
+#         while x >= 1 - eps
+#             x = x - 1
+#         end
+#     elseif x < 0 - eps
+#         while x < 0 - eps
+#             x = x + 1
+#         end
+#     end
+#     return x
+# end
+function fold_component(x::Float64, eps::Float64 = 1e-3)
+    # put x in [0, 1) with tolerance
+    x -= floor(x)          # now in [0,1)
     if x >= 1 - eps
-        while x >= 1 - eps
-            x = x - 1
-        end
-    elseif x < 0 - eps
-        while x < 0 - eps
-            x = x + 1
-        end
+        x -= 1.0
     end
     return x
 end
@@ -247,29 +255,41 @@ Maps a 3D grid of points onto itself under a given rotation and translation, ret
 # Returns
 - `mapp::Vector{Int}`: A vector containing the mapped linear indices for each grid point after applying the rotation and translation.
 """
-function rotate_grid(N1, N2, N3, rot, tras)
-    mapp = []
-    for k in 0:N3-1
+function rotate_grid(N1::Int, N2::Int, N3::Int,
+                     rot::AbstractMatrix{<:Real},
+                     tras::AbstractVector{<:Real})
+    Ntot = N1 * N2 * N3
+    mapp = Vector{Int}(undef, Ntot)
+    idx  = 1
+
+    eps = 1e-5
+
+    @inbounds for k in 0:N3-1
         for j in 0:N2-1
             for i in 0:N1-1
-                u = [i / N1, j / N2, k / N3]
-                ru = rot * u .+ tras
-                ru[1] = fold_component(ru[1])
-                ru[2] = fold_component(ru[2])
-                ru[3] = fold_component(ru[3])
+                u1 = i / N1
+                u2 = j / N2
+                u3 = k / N3
 
-                i1 = round(Int, ru[1] * N1)
-                i2 = round(Int, ru[2] * N2)
-                i3 = round(Int, ru[3] * N3)
+                # ru = rot * u .+ tras, but unrolled
+                x = rot[1,1]*u1 + rot[1,2]*u2 + rot[1,3]*u3 + tras[1]
+                y = rot[2,1]*u1 + rot[2,2]*u2 + rot[2,3]*u3 + tras[2]
+                z = rot[3,1]*u1 + rot[3,2]*u2 + rot[3,3]*u3 + tras[3]
 
-                eps = 1e-5
+                x = fold_component(x)
+                y = fold_component(y)
+                z = fold_component(z)
+
+                i1 = round(Int, x * N1)
+                i2 = round(Int, y * N2)
+                i3 = round(Int, z * N3)
+
                 if i1 >= N1 - eps || i2 >= N2 - eps || i3 >= N3 - eps
-                    println(i1, i2, i3, N1, N2, N3)
-                    @error "Symmetries usage gave error in folding"
+                    @error "Symmetries folding error" i1 i2 i3 N1 N2 N3
                 end
 
-                ind = i1 + (i2) * N1 + (i3) * N1 * N2
-                push!(mapp, ind)
+                mapp[idx] = i1 + i2*N1 + i3*N1*N2   # 0-based linear index
+                idx += 1
             end
         end
     end
@@ -312,6 +332,29 @@ function rotate_deriv(N1, N2, N3, mapp, ff)
                 ff_rot[i1+1, i2+1, i3+1] = ff[i+1, j+1, k+1]
             end
         end
+    end
+    return ff_rot
+end
+
+"""
+    rotate_deriv!(ff_rot, ff, mapp)
+In-place rotation of a 3D array `ff` into `ff_rot` according to a mapping array `mapp`.
+# Arguments
+- `ff_rot::Array{ComplexF64,3}`: The output 3D array to store the rotated values.
+- `ff::Array{ComplexF64,3}`: The original 3D array to be rotated.
+- `mapp::Vector{Int}`: Mapping array that specifies the new indices for rotation
+# Returns
+- `ff_rot::Array{ComplexF64,3}`: The rotated 3D
+array.
+"""
+function rotate_deriv!(ff_rot::Array{ComplexF64,3},
+                       ff::Array{ComplexF64,3},
+                       mapp::Vector{Int})
+    # @assert length(ff_rot) == length(ff) == length(mapp)
+
+    @inbounds @simd for src_idx in 1:length(mapp)
+        dest0 = mapp[src_idx]         # 0-based
+        ff_rot[dest0 + 1] = ff[src_idx]
     end
     return ff_rot
 end
