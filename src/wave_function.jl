@@ -779,13 +779,14 @@ end
 function prepare_u_matrixes(path_to_in::String, natoms::Int, sc_size::Vector{Int}, k_mesh::Vector{Int}; symmetries::Symmetries = Symmetries([], [], []), save_matrixes::Bool=true)
     nbnds = length(parse_wf(path_to_in*"/scf_0/tmp/scf.save/wfc1")[2])
     Ndisplace_nosym = 6 * natoms
-    nk = prod(k_mesh)
+    Nk = prod(k_mesh)
+    Nk_tot = prod(k_mesh)* prod(sc_size)
 
     U_list = Vector{Array{ComplexF64,4}}(undef, Ndisplace_nosym ÷ 2)
     V_list = similar(U_list)
     ψₚ0_real_list = Vector{Vector{Vector{Array{ComplexF64,3}}}}(undef, length(unique(symmetries.ineq_atoms_list)))
     miller_list   = Vector{Vector{Matrix{Int32}}}(undef, length(unique(symmetries.ineq_atoms_list)))
-    kpoints       = Vector{Vector{Float64}}(undef, nk)  # Static arrays help here
+    kpoints       = Vector{Vector{Float64}}(undef, Nk)  # Static arrays help here
 
     N_fft = 1
     if any(sc_size .!= 1)
@@ -797,9 +798,9 @@ function prepare_u_matrixes(path_to_in::String, natoms::Int, sc_size::Vector{Int
     use_symm = isempty(symmetries.trans_list) && isempty(symmetries.rot_list)
 
     for (ind, _) in enumerate(unique(symmetries.ineq_atoms_list))
-        ψₚ0_real_ip = Vector{Vector{Array{ComplexF64,3}}}(undef, nk)
-        miller_ip   = Vector{Matrix{Int32}}(undef, nk)
-        for ip in 1:nk
+        ψₚ0_real_ip = Vector{Vector{Array{ComplexF64,3}}}(undef, Nk)
+        miller_ip   = Vector{Matrix{Int32}}(undef, Nk)
+        for ip in 1:Nk
             if use_symm && any(k_mesh .!= 1)
                 miller1 = load(path_to_in*"/scf_0/miller_list_sc.jld2")["miller_list"]
                 ψₚ0_list_raw = load(path_to_in*"/group_$ind/g_list_sc_$ip.jld2")
@@ -827,7 +828,6 @@ function prepare_u_matrixes(path_to_in::String, natoms::Int, sc_size::Vector{Int
     println("nbnds = $nbnds")
 
     #loading undisaplced wave functions
-    Nk_tot = prod(k_mesh)* prod(sc_size)
     ψkᵤ_all = Vector{Vector{Vector{ComplexF64}}}(undef, Nk_tot)
 
     for ik in 1:Nk_tot
@@ -843,7 +843,7 @@ function prepare_u_matrixes(path_to_in::String, natoms::Int, sc_size::Vector{Int
     println("Preparing u matrixes:")
     @threads for ind in 1:Ndisplace_nosym
         ψₚ = []
-        local tras, rot
+        local tras, rot, inv_rot_T
 
         #check if symmetries are empty
         if use_symm
@@ -860,11 +860,13 @@ function prepare_u_matrixes(path_to_in::String, natoms::Int, sc_size::Vector{Int
 
             rot   = symmetries.rot_list[ind]
             ind_k_list = symmetries.ind_k_list[ind]
+            inv_rot_T = transpose(inv(rot))
         end
 
-        Uₚₖᵢⱼ = zeros(ComplexF64, prod(k_mesh), prod(k_mesh)*prod(sc_size), nbnds*prod(sc_size), nbnds)
+        Uₚₖᵢⱼ = zeros(ComplexF64, Nk, Nk_tot, nbnds*prod(sc_size), nbnds)
+        map1 = rotate_grid(N_fft[1], N_fft[2], N_fft[3], rot, tras)
 
-        @threads for ip in 1:prod(k_mesh)
+        for ip in 1:Nk
             if all(isapprox.(tras,[0.0,0.0,0.0], atol = 1e-15)) &&
             all(isapprox.(rot, [[1.0,0.0,0.0] [0.0,1.0,0.0] [0.0,0.0,1.0]], atol = 1e-15))
                 if any(sc_size .!= 1) && any(k_mesh .!= 1)
@@ -876,11 +878,16 @@ function prepare_u_matrixes(path_to_in::String, natoms::Int, sc_size::Vector{Int
             else
                 ψₚ0_real = ψₚ0_real_list[symmetries.ineq_atoms_list[ind]][ind_k_list[ip]]
                 miller1 = miller_list[symmetries.ineq_atoms_list[ind]][ip]
-                map1 = rotate_grid(N_fft[1], N_fft[2], N_fft[3], rot, tras)
-                ψₚ_real = [rotate_deriv(N_fft[1], N_fft[2], N_fft[3], map1, wfc) for wfc in ψₚ0_real]
+                
+                # ψₚ_real = [rotate_deriv(N_fft[1], N_fft[2], N_fft[3], map1, wfc) for wfc in ψₚ0_real]
+                ψₚ_real = Vector{Array{ComplexF64,3}}(undef, length(ψₚ0_real))
+                @inbounds for ibnd in eachindex(ψₚ0_real)
+                    ψₚ_real[ibnd] = similar(ψₚ0_real[ibnd])
+                    rotate_deriv!(ψₚ_real[ibnd], ψₚ0_real[ibnd], map1)
+                end
 
                 # in case of symmetries with kpoints need to multiply by a phase factor 
-                kpoint_rotated = transpose(inv(rot)) * kpoints[ind_k_list[ip]]
+                kpoint_rotated = inv_rot_T * kpoints[ind_k_list[ip]]
                 phase_in = determine_phase(kpoint_rotated, N_fft)
                 phase_out = 1.0 
 
@@ -888,7 +895,10 @@ function prepare_u_matrixes(path_to_in::String, natoms::Int, sc_size::Vector{Int
                     phase_out = determine_phase(kpoints[ip], N_fft) 
                 end
 
-                ψₚ_real = [wf .* phase_in .* conj(phase_out) for wf in ψₚ_real]
+                scale = phase_in .* conj(phase_out)
+                @inbounds for evc in ψₚ_real
+                    evc .*= scale
+                end
                 ψₚ = [wf_to_G(miller1, evc, N_fft) for evc in ψₚ_real]
 
                 # DEBUG save the transformed wave functions
@@ -900,16 +910,20 @@ function prepare_u_matrixes(path_to_in::String, natoms::Int, sc_size::Vector{Int
 
             end
 
-            for ik in 1:prod(sc_size)*prod(k_mesh)
+            for ik in 1:Nk_tot
                 ψkᵤ = ψkᵤ_all[ik]
 
                 if !(all(sc_size .== 1) && ik != ip) #orthogonality in unitcell at different k-points
-                    Uₚₖᵢⱼ[ip, ik, :, :] = calculate_braket(ψₚ, ψkᵤ)
+                    if has_cuda()
+                        Uₚₖᵢⱼ[ip, ik, :, :] = calculate_braket_gpu(ψₚ, ψkᵤ)
+                    else
+                        Uₚₖᵢⱼ[ip, ik, :, :] = calculate_braket(ψₚ, ψkᵤ)
+                    end
                 end
-                @info ("idisp = $(ind), ik = $ik")
+                # @info ("idisp = $(ind), ik = $ik")
             end
 
-            @info ("ik_sc = $ip is ready")
+            # @info ("ik_sc = $ip is ready")
         end
 
         if isodd(ind)
@@ -1034,5 +1048,10 @@ end
 #     Ψₚ = reshape(reduce(hcat, ψₚ), Ng, nbnds1)
 #     Ψkᵤ = reshape(reduce(hcat, ψkᵤ), Ng, nbnds2)
 
-#     return Ψₚ' * Ψkᵤ       # nbnds1 × nbnds2
+#     return adjoint(Ψₚ) * Ψkᵤ  # nbnds1 × nbnds2
 # end
+
+
+function calculate_braket_gpu(bras, kets)
+    error("GPU braket not available: ElectronPhonon loaded without CUDA extension.")
+end

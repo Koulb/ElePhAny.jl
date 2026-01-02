@@ -2,6 +2,8 @@ module ElectronPhonon
 
 ###
 using PythonCall
+using LinearAlgebra
+using Base.Threads
 
 const ase = PythonCall.pynew()
 const ase_io = PythonCall.pynew()
@@ -9,7 +11,17 @@ const phonopy = PythonCall.pynew()
 const phonopy_structure_atoms =  PythonCall.pynew()
 const np =  PythonCall.pynew()
 
+const _has_cuda_flag = Ref(false)
+has_cuda() = _has_cuda_flag[]
+
 function __init__()
+    num_threads = Threads.nthreads()
+    if num_threads > 1
+        BLAS.set_num_threads(1)
+    else
+        BLAS.set_num_threads(Sys.CPU_THREADS)
+    end
+
     PythonCall.pycopy!(ase, pyimport("ase"))
     PythonCall.pycopy!(ase_io, pyimport("ase.io"))
     PythonCall.pycopy!(phonopy, pyimport("phonopy"))
