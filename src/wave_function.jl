@@ -786,7 +786,11 @@ function prepare_u_matrixes(path_to_in::String, natoms::Int, sc_size::Vector{Int
     V_list = similar(U_list)
     ψₚ0_real_list = Vector{Vector{Vector{Array{ComplexF64,3}}}}(undef, length(unique(symmetries.ineq_atoms_list)))
     miller_list   = Vector{Vector{Matrix{Int32}}}(undef, length(unique(symmetries.ineq_atoms_list)))
-    kpoints       = Vector{Vector{Float64}}(undef, Nk)  # Static arrays help here
+    kpoints       = Vector{Vector{Float64}}(undef, Nk) 
+    if has_cuda() && Threads.nthreads() > 1
+        error("CUDA and Julia multi-threading together are not supported.\n" *
+              "Please either disable CUDA or start Julia with JULIA_NUM_THREADS=1.")
+    end
 
     N_fft = 1
     if any(sc_size .!= 1)
@@ -795,13 +799,13 @@ function prepare_u_matrixes(path_to_in::String, natoms::Int, sc_size::Vector{Int
         N_fft = determine_fft_grid(path_to_in*"group_1/tmp/scf.save/data-file-schema.xml"; use_xml = true)
     end
 
-    use_symm = isempty(symmetries.trans_list) && isempty(symmetries.rot_list)
+    no_symm = isempty(symmetries.trans_list) && isempty(symmetries.rot_list)
 
     for (ind, _) in enumerate(unique(symmetries.ineq_atoms_list))
         ψₚ0_real_ip = Vector{Vector{Array{ComplexF64,3}}}(undef, Nk)
         miller_ip   = Vector{Matrix{Int32}}(undef, Nk)
         for ip in 1:Nk
-            if use_symm && any(k_mesh .!= 1)
+            if no_symm && any(k_mesh .!= 1)
                 miller1 = load(path_to_in*"/scf_0/miller_list_sc.jld2")["miller_list"]
                 ψₚ0_list_raw = load(path_to_in*"/group_$ind/g_list_sc_$ip.jld2")
                 ψₚ0_list = [ψₚ0_list_raw["wfc$iband"] for iband in 1:length(ψₚ0_list_raw)]
@@ -846,7 +850,7 @@ function prepare_u_matrixes(path_to_in::String, natoms::Int, sc_size::Vector{Int
         local tras, rot, inv_rot_T
 
         #check if symmetries are empty
-        if use_symm
+        if no_symm
             tras = [0.0,0.0,0.0]
             rot  = [[1.0,0.0,0.0] [0.0,1.0,0.0] [0.0,0.0,1.0]]
             ind_k_list = [1:prod(k_mesh)]
@@ -854,7 +858,7 @@ function prepare_u_matrixes(path_to_in::String, natoms::Int, sc_size::Vector{Int
         else
             tras  = symmetries.trans_list[ind] #./sc_size
 
-            if any(sc_size .!= 1) #TODO understand corner case with sc size  and k_mesh != 1
+            if any(sc_size .!= 1) #TODO understand corner case with sc size and k_mesh != 1
                 tras = tras ./ k_mesh
             end
 
