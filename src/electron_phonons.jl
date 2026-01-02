@@ -414,7 +414,7 @@ function electron_phonon(
     braket_list_rotated = []
     # print("Electron_phonon check:")
 
-    @threads for ind in 1:2:Ndisp_nosym
+    for ind in 1:2:Ndisp_nosym
         ind_abs = (ind-1)÷2 + 1
 
         ϵₚ = ϵₚ_list[ind_abs]

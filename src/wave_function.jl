@@ -865,6 +865,7 @@ function prepare_u_matrixes(path_to_in::String, natoms::Int, sc_size::Vector{Int
 
         Uₚₖᵢⱼ = zeros(ComplexF64, Nk, Nk_tot, nbnds*prod(sc_size), nbnds)
         map1 = rotate_grid(N_fft[1], N_fft[2], N_fft[3], rot, tras)
+        
 
         for ip in 1:Nk
             if all(isapprox.(tras,[0.0,0.0,0.0], atol = 1e-15)) &&
@@ -912,12 +913,15 @@ function prepare_u_matrixes(path_to_in::String, natoms::Int, sc_size::Vector{Int
 
             for ik in 1:Nk_tot
                 ψkᵤ = ψkᵤ_all[ik]
+                U_block = @view Uₚₖᵢⱼ[ip, ik, :, :]
 
                 if !(all(sc_size .== 1) && ik != ip) #orthogonality in unitcell at different k-points
                     if has_cuda()
-                        Uₚₖᵢⱼ[ip, ik, :, :] = calculate_braket_gpu(ψₚ, ψkᵤ)
+                        # Uₚₖᵢⱼ[ip, ik, :, :] = calculate_braket_gpu(ψₚ, ψkᵤ)
+                        calculate_braket_gpu!(U_block, ψₚ, ψkᵤ)
                     else
-                        Uₚₖᵢⱼ[ip, ik, :, :] = calculate_braket(ψₚ, ψkᵤ)
+                        # Uₚₖᵢⱼ[ip, ik, :, :] = calculate_braket(ψₚ, ψkᵤ)
+                        calculate_braket!(U_block, ψₚ, ψkᵤ)
                     end
                 end
                 # @info ("idisp = $(ind), ik = $ik")
@@ -1040,18 +1044,23 @@ function calculate_braket(bras::Vector{Vector{ComplexF64}}, kets::Vector{Vector{
     return result
 end
 
-# function calculate_braket(ψₚ::Vector{Vector{ComplexF64}}, ψkᵤ::Vector{Vector{ComplexF64}})
-#     nbnds1 = length(ψₚ)
-#     nbnds2 = length(ψkᵤ)
-#     Ng = length(ψₚ[1])
 
-#     Ψₚ = reshape(reduce(hcat, ψₚ), Ng, nbnds1)
-#     Ψkᵤ = reshape(reduce(hcat, ψkᵤ), Ng, nbnds2)
+function calculate_braket!(U::AbstractMatrix{ComplexF64},bras::Vector{Vector{ComplexF64}}, kets::Vector{Vector{ComplexF64}})
+    nbnds1 = length(bras)
+    nbnds2 = length(kets)
+    Ng     = length(bras[1])
 
-#     return adjoint(Ψₚ) * Ψkᵤ  # nbnds1 × nbnds2
-# end
+    bras_mat = reshape(reduce(hcat, bras), Ng, nbnds1)
+    kets_mat  = reshape(reduce(hcat, kets), Ng, nbnds2)
 
+    mul!(U, adjoint(bras_mat), kets_mat)
+    return U
+end
 
 function calculate_braket_gpu(bras, kets)
+    error("GPU braket not available: ElectronPhonon loaded without CUDA extension.")
+end
+
+function calculate_braket_gpu!(U, bras, kets)
     error("GPU braket not available: ElectronPhonon loaded without CUDA extension.")
 end
