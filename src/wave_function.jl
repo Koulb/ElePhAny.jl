@@ -308,7 +308,7 @@ Expands a wave function `wfc` defined in a primitive cell to a supercell of size
 - `wfc_sc`: The wave function array repeated to fill the supercell.
 """
 function wf_pc_to_sc(wfc, sc_size)
-    wfc_sc = repeat(wfc, outer=(sc_size[1], sc_size[2], sc_size[3]))
+    wfc_sc = repeat(wfc, outer=(sc_size[1], sc_size[2], sc_size[3])) ./ prod(sc_size)
     return wfc_sc
 end
 

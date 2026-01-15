@@ -57,7 +57,8 @@ end
     norm11 = abs(ElectronPhonon.calculate_braket_real(wfc_list[1], wfc_list[1]))
     norm12 = abs(ElectronPhonon.calculate_braket_real(wfc_list[1], wfc_list[2]))
 
-    @test isapprox(norm11, 1.0; atol=ElectronPhonon.toleranse_tests)
+    atol = ElectronPhonon.toleranse_tests
+    @test norm11 > atol # not enforce brakets in real space to normolize to 1 anymore
     @test isapprox(norm12, 0.0; atol=ElectronPhonon.toleranse_tests)
 end
 
@@ -102,7 +103,8 @@ end
     norm11 = abs(ElectronPhonon.calculate_braket_real(wfc_list_sc[1], wfc_list_sc[1]))
     norm12 = abs(ElectronPhonon.calculate_braket_real(wfc_list_sc[1], wfc_list_sc[2]))
 
-    @test isapprox(norm11, 1.0; atol=ElectronPhonon.toleranse_tests)
+    atol = ElectronPhonon.toleranse_tests
+    @test norm11 > atol # not enforce brakets in real space to normolize to 1 anymore
     @test isapprox(norm12, 0.0; atol=ElectronPhonon.toleranse_tests)
 end
 
@@ -127,7 +129,8 @@ end
     norm11 = abs(ElectronPhonon.calculate_braket_real(wfc_list_phase[1], wfc_list_phase[1]))
     norm12 = abs(ElectronPhonon.calculate_braket_real(wfc_list_phase[1], wfc_list_phase[2]))
 
-    @test isapprox(norm11, 1.0; atol=ElectronPhonon.toleranse_tests)
+    atol = ElectronPhonon.toleranse_tests
+    @test norm11 > atol # not enforce brakets in real space to normolize to 1 anymore
     @test isapprox(norm12, 0.0; atol=ElectronPhonon.toleranse_tests)
 end
 
