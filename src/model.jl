@@ -13,7 +13,7 @@ A structure representing the symmetries of a system.
 - `trans_list::Vector{Vector{Float64}}`: List of translation vectors associated with each symmetry operation.
 - `rot_list::Vector{Matrix{Float64}}`: List of rotation matrices corresponding to each symmetry operation.
 """
-struct Symmetries <: AbstractSymmetries
+mutable struct Symmetries <: AbstractSymmetries
     ineq_atoms_list::Vector{Int64}
     trans_list::Vector{Vector{Float64}}
     rot_list::Vector{Matrix{Float64}}
