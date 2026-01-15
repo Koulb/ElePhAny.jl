@@ -219,18 +219,6 @@ If `x` is less than `0 - eps`, repeatedly adds 1 until `x` falls within the inte
 - `x`: The value to be folded.
 - `eps`: (optional) Tolerance for the interval boundaries. Default is `1e-3`.
 """
-# function fold_component(x, eps=1e-3)
-#     if x >= 1 - eps
-#         while x >= 1 - eps
-#             x = x - 1
-#         end
-#     elseif x < 0 - eps
-#         while x < 0 - eps
-#             x = x + 1
-#         end
-#     end
-#     return x
-# end
 function fold_component(x::Float64, eps::Float64 = 1e-3)
     # put x in [0, 1) with tolerance
     x -= floor(x)          # now in [0,1)
