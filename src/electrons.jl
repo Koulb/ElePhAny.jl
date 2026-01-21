@@ -688,7 +688,7 @@ function run_nscf_calc(path_to_in::String, mpi_ranks)
                 command = `pw.x -in nscf.in`
             end
             println(command)
-            run(pipeline(command, stdout="scf.out", stderr="nerrs.txt"))
+            run(pipeline(command, stdout="nscf.out", stderr="nerrs.txt"))
         end
     end
     return true

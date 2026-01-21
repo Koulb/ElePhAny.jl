@@ -39,7 +39,7 @@ Extracts the Cartesian coordinates of the `ik`-th k-point from a Quantum ESPRESS
 
 """
 function determine_q_point_cart(path_to_in,ik)
-    file = open(path_to_in*"/scf.out","r")
+    file = open(path_to_in*"/nscf.out","r")
     lines = readlines(file)
     result = 0.0
 
