@@ -151,7 +151,7 @@ This function:
 - Writes the input file `ph.in` for the phonon calculation.
 - Executes the `ph.x` program using MPI, redirecting output and error streams to files.
 """
-function electron_phonon_qe(path_to_in::String, ik::Int, iq::Int, mpi_ranks::Int, path_to_qe::String, command::String="")
+function electron_phonon_qe(path_to_in::String, ik::Int, iq::Int, mpi_ranks::Int, path_to_qe::String; command::String="")
     dir_name = "scf_0/"
     cd(path_to_in*dir_name) do
         kpoint = determine_q_point_cart(path_to_in*dir_name,ik)
@@ -222,7 +222,7 @@ Computes electron-phonon coupling using  Quantum ESPRESSO for a given model.
 # Returns
 - The result of the electron-phonon coupling calculation for the specified k-point and q-point.
 """
-function electron_phonon_qe(model::ModelQE, ik::Int, iq::Int, command::String="")
+function electron_phonon_qe(model::ModelQE, ik::Int, iq::Int; command::String="")
     electron_phonon_qe(model.path_to_calc*"displacements/", ik, iq, model.mpi_ranks, model.path_to_qe, command="")
 end
 

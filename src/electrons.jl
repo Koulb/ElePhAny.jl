@@ -624,7 +624,7 @@ Submits a batch job for a self-consistent field (SCF) calculation on a computing
 # Description
 Changes the working directory to `path_to_in`, then submits the `run.sh` script as a batch job using `sbatch`. The standard output and error of the job submission command are redirected to `run.out` and `errs.txt`, respectively.
 """
-function run_scf_cluster(path_to_in::String, slurm_type::String="sbatch")
+function run_scf_cluster(path_to_in::String; slurm_type::String="sbatch")
     cd(path_to_in) do
         command = `$slurm_type run.sh`
 
@@ -649,7 +649,7 @@ This function performs the following steps:
 3. Submits the NSCF calculation using `sbatch` if the `run_nscf.sh` script exists.
 4. If the script does not exist, runs the calculation directly using `pw.x` (with or without MPI, depending on `mpi_ranks`).
 """
-function run_nscf_calc(path_to_in::String, mpi_ranks, slurm_type::String="sbatch")
+function run_nscf_calc(path_to_in::String, mpi_ranks; slurm_type::String="sbatch")
     println("Ceating nscf:")
     cd(path_to_in*"/scf_0/") do
         path_to_copy = path_to_in*"/scf_0/run_nscf.sh"
@@ -694,8 +694,8 @@ function run_nscf_calc(path_to_in::String, mpi_ranks, slurm_type::String="sbatch
     return true
 end
 
-function run_nscf_calc(model::AbstractModel, slurm_type::String="sbatch")
-    run_nscf_calc(model.path_to_calc*"displacements/", model.mpi_ranks, slurm_type=slurm_type)
+function run_nscf_calc(model::AbstractModel; slurm_type::String="sbatch")
+    run_nscf_calc(model.path_to_calc*"displacements/", model.mpi_ranks; slurm_type=slurm_type)
 end
 
 """
@@ -711,13 +711,13 @@ Runs self-consistent field (SCF) calculations for a set of atomic displacements 
 # Description
 The function first runs an SCF calculation in the `scf_0` subdirectory. If a `run.sh` script is present, it uses `run_scf_cluster`; otherwise, it uses `run_scf`. Then, for each displacement group (from 1 to `Ndispalce`), it runs the corresponding SCF calculation in the `group_i` subdirectory, using the same logic for `run.sh`.
 """
-function run_disp_calc(path_to_in::String, Ndispalce::Int, mpi_ranks::Int = 0, slurm_type::String="sbatch",pristine_only::Bool = false)
+function run_disp_calc(path_to_in::String, Ndispalce::Int, mpi_ranks::Int = 0, pristine_only::Bool = false; slurm_type::String="sbatch")
     # Change to the specified directory
     #FIXME Only run scf in the DFT case (not Hybrids)
 
     println("Running scf_0:")
     if(isfile(path_to_in*"scf_0/"*"run.sh"))
-        run_scf_cluster(path_to_in*"scf_0/",slurm_type=slurm_type)
+        run_scf_cluster(path_to_in*"scf_0/";slurm_type=slurm_type)
     else
         run_scf(path_to_in*"scf_0/", mpi_ranks)
     end
@@ -727,7 +727,7 @@ function run_disp_calc(path_to_in::String, Ndispalce::Int, mpi_ranks::Int = 0, s
             println("Running displacement # $i_disp:")
             dir_name = "group_"*string(i_disp)*"/"
             if(isfile(path_to_in*dir_name*"run.sh"))
-                run_scf_cluster(path_to_in*dir_name,slurm_type=slurm_type)
+                run_scf_cluster(path_to_in*dir_name;slurm_type=slurm_type)
             else
                 run_scf(path_to_in*dir_name, mpi_ranks)
             end
@@ -737,8 +737,8 @@ function run_disp_calc(path_to_in::String, Ndispalce::Int, mpi_ranks::Int = 0, s
     return true
 end
 
-function run_disp_calc(model::AbstractModel, slurm_type::String="sbatch")
-    run_disp_calc(model.path_to_calc*"displacements/", model.Ndispalce, model.mpi_ranks,slurm_type=slurm_type)
+function run_disp_calc(model::AbstractModel; slurm_type::String="sbatch")
+    run_disp_calc(model.path_to_calc*"displacements/", model.Ndispalce, model.mpi_ranks; slurm_type=slurm_type)
 end
 
 """
@@ -759,7 +759,7 @@ For each displacement group (from 1 to `Ndispalce`), the function:
 4. If a `run_nscf.sh` script exists, submits it as a batch job using `sbatch`, redirecting output and errors.
 5. If not, runs the NSCF calculation directly using `pw.x` (with or without MPI, depending on `mpi_ranks`), redirecting output and errors.
 """
-function run_disp_nscf_calc(path_to_in::String, Ndispalce::Int, mpi_ranks::Int = 0, slurm_type::String="sbatch")
+function run_disp_nscf_calc(path_to_in::String, Ndispalce::Int, mpi_ranks::Int = 0; slurm_type::String="sbatch")
     for i_disp in 1:Ndispalce
         println("Running displacement # $i_disp:")
         dir_name = "group_"*string(i_disp)*"/"
@@ -816,8 +816,8 @@ function run_disp_nscf_calc(path_to_in::String, Ndispalce::Int, mpi_ranks::Int =
     return true
 end
 
-function run_disp_nscf_calc(model::AbstractModel, slurm_type::String="sbatch")
-    run_disp_nscf_calc(model.path_to_calc*"displacements/", model.Ndispalce, model.mpi_ranks, slurm_type=slurm_type)
+function run_disp_nscf_calc(model::AbstractModel; slurm_type::String="sbatch")
+    run_disp_nscf_calc(model.path_to_calc*"displacements/", model.Ndispalce, model.mpi_ranks; slurm_type=slurm_type)
 end
 
 """
