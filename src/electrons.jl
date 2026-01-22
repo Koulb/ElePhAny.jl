@@ -665,10 +665,10 @@ function run_nscf_calc(path_to_in::String, mpi_ranks; slurm_type::String="sbatch
 
             for (index, line) in enumerate(lines)
                 if occursin("scf.in", line)
-                    lines[index] = replace(line, "scf.in" => "nscf.in")
+                    lines[index] = replace(lines[index], "scf.in" => "nscf.in")
                 end
                 if occursin("scf.out", line)
-                    lines[index] = replace(line, "scf.out" => "nscf.out")
+                    lines[index] = replace(lines[index], "scf.out" => "nscf.out")
                 end
             end
 
@@ -788,10 +788,10 @@ function run_disp_nscf_calc(path_to_in::String, Ndispalce::Int, mpi_ranks::Int =
 
                 for (index, line) in enumerate(lines)
                     if occursin("scf.in", line)
-                        lines[index] = replace(line, "scf.in" => "nscf.in")
+                        lines[index] = replace(lines[index], "scf.in" => "nscf.in")
                     end
                     if occursin("scf.out", line)
-                        lines[index] = replace(line, "scf.out" => "nscf.out")
+                        lines[index] = replace(lines[index], "scf.out" => "nscf.out")
                     end
                 end
 
