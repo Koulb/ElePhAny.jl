@@ -202,6 +202,9 @@ function electron_phonon_qe(path_to_in::String, ik::Int, iq::Int, mpi_ranks::Int
         
         if isempty(command)
             command = `mpirun -np $mpi_ranks $path_to_ph -in ph.in`
+        else
+            launcher = Cmd(Base.shell_split(command))
+            command = `$launcher -in ph.in`
         end
 
         #println(command)
