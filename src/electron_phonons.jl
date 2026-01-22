@@ -207,7 +207,6 @@ function electron_phonon_qe(path_to_in::String, ik::Int, iq::Int, mpi_ranks::Int
             command = `$launcher -in ph.in`
         end
 
-        #println(command)
         run(pipeline(command, stdout="ph.out", stderr="errs_ph.txt"))
     end
 end
