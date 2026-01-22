@@ -658,7 +658,7 @@ function run_nscf_calc(path_to_in::String, mpi_ranks; slurm_type::String="sbatch
             run(command);
             println(command)
 
-            # Open the run_nscf.sh file and replace "scf.in" with "nscf.in"
+            # Open the run_nscf.sh file and replace "scf.in" with "nscf.in" and "scf.out" with "nscf.out"
             file = open(path_to_copy, "r")
             lines = readlines(file)
             close(file)
@@ -666,6 +666,9 @@ function run_nscf_calc(path_to_in::String, mpi_ranks; slurm_type::String="sbatch
             for (index, line) in enumerate(lines)
                 if occursin("scf.in", line)
                     lines[index] = replace(line, "scf.in" => "nscf.in")
+                end
+                if occursin("scf.out", line)
+                    lines[index] = replace(line, "scf.out" => "nscf.out")
                 end
             end
 
@@ -778,7 +781,7 @@ function run_disp_nscf_calc(path_to_in::String, Ndispalce::Int, mpi_ranks::Int =
                 run(command);
                 println(command)
 
-                # Open the run_nscf.sh file and replace "scf.in" with "nscf.in"
+                # Open the run_nscf.sh file and replace "scf.in" with "nscf.in" and "scf.out" with "nscf.out"
                 file = open(path_to_copy, "r")
                 lines = readlines(file)
                 close(file)
@@ -786,6 +789,9 @@ function run_disp_nscf_calc(path_to_in::String, Ndispalce::Int, mpi_ranks::Int =
                 for (index, line) in enumerate(lines)
                     if occursin("scf.in", line)
                         lines[index] = replace(line, "scf.in" => "nscf.in")
+                    end
+                    if occursin("scf.out", line)
+                        lines[index] = replace(line, "scf.out" => "nscf.out")
                     end
                 end
 
