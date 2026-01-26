@@ -65,7 +65,7 @@ scf_parameters = Dict(
 
 # merge!(scf_parameters, scf_parameters_hse)
 
-use_symm = false
+use_symm = true
 
 model = create_model(path_to_calc = path_to_calc,
                       abs_disp = abs_disp,

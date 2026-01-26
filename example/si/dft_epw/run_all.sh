@@ -9,7 +9,7 @@ export NMPI=8
 export NPOOL=8
 export PARA_PREFIX="mpirun"
 
-copy data ....
+# copy data ....
 cp -r ./displacements/scf_0/tmp/scf.save ./si.save
 cp -r ./displacements/scf_0/scf.out ./
 echo "0, copy finished finished"
@@ -34,8 +34,24 @@ echo "4, epw1 finished"
 cp -r si.save/ si_dft.save/ 
 cp si.epb1 si_dft.save/
 
-python $ELEPHANY_PATH/epw/parse_epb.py
-python $ELEPHANY_PATH/epw/fake2nscf.py
+python "$ELEPHANY_PATH/epw/parse_epb.py" \
+    --path_to_epw="./" \
+    --path_to_frozen="./displacements/" \
+    --nbnd=4 \
+    --nbndep=4 \
+    --mesh=8 \
+    --mesh_q=8 \
+    --nat=2 \
+    --epb_name="si.epb1"\
+    --only_g=True
+
+
+python $ELEPHANY_PATH/epw/fake2nscf.py \
+    --path_to_kcw="./displacements/scf_0/tmp/scf.save/" \
+    --path_to_save="./si_dft.save/"\
+    --path_to_out="./si.save/"\
+    --nks=8
+
 
 $QE_PATH_BIN/epw.x < epw2.in  > epw2.out
 echo "4, epw2 finished"

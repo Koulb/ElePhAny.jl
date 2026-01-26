@@ -19,7 +19,7 @@ def get_param(idx, default, cast_func=int):
 def determine_q_point_cart(path_to_in, ik):
     result = [0.0, 0.0, 0.0]
     count = 1
-    with open(f"{path_to_in}/scf.out", "r") as file:
+    with open(f"{path_to_in}/nscf.out", "r") as file:
         lines = file.readlines()
         for line in lines:
             if "        k(" in line:
