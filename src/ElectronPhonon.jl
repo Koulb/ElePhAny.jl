@@ -40,7 +40,7 @@ include("phonons.jl")
 export run_calculations, prepare_model, electron_phonon, electron_phonon_qe, plot_ep_coupling, get_kpoint_list, fold_kpoint
 include("electron_phonons.jl")
 
-export parse_qe_in, parse_frozen_params
+export parse_qe_in, parse_frozen_params,parse_epb,fake2nscf,run_parsing,read_fortran_binary_generic,read_kpoint_eigenvals,parse_energy_text
 include("io.jl")
 
 #cli
