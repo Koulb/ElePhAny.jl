@@ -1,0 +1,22 @@
+test
+&INPUTPH
+  nat_todo = 3
+  outdir = './'
+  qplot = .true.
+  ldisp = .true.
+  prefix = 'pwscf'
+  nq1 = 1
+  nq2 = 2
+  nq3 = 3
+  nk1 = 4
+  nk2 = 5
+  nk3 = 6
+  k1 = 7
+  k2 = 8
+  k3 = 9
+/
+[ 3 
+  2.000000     3.000    4.000 5 
+  6.000000     7.000    8.000 9 
+  4.000000     9.000    9.000 0 ]
+[2 2 4 ]

@@ -1,0 +1,36 @@
+&ELECTRONS
+  diagonalization = 'david'
+  mixing_beta = 0.7
+  electron_maxstep = 1000
+  mixing_mode = 'plain'
+  conv_thr = 1.0e-13
+/
+&CONTROL
+  calculation = 'scf'
+  verbosity = 'high'
+  pseudo_dir = '/exports/commonscratch/cbaubry/raman/mos2/pseudo/'
+  tprnfor = .true.
+  restart_mode = 'from_scratch'
+  outdir = './'
+  prefix = 'mos2'
+  tstress = .true.
+/
+&SYSTEM
+  ntyp = 2
+  ecutwfc = 100
+  ibrav = 4
+  assume_isolated = '2D'
+  occupations = 'fixed'
+  nat = 3
+  celldm(1) = 6.0207596679
+  celldm(3) = 7.2598686942
+/
+ATOMIC_SPECIES
+  Mo   95.942  Mo.upf
+  S    32.065  S.upf
+ATOMIC_POSITIONS {crystal}
+  Mo 0.3333333333  0.6666666667 0.0000000000
+  S  0.6666666667  0.3333333333 0.0675804814
+  S  0.6666666667  0.3333333333 -0.0675804814
+K_POINTS {automatic}
+ 15 15 1 0 0 0

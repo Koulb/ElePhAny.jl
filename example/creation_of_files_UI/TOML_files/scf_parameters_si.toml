@@ -1,0 +1,39 @@
+[CONTROL]
+calculation = "scf"
+verbosity = "high"
+tstress = false
+tprnfor = true
+outdir = "./"
+prefix = "si"
+pseudo_dir = "/exports/commonscratch/cbaubry/raman/si"
+
+[SYSTEM]
+ibrav = 2
+celldm = [[1,10.262195563743724]]
+nat = 2
+ntyp = 1
+nbnd = 4
+ecutwfc = 60
+
+[ELECTRONS]
+electron_maxstep = 1000
+conv_thr = 1e-13
+mixing_mode = "plain"
+mixing_beta = 0.7
+diagonalization = "ppcg"
+
+[ATOMIC_SPECIES]
+atomic_species_array = [["Si", 28.0855, "Si.upf"]]
+
+[ATOMIC_POSITIONS]
+atomic_positions_unit = "crystal"
+atomic_positions_array = [["Si", 0, 0, 0], ["Si", 0.75, 0.75, 0.75]]
+
+[K_POINTS]
+kpoint_scheme = "automatic"
+kpoint_grid_array = [[2, 2, 2]]
+kpoint_shift_array = [[0, 0, 0]]
+
+[CELL_PARAMETERS]
+crystal_lattice_unit = "bohr"
+crystal_lattice_vectors = [[-2.71526, 0, 2.71526], [0, 2.71526, 2.71526], [-2.71526, 2.71526, 0]]

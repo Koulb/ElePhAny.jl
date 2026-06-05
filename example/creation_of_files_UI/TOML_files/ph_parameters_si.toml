@@ -1,0 +1,9 @@
+[INPUTPH]
+outdir = "./"
+prefix = "si"
+tr2_ph = 1e-17
+fildyn = "si.dyn.xml"
+fildvscf = "dvscf"
+recover = false
+ldisp = true
+q-points = [[2, 2, 2]]

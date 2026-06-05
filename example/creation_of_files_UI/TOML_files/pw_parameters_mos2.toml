@@ -1,0 +1,42 @@
+[CONTROL]
+calculation = "scf"
+verbosity = "high"
+restart_mode = "from_scratch"
+pseudo_dir = '/exports/commonscratch/cbaubry/raman/mos2/pseudo/'
+tstress = true
+tprnfor = true
+outdir = "./"
+prefix = "mos2"
+
+
+[SYSTEM]
+ibrav = 4
+celldm = [[1, 6.0207596679], [3, 7.2598686942]]
+nat = 3
+ntyp = 2
+nbnd = 17
+ecutwfc = 100
+occupations = "fixed"
+assume_isolated = "2D"
+
+[ELECTRONS]
+electron_maxstep = 1000
+conv_thr = 1e-13
+mixing_mode = "plain"
+mixing_beta = 0.7
+diagonalization = "david"
+
+[ATOMIC_SPECIES]
+atomic_species_array = [["Mo", 95.942, "Mo.upf"], ["S", 32.065, "S.upf"]]
+
+[ATOMIC_POSITIONS]
+atomic_positions_unit = "crystal"
+atomic_positions_array = [["Mo", 0.3333333333, 0.6666666667, 0], ["S", 0.6666666667, 0.3333333333, 0.0675804814], ["S", 0.6666666667, 0.3333333333, -0.0675804814]]
+
+[K_POINTS]
+kpoint_scheme = "automatic"
+kpoint_grid_array = [[15, 15, 1]]
+
+[CELL_PARAMETERS]
+crystal_lattice_unit = "bohr"
+crystal_lattice_vectors = [[3.1860928549, 0, 0], [-1.59304642745, 2.759237351159487, 0], [0, 0, 23.130615774102814]]

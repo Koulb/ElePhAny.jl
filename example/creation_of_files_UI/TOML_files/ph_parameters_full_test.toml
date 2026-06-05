@@ -1,0 +1,17 @@
+[TITLE_LINE]
+title_line = "test"
+
+[INPUTPH]
+outdir = "./"
+prefix = "pwscf"
+qplot = true
+ldisp = true
+q-points = [[1, 2, 3]]
+k_point = [[4, 5, 6, 7, 8, 9]]
+nat_todo = 3
+
+[QPOINTS_SPECS]
+qpoints = [[2, 3, 4, 5], [6, 7, 8, 9], [4, 9, 9, 0]]
+
+[ATOM_LIST]
+atoms = [[2], [2], [4]]

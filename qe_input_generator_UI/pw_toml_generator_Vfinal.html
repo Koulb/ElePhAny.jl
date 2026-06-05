@@ -1,0 +1,1381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>PW Quantum Espresson TOML Exporter</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            background: linear-gradient(135deg, #1a2a3a 0%, #0f1a24 100%);
+            font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, sans-serif;
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+        }
+
+        .app-container {
+            display: flex;
+            min-height: 100vh;
+            max-width: 1600px;
+            margin: 0 auto;
+            background: rgba(15, 25, 35, 0.6);
+            backdrop-filter: blur(2px);
+        }
+
+        .sidebar {
+            width: 280px;
+            background: rgba(15, 23, 42, 0.95);
+            backdrop-filter: blur(8px);
+            border-right: 1px solid #334155;
+            padding: 1.5rem 1rem;
+            overflow-y: auto;
+            flex-shrink: 0;
+            box-shadow: 4px 0 20px rgba(0,0,0,0.3);
+        }
+
+        .sidebar h2 {
+            color: #e2e8f0;
+            font-size: 1.2rem;
+            margin-bottom: 1.5rem;
+            font-weight: 600;
+            border-left: 3px solid #3b82f6;
+            padding-left: 0.8rem;
+        }
+
+        .section-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .section-btn {
+            background: transparent;
+            text-align: left;
+            padding: 0.75rem 1rem;
+            border-radius: 0.75rem;
+            font-weight: 500;
+            font-size: 0.9rem;
+            color: #cbd5e1;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            border: none;
+            cursor: pointer;
+            width: 100%;
+			position: relative;
+        }
+
+        .section-btn:hover {
+            background: #1e293b;
+            color: white;
+        }
+
+        .section-btn.active {
+            background: #3b82f6;
+            color: white;
+            box-shadow: 0 4px 8px rgba(59,130,246,0.3);
+        }
+
+        /* INDICATOR for sections that have selected parameters */
+        .section-btn.has-selected {
+            border-left: 3px solid #c7f0c3;
+            background: rgba(199, 240, 195, 0.15);
+        }
+
+        .section-btn.has-selected.active {
+            background: #3b82f6;
+            border-left-color: #c7f0c3;
+        }
+
+        .section-btn.has-selected .selection-dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            background: #c7f0c3;
+            border-radius: 50%;
+            margin-left: auto;
+            box-shadow: 0 0 4px #c7f0c3;
+        }
+
+        .section-badge {
+            font-size: 0.7rem;
+            background: #334155;
+            padding: 0.15rem 0.5rem;
+            border-radius: 20px;
+            margin-left: auto;
+        }
+
+        .section-btn.active .section-badge {
+            background: #1e40af;
+        }
+
+        .main-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 1.5rem 2rem;
+            overflow-y: auto;
+        }
+
+        .top-bar {
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(12px);
+            border-radius: 1.2rem;
+            padding: 0.8rem 1.5rem;
+            margin-bottom: 2rem;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .search-area {
+            flex: 2;
+            min-width: 200px;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 0.6rem 1rem;
+            border-radius: 40px;
+            border: none;
+            background: #1e293b;
+            color: white;
+            font-size: 0.85rem;
+            outline: none;
+            transition: 0.2s;
+        }
+
+        .search-input:focus {
+            background: #0f172a;
+            box-shadow: 0 0 0 2px #3b82f6;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 0.8rem;
+            flex-wrap: wrap;
+        }
+
+        .btn-top {
+            background: #2d3a4e;
+            border: none;
+            padding: 0.5rem 1.2rem;
+            border-radius: 40px;
+            color: white;
+            font-weight: 500;
+            cursor: pointer;
+            transition: 0.15s;
+        }
+
+        .btn-top.reset-btn {
+            background: #7c2d2d;
+        }
+
+        .btn-top.reset-btn:hover {
+            background: #9b3a3a;
+        }
+
+        .btn-top.export-btn {
+            background: #3b82f6;
+        }
+
+        .btn-top.export-btn:hover {
+            background: #2563eb;
+        }
+
+        .section-header {
+            margin-bottom: 1.5rem;
+        }
+
+        .section-title {
+            color: white;
+            font-size: 1.4rem;
+            font-weight: 600;
+            margin-bottom: 0.2rem;
+        }
+
+        .section-desc {
+            color: #94a3b8;
+            font-size: 0.85rem;
+        }
+
+        .cards-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        @media (max-width: 640px) {
+            .cards-grid {
+                grid-template-columns: 1fr;
+                gap: 1.2rem;
+            }
+            .main-panel {
+                padding: 1rem;
+            }
+            .top-bar {
+                flex-direction: column;
+                align-items: stretch;
+            }
+        }
+
+        @media (min-width: 641px) and (max-width: 900px) {
+            .cards-grid {
+                grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+            }
+        }
+
+        @media (min-width: 1200px) {
+            .cards-grid {
+                grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+            }
+        }
+
+       /* ========== CARD STYLES with SELECTABLE FEATURE ========== */
+        .param-card {
+            background: rgba(255,255,255,0.97);
+            border-radius: 1.2rem;
+            box-shadow: 0 12px 28px -8px rgba(0,0,0,0.3);
+            overflow: hidden;
+            transition: transform 0.2s, box-shadow 0.2s, background-color 0.2s ease;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .param-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 20px 35px -12px rgba(0,0,0,0.4);
+        }
+
+        /* SELECTED STATE: Pastel Green background */
+        .param-card.selected {
+            background-color: #c7f0c3 !important;
+            box-shadow: 0 18px 32px -10px rgba(60, 100, 50, 0.35);
+            border-left: 4px solid #2e7d32;
+        }
+
+        /* Keep inner elements readable when selected */
+        .param-card.selected .card-header {
+            background: rgba(220, 245, 210, 0.8);
+            border-bottom-color: #9bc48f;
+        }
+
+        .param-card.selected .card-title h3 {
+            color: #0a2f0a;
+        }
+
+        .param-card.selected .card-desc {
+            color: #1e4620;
+        }
+
+        .param-card.selected .badge-type {
+            background: #d4f0cf;
+            color: #1f4a1a;
+        }
+
+        .param-card.selected .card-id {
+            background: #e0f0da;
+            color: #1b4d1b;
+        }
+
+
+        .card-header {
+            padding: 1rem 1.2rem;
+            background: #f8fafc;
+            border-bottom: 2px solid #e2e8f0;
+            flex-shrink: 0;
+			transition: background 0.2s;
+        }
+
+        .card-header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-bottom: 0.3rem;
+        }
+
+        .card-title h3 {
+            margin: 0;
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #0f172a;
+        }
+
+        .card-id {
+            font-family: monospace;
+            font-size: 0.65rem;
+            background: #eef2ff;
+            padding: 0.2rem 0.5rem;
+            border-radius: 20px;
+            color: #1e40af;
+        }
+
+        .badge-type {
+            background: #e6f0ff;
+            padding: 0.2rem 0.6rem;
+            border-radius: 30px;
+            font-size: 0.65rem;
+            font-weight: 500;
+        }
+
+        /* MODIFIED: Scrolling text box for large descriptions */
+        .card-desc {
+            font-size: 0.7rem;
+            color: #475569;
+            margin-top: 6px;
+            line-height: 1.3;
+            max-height: 100px;
+            overflow-y: auto;
+            padding-right: 4px;
+			white-space: pre-line;  	 Add this line */
+			/* white-space: pre-wrap; /* instead, which preserves both spaces and line breaks. */
+			word-break: normal;         /* Normal word breaking */
+			overflow-wrap: normal;      /* Don't force breaks */
+        }
+        
+		
+        /* Custom scrollbar for the description box */
+        .card-desc::-webkit-scrollbar {
+            width: 4px;
+        }
+        
+        .card-desc::-webkit-scrollbar-track {
+            background: #e2e8f0;
+            border-radius: 4px;
+        }
+        
+        .card-desc::-webkit-scrollbar-thumb {
+            background: #94a3b8;
+            border-radius: 4px;
+        }
+        
+        .card-desc::-webkit-scrollbar-thumb:hover {
+            background: #64748b;
+        }
+
+        .card-body {
+            padding: 1rem 1.2rem 1.2rem;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            pointer-events: auto;
+        }
+
+        /* Ensure inputs/controls are clickable without toggling card selection */
+        .card-body input,
+        .card-body select,
+        .card-body button,
+        .card-body label,
+        .card-body .bool-group,
+        .array-table-wrapper,
+        .actions-bar button,
+        .cell-input,
+        .select-input,
+        .scalar-input,
+        .reset-btn,
+        .toggle-btn,
+        .add-row-btn,
+        .clear-rows-btn,
+        .remove-row-btn {
+            pointer-events: auto;
+            position: relative;
+            z-index: 2;
+        }
+
+        .array-table-wrapper {
+            overflow-x: auto;
+            border-radius: 0.8rem;
+            border: 1px solid #e2edf2;
+            background: white;
+            margin-bottom: 0.5rem;
+        }
+
+        .array-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.7rem;
+            min-width: 280px;
+        }
+
+        .array-table th {
+            background: #f1f5f9;
+            padding: 0.4rem 0.5rem;
+            font-size: 0.7rem;
+        }
+
+        .array-table td {
+            padding: 0.3rem;
+        }
+
+        .cell-input {
+            width: 100%;
+            padding: 0.3rem 0.4rem;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            font-size: 0.7rem;
+        }
+
+        .select-input, .scalar-input {
+            width: 100%;
+            padding: 0.5rem;
+            border-radius: 8px;
+            border: 1px solid #cbd5e1;
+            font-size: 0.8rem;
+        }
+
+        .bool-group {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            background: #f9fafb;
+            padding: 0.5rem 0.8rem;
+            border-radius: 0.8rem;
+            flex-wrap: wrap;
+        }
+
+        .actions-bar {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.8rem;
+            flex-wrap: wrap;
+        }
+
+        button {
+            background: #f1f5f9;
+            border: none;
+            padding: 0.3rem 0.8rem;
+            border-radius: 30px;
+            font-size: 0.7rem;
+            cursor: pointer;
+            transition: 0.1s;
+        }
+
+        .btn-primary {
+            background: #2c3e66;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #1e2a4a;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 2rem;
+            color: #94a3b8;
+            background: rgba(0,0,0,0.2);
+            border-radius: 1rem;
+            grid-column: 1 / -1;
+        }
+
+        .toml-export-panel {
+            background: #0f172a;
+            border-radius: 1.2rem;
+            margin-top: 1.5rem;
+            border: 1px solid #334155;
+        }
+
+        .toml-header {
+            background: #1e293b;
+            padding: 0.7rem 1.2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+
+        .toml-header h3 {
+            margin: 0;
+            font-size: 0.9rem;
+            color: #e2e8f0;
+        }
+
+        .toml-content {
+            padding: 1rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.7rem;
+            color: #cbd5e6;
+            white-space: pre-wrap;
+            word-break: break-word;
+            max-height: 320px;
+            overflow-y: auto;
+        }
+
+        .copy-btn {
+            background: #334155;
+            color: #e2e8f0;
+        }
+
+        .copy-btn:hover {
+            background: #475569;
+        }
+		
+		        /* Selection status bar */
+        .selection-status-bar {
+            background: #0f172a;
+            border-radius: 2rem;			
+            padding: 0.4rem 1.2rem;
+            display: inline-flex;									  
+            align-items: center;
+            gap: 0.8rem;					  
+            font-size: 0.8rem;							  
+            color: #cbd5e6;
+            margin-left: auto;
+        }
+		
+		.selection-count-badge {
+            background: #3b82f6;
+            border-radius: 40px;
+            padding: 0.2rem 0.7rem;
+            font-weight: 600;
+        }
+
+        /* Section summary indicator in header */
+        .section-summary {
+            margin-top: 0.75rem;
+            padding: 0.5rem 0.75rem;
+            background: rgba(199, 240, 195, 0.15);
+            border-radius: 40px;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.75rem;
+            color: #c7f0c3;
+            border: 1px solid rgba(199, 240, 195, 0.3);
+		}
+    </style>
+</head>
+<body>
+<div class="app-container">
+    <div class="sidebar" id="sidebar">
+		<h2>PW Quantum Espresso TOML Exporter</h2>
+		<h2>version 7.5</h2>
+<!--         <h2>📂 SECTIONS</h2> -->
+        <div class="section-list" id="sectionList"></div>
+    </div>
+    <div class="main-panel">
+        <div class="top-bar">
+            <div class="search-area">
+                <input type="text" id="globalSearchInput" class="search-input" placeholder="🔍 Search parameters...">
+            </div>
+            <div class="action-buttons">
+                <button id="globalResetBtn" class="btn-top reset-btn">⟳ Reset All</button>
+                <button id="globalExportBtn" class="btn-top export-btn">📄 Export TOML</button>
+            </div>
+        </div>
+        <div class="section-header">
+            <div class="section-title" id="currentSectionTitle">Select a section</div>
+            <div class="section-desc" id="currentSectionDesc">Parameters organized by category</div>
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.8rem; margin-top: 0.5rem;">
+                <div id="currentSectionSelectedInfo" class="section-summary" style="display: none;"></div>
+                <div class="selection-status-bar" id="selectionStatusBar">
+                    <span>Selected cards:</span>
+                    <span class="selection-count-badge" id="selectedCardsCount">0</span>
+                    <button id="deselectAllCardsBtn" style="background: #334155; color: white; font-size: 0.7rem;">Clear selection</button>
+                </div>
+            </div>			
+        </div>
+        <div id="cardsContainer" class="cards-grid">
+            <div class="empty-state">✨ Choose a section from the left</div>
+        </div>
+<!--         <div class="toml-export-panel">
+            <div class="toml-header">
+                <h3>📄 PW.x Quantum Espresso TOML Generator </h3>
+                <button id="copyFinalTomlBtn" class="copy-btn">📋 Copy TOML</button>
+            </div> -->
+<!--             <div class="toml-content" id="tomlPreview"># TOML will appear here</div> -->
+      <!--   </div> -->
+    </div>
+</div>
+
+<script>
+    // ==============================================================
+    // SCHEMA DEFINITION - Parameters organized by sections
+    // Clean TOML export: only [table] and key = value pairs, no comments
+    // ==============================================================
+    const SECTIONS = [
+ { 
+	id: "CONTROL",
+	name: "Control",
+    description: "Namelist CONTROL",
+    params: [
+      {"id":"calculation","type":"select","options":["scf", "nscf", "bands", "relax", "md", "vc-relax", "vc-md"],"default":"scf","required":false,"desc":"A string describing the task to be performed. Options are:'scf', 'nscf', 'bands', 'relax', 'md', 'vc-relax', 'vc-md'. \n(vc = variable-cell)."},
+      {"id":"title","type":"string","default":null,"required":false,"desc":"reprinted on output."},
+      {"id":"verbosity","type":"select","options":["high", "low"],"default":"low","required":false,"desc":"Currently two verbosity levels are implemented: 'high', 'low'\n 'debug' and 'medium' have the same effect as 'high';'default' and 'minimal' as 'low'"},
+      {"id":"restart_mode","type":"select","options":["from_scratch", "restart"],"default":"from_scratch","required":false,"desc":"Available options are:\n'from_scratch':\nThis is the normal way to perform a PWscf calculation.\n'restart':\nFrom previous interrupted run. Use this switch only if you want to continue, using the same number of processors and parallelization,an interrupted calculation. Do not use to start a new one, or to perform a non-scf calculations. Works only if the calculation was cleanly stopped using variable max_seconds, or by user request with an \"exit file\" (i.e.: create a file \"prefix\".EXIT, in directory \"outdir\"; see variables prefix, outdir). The default for startingwfc and startingpot is set to 'file'."},
+      {"id":"wf_collect","type":"bool","default":null,"required":false,"desc":"OBSOLETE - NO LONGER IMPLEMENTED"},
+      {"id":"nstep","type":"integer","default":null,"required":false,"desc":"Number of molecular-dynamics or structural optimization steps performed in this run. \nIf set to 0, the code performs a quick\"dry run\", stopping just after initialization. This is useful\nto check for input correctness and to have the summary printed.\nNOTE: in MD calculations, the code will perform \"nstep\" steps even if restarting from a previously interrupted calculation."},
+      {"id":"iprint","type":"integer","default":null,"required":false,"desc":"When calculation == 'md' (molecular dynamics) trajectory is written every iprint md steps."},
+      {"id":"tstress","type":"bool","default":false,"required":false,"desc":"calculate stress. It is set to .TRUE. automatically if calculation == 'vc-md' or 'vc-relax'"},
+      {"id":"tprnfor","type":"bool","default":null,"required":false,"desc":"calculate forces. It is set to .TRUE. automatically if calculation== 'relax','md','vc-md'"},
+      {"id":"dt","type":"real","default":20.0,"required":false,"desc":"time step for molecular dynamics, in Rydberg atomic units (1 a.u.=4.8378 * 10^-17 s : beware, the CP code uses Hartree atomic units, half that much!!!)"},
+      {"id":"outdir","type":"string","default":"./","required":false,"desc":"input, temporary, output files are found in this directory, see also wfcdir"},
+      {"id":"wfcdir","type":"string","default":"./","required":false,"desc":"This directory specifies where to store files generated by each processor (*.wfc{N}, *.igk{N}, etc.). Useful for machines without a parallel file system: set wfcdir to a local file system, while outdir should be a parallel or network file system, visible to all processors. \nBeware: in order to restart from interrupted runs, or to perform further calculations using the produced data files, you may need to copy files to outdir. Works only for pw.x."},
+      {"id":"prefix","type":"string","default":"pwscf","required":false,"desc":"prepended to input/output filenames: prefix.wfc, prefix.rho, etc."},
+      {"id":"lkpoint_dir","type":"bool","default":null,"required":false,"desc":"OBSOLETE - NO LONGER IMPLEMENTED"},
+      {"id":"max_seconds","type":"real","default":null,"required":false,"desc":"Jobs stops after max_seconds CPU time. Use this option in conjunction with option restart_mode if you need to plit a job too long to complete into shorter jobs that fit into your batch queues."},
+      {"id":"etot_conv_thr","type":"real","default":0.0001,"required":false,"desc":"Convergence threshold on total energy (a.u) for ionic minimization: the convergence criterion is satisfied when the total energy changes less than etot_conv_thr between two consecutive scf steps. Note that etot_conv_thr is extensive, like the total energy.\nSee also forc_conv_thr - both criteria must be satisfied"},
+      {"id":"forc_conv_thr","type":"real","default":0.001,"required":false,"desc":"Convergence threshold on forces (a.u) for ionic minimization: the convergence criterion is satisfied when all components of all forces are smaller than forc_conv_thr.\nSee also etot_conv_thr - both criteria must be satisfied"},
+      {"id":"disk_io","type":"select","options":["see below", "high", "medium", "low", "nowf", "minimal", "none"],default:"see below","required":false,desc:"Specifies the amount of disk I/O activity: (only for binary files and xml data file in data directory; other files printed at each molecular dynamics / structural optimization step are not controlled by this option )\n\n'high' :\nsave charge to disk at each SCF step, keep wavefunctions on disk (in \"distributed\" format), save mixing data as well. Do not use this option unless you have a good reason! It is no longer needed to specify 'high' in order to be able to restart from an interrupted calculation (see restart_mode)\n\n'medium' :\nsave charge to disk at each SCF step,\nkeep wavefunctions on disk only if more than one k-point, per process is present, otherwise keep them in memory; save them to disk only at the end (in \"portable\" format)\n\n'low' :\nsave charge to disk at each SCF step, keep wavefunctions in memory (for all k-points), save them to disk only at the end (in \"portable\" format). Reduces I/O but increases memory wrt the previous cases \
+	  \n\n'nowf' :\n save to disk only the xml data file and the charge density at convergence, never save wavefunctions. Restarting from an interrupted calculation is not possible with this option.\n\n'minimal' :\n save to disk only the xml data file at convergence  \n\n'none' : do not save anything to disk \n\nDefault is 'low' for the scf case, 'medium' otherwise.\n Note that the needed RAM increases as disk I/O decreases"},
+      {"id":"pseudo_dir","type":"string","default":"$HOME/espresso/pseudo/","required":false,"desc":"directory containing pseudopotential files"},
+      {"id":"tefield","type":"bool","default":false,"required":false,"desc":"If .TRUE. a saw-like potential simulating an electric field is added to the bare ionic potential. See variables edir, eamp, emaxpos, eopreg for the form and size of the added potential."},
+      {"id":"dipfield","type":"bool","default":false,"required":false,"desc":"If .TRUE. and tefield ==.TRUE. a dipole correction is also added to the bare ionic potential - implements the recipe of L. Bengtsson, PRB 59, 12301 (1999). See variables edir, emaxpos, eopreg for the form of the correction. Must be used ONLY in a slab geometry, for surface calculations, with the discontinuity FALLING IN THE EMPTY SPACE."},
+      {"id":"lelfield","type":"bool","default":false,"required":false,"desc":"If .TRUE. a homogeneous finite electric field described through the modern theory of the polarization is applied. This is different from tefield == .true. !"},
+      {"id":"nberrycyc","type":"integer","default":1,"required":false,"desc":"In the case of a finite electric field ( lelfield == .TRUE. ) it defines the number of iterations for converging the wavefunctions in the electric field Hamiltonian, for each external iteration on the charge density"},
+      {"id":"lorbm","type":"bool","default":false,"required":false,"desc":"If .TRUE. perform orbital magnetization calculation. If finite electric field is applied (lelfield ==.true.) only Kubo terms are computed [for details see New J. Phys. 12, 053032 (2010), doi:10.1088/1367-2630/12/5/053032].\n\nThe type of calculation is 'nscf' and should be performed on an automatically generated uniform grid of k points.\n\nWorks ONLY with norm-conserving pseudopotentials."},
+      {"id":"lberry","type":"bool","default":false,"required":false,"desc":"If .TRUE. perform a Berry phase calculation.\nSee the header of PW/src/bp_c_phase.f90 for documentation."},
+      {"id":"gdir","type":"integer","default":null,"required":false,"desc":"For Berry phase calculation: direction of the k-point strings in reciprocal space. Allowed values: 1, 2, 3 where 1=first, 2=second, 3=third reciprocal lattice vector\nFor calculations with finite electric fields (lelfield ==.true.) \"gdir\" is the direction of the field."},
+      {"id":"nppstr","type":"integer","default":null,"required":false,"desc":"For Berry phase calculation: number of k-points to be calculated along each symmetry-reduced string.\nThe same for calculation with finite electric fields (lelfield ==.true.)."},
+      {"id":"gate","type":"bool","default":false,"required":false,"desc":"In the case of charged cells (tot_charge .ne. 0) setting gate = .TRUE. represents the counter charge (i.e. -tot_charge) not by a homogeneous background charge but with a charged plate, which is placed at zgate (see below). Details of the gate potential can be found in T. Brumme, M. Calandra, F. Mauri; PRB 89, 245406 (2014).\nNote, that in systems which are not symmetric with respect to the plate,\none needs to enable the dipole correction! (dipfield =.true.).\nCurrently, symmetry can be used with gate=.true. but carefully check\nthat no symmetry is included which maps z to -z even if in principle one could still use them for symmetric systems (i.e. no dipole correction).\nFor nosym =.false. verbosity is set to 'high'.\nNote: this option was called \"monopole\" in v6.0 and 6.1 of pw.x"},
+      {"id":"twochem","type":"bool","default":false,"required":false,"desc":"IF .TRUE. , a two chemical potential calculation for the simulation of photoexcited systems is performed, constraining a fraction of the electrons in the conduction manifold.\nSee G. Marini, M. Calandra; PRB 104, 144103 (2021)\nNote: requires occupations to be set to 'smearing'."},
+      {"id":"lfcp","type":"bool","default":false,"required":false,"desc":"If .TRUE. perform a constant bias potential (constant-mu) calculation for a system with ESM method. See the header of PW/src/fcp_module.f90 for documentation. To perform the calculation, you must set a namelist FCP.\n\nNB:\n- The total energy displayed in output includes the potentiostat contribution (-mu*N).\n- calculation must be 'relax' or 'md'.\n- assume_isolated  = 'esm' and esm_bc = 'bc2' or 'bc3' must be set in SYSTEM namelist.\n- ESM-RISM is also supported (assume_isolated = 'esm' and esm_bc = 'bc1' and trism = .TRUE.).\n- ignore_wolfe is always .TRUE., for BFGS."},
+      {"id":"trism","type":"bool","default":false,"required":false,"desc":"If .TRUE. perform a 3D-RISM-SCF calculation [for details see H.Sato et al., JCP 112, 9463 (2000), doi:10.1063/1.481564]. The solvent's distributions are calculated by 3D-RISM,though solute is treated as SCF. The charge density and the atomic positions are optimized, simultaneously with the solvents. To perform the calculation, you must set a namelist RISM and a card SOLVENTS.\n\nIf assume_isolated = 'esm' and esm_bc = 'bc1',Laue-RISM is calculated instead of 3D-RISM and coupled with ESM method (i.e. ESM-RISM).\n[for details see S.Nishihara and M.Otani, PRB 96, 115429 (2017)].\n\nThe default of mixing_beta is 0.2 for both 3D-RISM and Laue-RISM.\n\nFor structural relaxation with BFGS, ignore_wolfe is always .TRUE. ."},
+    ]
+  },	
+		{
+		id: "SYSTEM",
+        name: "System",
+		description: "Namelist SYSTEM",
+		params: [
+      {"id":"ibrav","type":"integer","default":null,"required":true,"desc":"Bravais-lattice index. Optional only if space_group is set.\n If ibrav = 0, specify EITHER [celldm(1)-celldm(6) ] OR [A, B, C, cosAB, cosAC, cosBC ] but NOT both. \
+	  The lattice parameter \"alat\" is set to alat = celldm(1) (in a.u.) or alat = A (in Angstrom); see below for the other parameters.\n For ibrav=0 specify the lattice vectors in CELL_PARAMETERS , optionally the lattice parameter alat = celldm(1) (in a.u.) or = A (in Angstrom).\n If not specified, the lattice parameter is taken from CELL_PARAMETERS. \n IMPORTANT NOTICE 1:\n with ibrav=0 lattice vectors must be given with a sufficiently large number of digits and with the correct symmetry, or else symmetry detection may fail and strange problems may arise in symmetrization.\n IMPORTANT NOTICE 2:\n do not use celldm(1) or A as a.u. to Ang conversion factor, use the true lattice parameters or nothing, specify units in CELL_PARAMETERS and ATOMIC_POSITIONS."},
+      {"id":"celldm","label":"celldm(i), i=1,6","type":"array","ncols":2,colNames:["Cell","Crystal len"],"default":null,"required":false,"desc":"Crystallographic constants - see the ibrav variable.\nSpecify either these OR A, B, C, cosAB, cosBC, cosAC NOT both.\nOnly needed values (depending on \"ibrav\") must be specified\nalat = celldm(1) is the lattice parameter \"a\" (in BOHR)\n If ibrav ==0, only celldm(1) is used if present;\ncell vectors are read from card CELL_PARAMETERS"},
+      {"id":"nat","type":"integer","default":null,"required":true,"desc":"number of atoms in the unit cell (ALL atoms, except if\nspace_group is set, in which case, INEQUIVALENT atoms)"},
+      {"id":"ntyp","type":"integer","default":null,"required":true,"desc":"number of types of atoms in the unit cell"},
+      {"id":"nbnd","type":"integer","default":null,"required":false,"desc":"Number of electronic states (bands) to be calculated.\nNote that in spin-polarized calculations the number of\nk-point, not the number of bands per k-point, is doubled"},
+      {"id":"nbnd_cond","type":"integer","default":null,"required":false,"desc":"Number of electronic states in the conduction manifold\nfor a two chemical-potential calculation (twochem=.true.)."},
+      {"id":"tot_charge","type":"real","default":0.0,"required":false,"desc":"Total charge of the system. Useful for simulations with charged cells.\nBy default the unit cell is assumed to be neutral (tot_charge=0).\ntot_charge=+1 means one electron missing from the system,\ntot_charge=-1 means one additional electron, and so on.\n\nIn a periodic calculation a compensating jellium background is\ninserted to remove divergences if the cell is not neutral."},
+      {"id":"starting_charge","label":"starting_charge(i), i=1,ntyp","type":"real","default":0.0,"required":false,"desc":"starting charge on atomic type 'i',\nto create starting potential with startingpot = 'atomic'."},
+      {"id":"tot_magnetization","type":"real","default":null,"required":false,"desc":"Total majority spin charge - minority spin charge.\nUsed to impose a specific total electronic magnetization.\nIf unspecified then tot_magnetization variable is ignored and\nthe amount of electronic magnetization is determined during\nthe self-consistent cycle."},
+      {"id":"starting_magnetization","label":"starting_magnetization(i), i=1,ntyp","type":"real","default":0,"required":false,"desc":"Starting spin polarization on atomic type 'i' in a spin-polarized\n(LSDA or non-collinear/spin-orbit) calculation.\nThe input values can have an absolute value greater than or equal to 1,\nwhich will be interpreted as the site's magnetic moment.\nAlternatively, the values can range between -1 and 1,\nwhich will be interpreted as the site magnetization per valence electron.\nFor QE-v7.2 and older versions, only the second option is allowed.\n\nIf you expect a nonzero magnetization in your ground state,\n you MUST either specify a nonzero value for at least one\n atomic type, or constrain the magnetization using variable:\n tot_magnetization for LSDA, constrained_magnetization for noncollinear/spin-orbit calculations. If you don't,\n you will get a nonmagnetic (zero magnetization) state.\nIn order to perform LSDA calculations for an antiferromagnetic\n state, define two different atomic species corresponding to\n sublattices of the same atomic type."},
+      {"id":"ecutwfc","type":"real","default":null,"required":true,"desc":"kinetic energy cutoff (Ry) for wavefunctions"},
+      {"id":"ecutrho","type":"real","default":null,"required":false,"desc":"Kinetic energy cutoff (Ry) for charge density and potential\nFor norm-conserving pseudopotential you should stick to the\ndefault value, you can reduce it by a little but it will\nintroduce noise especially on forces and stress.\nIf there are ultrasoft PP, a larger value than the default is\noften desirable (ecutrho = 8 to 12 times ecutwfc, typically).\nPAW datasets can often be used at 4*ecutwfc, but it depend on the shape of augmentation charge: testing is mandatory.\nThe use of gradient-corrected functional, especially in cells\nwith vacuum, or for pseudopotential without non-linear core\ncorrection, usually requires an higher values of ecutrho\nto be accurately converged."},
+      {"id":"ecutfock","type":"real","default":null,"required":false,"desc":"Kinetic energy cutoff (Ry) for the exact exchange operator in\nEXX type calculations. By default this is the same as ecutrho.\n\nbut in some EXX calculations, a significant speed-up can be obtained by reducing ecutfock, at the expense of some loss in accuracy.\nMust be .gt. ecutwfc.\n Not implemented for stress calculation and for US-PP and PAW pseudopotentials.\nUse with care, especially in metals where it may give raise\nto instabilities."},
+      {"id":"nr",label:"Three-dimensional FFT mesh (hard grid)","type":"array","ncols":3,"colNames":["nr1","nr2","nr3"],"default":null,"required":false,"desc":"Three-dimensional FFT mesh (hard grid) for charge density (and scf potential). If not specified the grid is calculated based on the cutoff for charge density (see also ecutrho)\n Note: you must specify all three dimensions for this setting to be used."},
+	  {"id":"nrs",label:"Three-dimensional FFT mesh (smooth grid)","type":"array","ncols":3,"colNames":["nr1s","nr2s","nr3s"],"default":null,"required":false,"desc":"Three-dimensional mesh for wavefunction FFT and for the smooth part of charge density ( smooth grid ). Coincides with nr1, nr2, nr3 if ecutrho = 4 * ecutwfc ( default )\n Note: you must specify all three dimensions for this setting to be used."},
+	  {"id":"nosym","type":"bool","default":false,"required":false,"desc":"if (.TRUE.) symmetry is not used. Consequences:\n\n- if a list of k points is provided in input, it is used\n \"as is\": symmetry-inequivalent k-points are not generated,\n and the charge density is not symmetrized;\n\n- if a uniform (Monkhorst-Pack) k-point grid is provided in\n input, it is expanded to cover the entire Brillouin Zone,\n irrespective of the crystal symmetry.\n Time reversal symmetry is assumed so k and -k are considered\n as equivalent unless noinv=.true. is specified.\n\nDo not use this option unless you know exactly what you want\nand what you get. May be useful in the following cases:\n- in low-symmetry large cells, if you cannot afford a k-point\n grid with the correct symmetry\n- in MD simulations\n- in calculations for isolated atoms"},
+      {"id":"nosym_evc","type":"bool","default":false,"required":false,"desc":"if (.TRUE.) symmetry is not used, and k points are\nforced to have the symmetry of the Bravais lattice;\nan automatically generated Monkhorst-Pack grid will contain\nall points of the grid over the entire Brillouin Zone,\nplus the points rotated by the symmetries of the Bravais\nlattice which were not in the original grid. \n\n The same applies if a k-point list is provided in input instead of a Monkhorst-Pack grid.\n Time reversal symmetry is assumed so k and -k are equivalent unless noinv =.true. is specified.\nThis option differs from nosym because it forces k-points\nin all cases to have the full symmetry of the Bravais lattice\n(not all uniform grids have such property!)"},
+      {"id":"noinv","type":"bool","default":false,"required":false,"desc":"if (.TRUE.) disable the usage of k => -k symmetry\n(time reversal) in k-point generation"},
+      {"id":"no_t_rev","type":"bool","default":false,"required":false,"desc":"if (.TRUE.) disable the usage of magnetic symmetry operations\nthat consist in a rotation + time reversal."},
+      {"id":"force_symmorphic","type":"bool","default":false,"required":false,"desc":"if (.TRUE.) force the symmetry group to be symmorphic by disabling symmetry operations having an associated fractionary translation"},
+      {"id":"use_all_frac","type":"bool","default":false,"required":false,"desc":"if (.FALSE.) force real-space FFT grids to be commensurate with\nfractionary translations of non-symmorphic symmetry operations,\nif present (e.g.: if a fractional translation (0,0,c/4) exists,\nthe FFT dimension along the c axis must be multiple of 4).\n\nif (.TRUE.) do not impose any constraints to FFT grids, even in\nthe presence of non-symmorphic symmetry operations.\nBEWARE: use_all_frac=.TRUE. may lead to wrong results for\nhybrid functionals and phonon calculations.\n\n Both cases use symmetrization in real space that works for non-symmorphic\noperations only if the real-space FFT grids are commensurate."},
+      {"id":"occupations","type":"select","options":["smearing", "tetrahedra", "tetrahedra_lin", "tetrahedra_opt", "fixed", "from_input"],"default":null,"required":false,"desc":"Available options are:\n \n -'smearing': gaussian smearing for metals; see variables smearing and degauss\n\n -'tetrahedra': Tetrahedron method, Bloechl's version: P.E. Bloechl, PRB 49, 16223 (1994)\n Requires uniform grid of k-points, to be automatically generated (see card K_POINTS).\nWell suited for calculation of DOS, less so (because not variational) for \nforce/optimization/dynamics calculations. \n\n -'tetrahedra_lin': Original linear tetrahedron method.\nTo be used only as a reference;\nthe optimized tetrahedron method is more efficient. \n\n -'tetrahedra_opt': Optimized tetrahedron method: see M. Kawamura, PRB 89, 094515 (2014).\n Can be used for phonon calculations as well. \n\n -'fixed': for insulators with a gap \n\n -'from_input': The occupation are read from input file,card OCCUPATIONS.\n Option valid only for a single k-point, requires nbnd to be set in input. Occupations should be consistent\nwith the value of tot_charge."},
+      {"id":"one_atom_occupations","type":"bool","default":false,"required":false,"desc":"This flag is used for isolated atoms (nat=1) together with occupations ='from_input'.\n If it is .TRUE., the wavefunctions are ordered as the atomic starting wavefunctions, independently from their eigenvalue. The occupations indicate which atomic states are filled.\n\nThe order of the states is written inside the UPF pseudopotential file.\nIn the scalar relativistic case:\nS -> l=0, m=0\nP -> l=1, z, x, y\nD -> l=2, r^2-3z^2, xz, yz, xy, x^2-y^2\n\nIn the noncollinear magnetic case (with or without spin-orbit), each group of states is doubled. For instance:\nP -> l=1, z, x, y for spin up, l=1, z, x, y for spin down.\nUp and down is relative to the direction of the starting magnetization.\n\nIn the case with spin-orbit and time-reversal \n(starting_magnetization=0.0) the atomic wavefunctions are radial functions multiplied by spin-angle functions.\nFor instance:\nP -> l=1, j=1/2, m_j=-1/2,1/2. l=1, j=3/2,\n m_j=-3/2, -1/2, 1/2, 3/2.\n\nIn the magnetic case with spin-orbit the atomic wavefunctions can be forced to be spin-angle \
+      starting_spin_angle to .TRUE.."},
+      {"id":"starting_spin_angle","type":"bool","default":false,"required":false,"desc":"In the spin-orbit case when domag=.TRUE., by default, the starting wavefunctions are initialized as in scalar relativistic noncollinear case without spin-orbit.\n\nBy setting starting_spin_angle=.TRUE. this behaviour can be changed and the initial wavefunctions are radial functions multiplied by spin-angle functions.\n\nWhen domag =.FALSE. the initial wavefunctions are always radial functions multiplied by spin-angle functions independently from this flag.\n\nWhen lspinorb is .FALSE. this flag is not used."},
+      {"id":"degauss_cond","type":"real","default":null,"required":false,"desc":"value of the gaussian spreading (Ry) for brillouin-zone\nintegration in the conduction manifold in a two-chemical potential calculation (twochem=.true.)."},
+      {"id":"nelec_cond","type":"real","default":0.0,"required":false,"desc":"Number of electrons placed in the conduction manifold in a two-chemical potential calculation ( twochem =.true.). Of the total # of electrons nelec, nelec-nelec_cond will occupy the valence manifold and nelec_cond will be constrained in the conduction manifold."},
+      {"id":"degauss","type":"real","default":null,"required":false,"desc":"value of the gaussian spreading (Ry) for brillouin-zone integration in metals."},
+      {"id":"smearing","type":"select","options":["gaussian", "gauss", "methfessel-paxton", "m-p", "mp", "marzari-vanderbilt", "cold", "m-v", "mv", "fermi-dirac", "f-d", "fd"],"default":"gaussian","required":false,"desc":"Available options are: \n\n'gaussian','gauss'\n :ordinary Gaussian spreading (Default) \n\n'methfessel-paxton','m-p','mp' :\n Methfessel-Paxton first-order spreading\n(see PRB 40, 3616 (1989)). \n\n'marzari-vanderbilt', 'cold', 'm-v', 'mv' :\nMarzari-Vanderbilt-DeVita-Payne cold smearing\n(see PRL 82, 3296 (1999)) \n\n'fermi-dirac', 'f-d', 'fd' :\nsmearing with Fermi-Dirac function"},
+      {"id":"nspin","type":"integer","default":1,"required":false,"desc":"nspin = 1 : non-polarized calculation (default)\n\nnspin = 2 : spin-polarized calculation, LSDA\n (magnetization along z axis)\n\nnspin = 4 : spin-polarized calculation, noncollinear\n (magnetization in generic direction)\n DO NOT specify nspin in this case; specify noncolin =.TRUE. instead"},
+      {"id":"sic_gamma","type":"real","default":0,"required":false,"desc":"Strength of the gammaDFT potential."},
+      {"id":"pol_type","type":"select","options":["e", "h"],"default":null,"required":false,"desc":"Type of polaron in gammaDFT. \n\n'e': electron polaron \n\n'h': hole polaron"},
+      {"id":"sic_energy","type":"bool","default":false,"required":false,"desc":"Enable the calculation of the total energy in gammaDFT. When .true.,a preliminary calculation is performed to calculate the electron density in the absence of the polaron. When .false., the total energy printed in output should not be considered. For structural relaxations, it is recommended to use .false. to avoid doubling the computational cost."},
+      {"id":"sci_vb","type":"real","default":0,"required":false,"desc":"Valence band shift (in eV) through self-consistent\nscissor operator. When performing gammaDFT calculations\nof polarons, the polaron level is not shifted."},
+      {"id":"sci_cb","type":"real","default":0,"required":false,"desc":"Conduction band band shift (in eV) through self-consistent\n scissor operator. When performing gammaDFT calculations\nof polarons, the polaron level is not shifted."},
+      {"id":"noncolin","type":"bool","default":false,"required":false,"desc":"if .true. the program will perform a noncollinear calculation."},
+      {"id":"ecfixed","type":"real","default":0.0,"required":false,"desc":""},
+      {"id":"qcutz","type":"real","default":0.0,"required":false,"desc":""},
+      {"id":"q2sigma","type":"real","default":0.1,"required":false,"desc":"ecfixed, qcutz, q2sigma: parameters for modified functional to be\nused in variable-cell molecular dynamics (or in stress calculation).\n\n\"ecfixed\" is the value (in Rydberg) of the constant-cutoff;\n\n \"qcutz\" and \"q2sigma\" are the height and the width (in Rydberg)\nof the energy step for reciprocal vectors whose square modulus\nis greater than \"ecfixed\". In the kinetic energy, G^2 is\nreplaced by G^2 + qcutz * (1 + erf ( (G^2 - ecfixed)/q2sigma) )\nSee: M. Bernasconi et al, J. Phys. Chem. Solids 56, 501 (1995),\n\ndoi:10.1016/0022-3697(94)00228-2"},
+      {"id":"input_dft","type":"string","default":"","required":false,"desc":"Exchange-correlation functional: eg 'PBE', 'BLYP' etc\nSee Modules/funct.f90 for allowed values. Default is to read from pseudopotential files\nOverrides the value read from pseudopotential files.\nUse with care and if you know what you are doing!"},
+      {"id":"ace","type":"bool","default":true,"required":false,"desc":"Use Adaptively Compressed Exchange operator as in\nLin Lin, J. Chem. Theory Comput. 2016, 12, 2242--2249, \ndoi:10.1021/acs.jctc.6b00092\n\nSet to false to use standard Exchange (much slower)"},
+      {"id":"exx_fraction","type":"real","default":null,"required":false,"desc":"Fraction of EXX for hybrid functional calculations.\n In the case of input_dft ='PBE0', the default value is 0.25, while for \ninput_dft ='B3LYP' the exx_fraction default value is 0.20."},
+      {"id":"screening_parameter","type":"real","default":0.106,"required":false,"desc":"screening_parameter for HSE like hybrid functionals.\nFor more information, see:\nJ. Chem. Phys. 118, 8207 (2003), \ndoi:10.1063/1.1564060\n\nJ. Chem. Phys. 124, 219906 (2006), \ndoi:10.1063/1.2204597"},
+      {"id":"exxdiv_treatment","type":"select","options":["gygi-baldereschi", "vcut_spherical", "vcut_ws", "none"],"default":"gygi-baldereschi","required":false,"desc":"Specific for EXX. It selects the kind of approach to be used\nfor treating the Coulomb potential divergencies at small q vectors. \n\n'gygi-baldereschi': appropriate for cubic and quasi-cubic supercells \n\n'vcut_spherical': appropriate for cubic and quasi-cubic supercells (untested for non-orthogonal crystal axis) \n\n'vcut_ws': appropriate for strongly anisotropic supercells, see also \n ecutvcut(untested for non-orthogonal crystal axis)\n\n'none': sets Coulomb potential at G,q=0 to 0.0 (required for GAU-PBE)"},
+      {"id":"x_gamma_extrapolation","type":"bool","default":true,"required":false,"desc":"Specific for EXX. If .true., extrapolate the G=0 term of the\npotential (see README in examples/EXX_example for more)\nSet this to .false. for GAU-PBE."},
+      {"id":"ecutvcut","type":"real","default":null,"required":false,"desc":"Reciprocal space cutoff for correcting Coulomb potential\ndivergencies at small q vectors."},
+      {"id":"nqx",label:"Three-dimensional mesh for Fock sampling","type":"array","ncols":3,"colNames":["nqx1","nqx2","nqx3"],"default":null,"required":false,"desc":"Three-dimensional mesh for q (k1-k2) sampling of the Fock operator (EXX). Can be smaller than the number of k-points. Currently this defaults to the size of the k-point mesh used.\n In QE =< 5.0.2 it defaulted to nqx1=nqx2=nqx3=1."},
+	  {"id":"localization_thr","type":"real","default":0.0,"required":false,"desc":"Overlap threshold over which the exchange integral over a pair of localized orbitals is included in the evaluation of EXX operator. Any value greater than 0.0 triggers the SCDM localization and the evaluation on EXX using the localized orbitals. Very small value of the threshold should yield the same result as the default EXX evaluation"},
+      {"id":"Hubbard_occ","label":"Hubbard_occ(ityp,i), (ityp,i) = (1,1) . . . (ntyp,3)","type":"real","default":null,"required":false,"desc":"Hubbard occupations is the number of electrons in the\nHubbard manifold. By default they are initialized by\nreading the occupations from pseudopotentials. If specified\nfrom the input, then the values read from the pseudopotentials\nwill be overwritten.\nThe second index of the Hubbard_occ array corresponds to the\nHubbard manifold number. It is possible to specify up to\nthree Hubbard manifolds per Hubbard atom. However, if you want\nto specify three manifolds then the second and the third manifolds\nwill be considered as one effective manifold (see Doc/Hubbard_input.pdf)"},
+      {"id":"Hubbard_beta","label":"Hubbard_beta(i), i=1,ntyp","type":"real","default":null,"required":false,"desc":"Hubbard_beta(i) is the perturbation (on atom i, in eV)\nused to compute J0 with the linear-response method of Cococcioni and de Gironcoli, \nPRB 71, 035105 (2005) (only for DFT+U or DFT+U+V). \n See also PRB 84, 115108 (2011)\n."},
+      {"id":"starting_ns_eigenvalue","label":"starting_ns_eigenvalue(m,ispin,ityp), (m,ispin,ityp) = (1,1,1) . . . (2*lmax+1,nspin or npol,ntyp)","type":"real","default":null,"required":false,"desc":"In the first iteration of an DFT+U run it overwrites\nthe m-th eigenvalue of the ns occupation matrix for the\nispin component of atomic species ityp.\nFor the noncollinear case, the ispin index runs up to npol=2\nThe value lmax is given by the maximum angular momentum\nnumber to which the Hubbard U is applied.\nLeave unchanged eigenvalues that are not set.\nThis is useful to suggest the desired orbital occupations\nwhen the default choice takes another path."},
+      {"id":"dmft","type":"bool","default":false,"required":false,"desc":"If true, nscf calculation will exit in restart mode, scf calculation\nwill restart from there if DMFT updates are provided as hdf5 archive.\nScf calculation should be used only with electron_maxstep = 1.\n K_POINTS have to be identical and given explicitly with nosym."},
+      {"id":"dmft_prefix","type":"string","default":"prefix","required":false,"desc":"prepended to hdf5 archive: dmft_prefix.h5\n\nDMFT update should be provided in group/dataset as:\n- dft_misc_input/band_window with dimension [1, number of k-points, 2 (real + complex)]\n- dft_update/delta_N with dimension [number of k-points, number of correlated orbitals,number of correlated orbitals, 2 (real + complex)]"},
+      {"id":"ensemble_energies","type":"bool","default":false,"required":false,"desc":"If ensemble_energies = .true., an ensemble of xc energies is calculated non-selfconsistently for perturbe nexchange-enhancement factors and LDA vs. PBE correlation ratios after each converged electronic ground state calculation.\n\nEnsemble energies can be analyzed with the 'bee' utility\nincluded with libbeef. Requires linking against libbeef.\n\ninput_dft must be set to a BEEF-type functional (e.g. input_dft = 'BEEF-vdW')"},
+      {"id":"edir","type":"integer","default":null,"required":false,"desc":"The direction of the electric field or dipole correction is\nparallel to the bg(:,edir) reciprocal lattice vector, so the\npotential is constant in planes defined by FFT grid points;\n\n edir = 1, 2 or 3. Used ONLY if tefield is .TRUE."},
+      {"id":"emaxpos","type":"real","default":0.5,"required":false,"desc":"Position of the maximum of the saw-like potential along crystal axis edir, within the unit cell (see below), 0 < emaxpos < 1. \n Used ONLY if tefield is .TRUE."},
+      {"id":"eopreg","type":"real","default":0.1,"required":false,"desc":"Zone in the unit cell where the saw-like potential decreases. ( see below, 0 < eopreg < 1 ).\n Used only if tefield is .TRUE."},
+      {"id":"eamp","type":"real","default":null,"required":false,"desc":"Amplitude of the electric field, in ***Hartree*** a.u.;\n1 a.u. = 51.4220632*10^10 V/m. Used ONLY if efield ==.TRUE.  The saw-like potential increases with slope eamp in the region from\n (emaxpos+eopreg-1) to (emaxpos), then decreases \n to 0 until (emaxpos+eopreg), in units of the crystal vector edir.\n Important: the change of slope of this potential must be located in the empty region, or else unphysical forces will result."},
+      {"id":"angle1","label":"angle1(i), i=1,ntyp","type":"real","default":null,"required":false,"desc":"The angle expressed in degrees between the initial\nmagnetization and the z-axis. For noncollinear calculations\nonly; index i runs over the atom types."},
+      {"id":"angle2","label":"angle2(i), i=1,ntyp","type":"real","default":null,"required":false,"desc":"The angle expressed in degrees between the projection\nof the initial magnetization on x-y plane and the x-axis.\nFor noncollinear calculations only."},
+      {"id":"lforcet","type":"bool","default":null,"required":false,"desc":"When starting a non collinear calculation using an existing density file from a collinear lsda calculation assumes previous density points in z direction and rotates it in the direction described by angle1 and angle2 variables for atomic type 1"},
+      {"id":"constrained_magnetization","type":"select","options":["none", "total", "atomic", "total direction", "atomic direction"],"default":"none","required":false,"desc":"Used to perform constrained calculations in magnetic systems.\nCurrently available choices: \n\n'none': no constraint \n\n'total': total magnetization is constrained by adding a penalty functional to the total energy:\nLAMBDA * SUM_{i} ( magnetization(i) - fixed_magnetization(i) )**2\n where the sum over i runs over the three components of the magnetization. Lambda is a real number (see below).Noncolinear case only. Use tot_magnetization for LSDA. \n\n'atomic': atomic magnetization are constrained to the defined starting magnetization adding a penalty:\n LAMBDA * SUM_{i,itype} ( magnetic_moment(i,itype) - mcons(i,itype) )**2\n where i runs over the cartesian components (or just z in the collinear case) and itype over the types (1-ntype). mcons(:,:) array is defined from starting_magnetization, (also from angle1, angle2 in the noncollinear case). lambda is a real number \n\n'total direction': the angle theta of the total magnetization with \
+      the z axis (theta = fixed_magnetization(3)) is constrained:\n LAMBDA * ( arccos(magnetization(3)/mag_tot) - theta )**2\n where mag_tot is the modulus of the total magnetization. \n\n 'atomic direction': not all the components of the atomic magnetic moment are constrained but only the cosine of angle1, and the penalty functional is:\n LAMBDA * SUM_{itype} ( mag_mom(3,itype)/mag_mom_tot - cos(angle1(ityp)) )**2\n\n N.B.: symmetrization may prevent to reach the desired orientation of the magnetization. Try not to start with very highly symmetric configurations or use the nosym flag (only as a last remedy)."},
+      {"id":"fixed_magnetization","label":"fixed_magnetization(i), i=1,3","type":"real","default":0.0,"required":false,"desc":"total magnetization vector (x,y,z components) to be kept fixed when constrained_magnetization =='total'"},
+      {"id":"lambda","type":"real","default":1.0,"required":false,"desc":"parameter used for constrained_magnetization calculations\nN.B.: if the scf calculation does not converge, try to reduce lambda\n to obtain convergence, then restart the run with a larger lambda"},
+      {"id":"report","type":"integer","default":-1,"required":false,"desc":"determines when atomic magnetic moments are printed on output:\n\nreport = 0: never\n\n report =-1: at the beginning of the scf and at convergence\n \nreport = N: as -1, plus every N scf iterations"},
+      {"id":"lspinorb","type":"bool","default":null,"required":false,"desc":"if .TRUE. the noncollinear code can use a pseudopotential with\nspin-orbit."},
+      {"id":"assume_isolated","type":"select","options":["none", "makov-payne", "m-p", "mp", "martyna-tuckerman", "m-t", "mt", "esm", "2D"],"default":"none","required":false,"desc":"Used to perform calculation assuming the system to be\nisolated (a molecule or a cluster in a 3D supercell).\n\nCurrently available choices: \n\n'none': (default): regular periodic calculation w/o any correction. \n\n'makov-payne','m-p','mp': the Makov-Payne correction to the total energy is computed. An estimate of the vacuum level is also calculated so that eigenvalues can be properly aligned. ONLY FOR CUBIC SYSTEMS (ibrav=1,2,3).\nTheory: G.Makov, and M.C.Payne,\n \"Periodic boundary conditions in ab initio calculations\" , \nPRB 51, 4014 (1995)\n. \n\n'martyna-tuckerman','m-t','mt': Martyna-Tuckerman correction to both total energy and scf potential. Adapted from:\nG.J. Martyna, and M.E. Tuckerman,\n\"A reciprocal space based method for treating long range interactions in ab-initio and force-field-based calculation in clusters\", J. Chem. Phys. 110, 2810 (1999),\ndoi:10.1063/1.477923. \n\n'esm': Effective Screening Medium Method. \
+      For polarized or charged slab calculation, embeds the simulation cell within an effective semi-infinite medium in the perpendicular direction (along z). Embedding regions can be vacuum or semi-infinite metal electrodes (use esm_bc to choose boundary conditions). If between two electrodes, an optional electric field (esm_efield) may be applied. Method described in M. Otani and O. Sugino, \"First-principles calculations of charged surfaces and interfaces: A plane-wave nonrepeated slab approach\", PRB 73, 115407 (2006) \n\n NB: - Two dimensional (xy plane) average charge density and electrostatic potentials are printed out to 'prefix.esm1' \n -Requires cell with a_3 lattice vector along z, normal to the xy plane, with the slab centered around z=0.\n - For bc2 with an electric field and bc3 boundary conditions, the inversion symmetry along z-direction is automatically eliminated. \n In case of calculation='vc-relax', use cell_dofree='2Dxy' or other parameters so that c-vector along z-axis should not be moved. See esm_bc, esm_efield, esm_w, esm_nfit. \n\n \
+      '2D': Truncation of the Coulomb interaction in the z direction for structures periodic in the x-y plane. Total energy, forces and stresses are computed in a two-dimensional framework. Linear-response calculations () done on top of a self-consistent calculation with this flag will automatically be performed in the 2D framework as well. Please refer to: Sohier, T., Calandra, M., & Mauri, F. (2017), \"Density functional perturbation theory for gated two-dimensional heterostructures: Theoretical developments and application to flexural phonons in graphene \", PRB, 96, 075448 (2017).\n\n NB: - The length of the unit-cell along the z direction should be larger than twice the thickness of the 2D material (including electrons). A reasonable estimate for a layer's thickness could be the interlayer distance in the corresponding layered bulk material. Otherwise, the atomic thickness + 10 bohr should be a safe estimate. There is also a lower limit of 20 bohr imposed by the cutoff radius used to read pseudopotentials (see read_pseudo.f90 in Modules).\n - As for ESM above, only in-plane stresses make sense and one should use cell_dofree= '2Dxy' in a vc-relax calculation."},
+      {"id":"esm_bc","type":"select","options":["pbc", "bc1", "bc2", "bc3"],"default":"pbc","required":false,"desc":"If assume_isolated == 'esm', determines the boundary\nconditions used for either side of the slab.\nCurrently available choices: \n\n'pbc': (default): regular periodic calculation (no ESM). \n\n'bc1': Vacuum-slab-vacuum (open boundary conditions).\n\n'bc2': Metal-slab-metal (dual electrode configuration). See also esm_efield. \n\n'bc3': Vacuum-slab-metal"},
+      {"id":"esm_w","type":"real","default":0.0,"required":false,"desc":"If assume_isolated == 'esm', determines the position offset\n[in a.u.] of the start of the effective screening region,\nmeasured relative to the cell edge. (ESM region begins at\nz = +/- [L_z/2 + esm_w] )."},
+      {"id":"esm_efield","type":"real","default":0.0,"required":false,"desc":"If assume_isolated == 'esm' and esm_bc == 'bc2', gives the magnitude of the electric field [Ry/a.u.] to be applied between semi-infinite ESM electrodes."},
+      {"id":"esm_nfit","type":"integer","default":4,"required":false,"desc":"If assume_isolated == 'esm', gives the number of z-grid points or the polynomial fit along the cell edge."},
+      {"id":"lgcscf","type":"bool","default":false,"required":false,"desc":"If .TRUE. perform a constant bias potential (constant-mu) calculation with Grand-Canonical SCF. (JCP 146, 114104 (2017), R.Sundararaman, et al.)\n\nNB:- The total energy displayed in output includes the potentiostat contribution (-mu*N).\n-assume_isolated = 'esm' and esm_bc = 'bc2' or 'bc3' must be set in SYSTEM namelist.\n- ESM-RISM is also supported (assume_isolated = 'esm' and esm_bc = 'bc1' and trism = .TRUE.).\n- mixing_mode has to be 'TF' or 'local-TF', also its default is 'TF.'\n- The default of mixing_beta is 0.1 with ESM-RISM, 0.2 without ESM-RISM.\n- The default of diago_thr_init is 1.D-5.\n- diago_full_acc is always .TRUE. .\n- diago_rmm_conv is always .TRUE. ."},
+      {"id":"gcscf_mu","type":"real","default":null,"required":true,"desc":"The target Fermi energy (eV) of GC-SCF. One can start\nwith appropriate total charge of the system by giving \ntot_charge."},
+      {"id":"gcscf_conv_thr","type":"real","default":0.01,"required":false,"desc":"Convergence threshold of Fermi energy (eV) for GC-SCF."},
+      {"id":"gcscf_beta","type":"real","default":0.05,"required":false,"desc":"Mixing factor for GC-SCF.\nLarger values are recommended, if systems with small DOS on Fermi surface as graphite."},
+      {"id":"vdw_corr","type":"select","options":["grimme-d2", "Grimme-D2", "DFT-D", "dft-d", "grimme-d3", "Grimme-D3", "DFT-D3", "dft-d3", "TS", "ts", "ts-vdw", "ts-vdW", "tkatchenko-scheffler", "MBD", "mbd", "many-body-dispersion", "mbd_vdw", "XDM", "xdm"],"default":"none","required":false,"desc":"Type of the van der Waals correction. Allowed values: \n\n'grimme-d2','Grimme-D2','DFT-D','dft-d':\nSemiempirical Grimme's DFT-D2. Optional variables:\nlondon_s6, london_rcut, london_c6, london_rvdw\nS. Grimme, J. Comp. Chem. 27, 1787 (2006),doi:10.1002/jcc.20495\nV. Barone et al., J. Comp. Chem. 30, 934 (2009),doi:10.1002/jcc.21112 \n\n'grimme-d3','Grimme-D3','DFT-D3','dft-d3':\nSemiempirical Grimme's DFT-D3. Optional variables:\ndftd3_version,dftd3_threebody\nS. Grimme et al, J. Chem. Phys 132, 154104 (2010), doi:10.1063/1.3382344 \n\n'TS','ts','ts-vdw','ts-vdW','tkatchenko-scheffler':\nTkatchenko-Scheffler dispersion corrections with first-principle derived C6 coefficients.\nOptional variables: ts_vdw_econv_thr, ts_vdw_isolated\nSee A. Tkatchenko and M. Scheffler,PRL 102, 073005 (2009).\n J. Hermann et al., J. Chem. Phys. 159, 174802 (2023),doi:10.1063/5.0170972 \n\n'MBD','mbd','many-body-dispersion','mbd_vdw':\n \
+      Semiempirical Grimme's DFT-D3. Optional variables:\n Optional variables: ts_vdw_isolated \n A. Ambrosetti et al., J. Chem. Phys. 140, 18A508 (2014), doi:10.1063/1.4865104 \n J. Hermann et al., J. Chem. Phys. 159, 174802 (2023), doi:10.1063/5.0170972 \n\n 'XDM', 'xdm':\n Exchange-hole dipole-moment model. Optional variables: xdm_a1, xdm_a2 \n A. D. Becke et al., J. Chem. Phys. 127, 154108 (2007), doi:10.1063/1.2795701 \n A. Otero de la Roza et al., J. Chem. Phys. 136, 174109 (2012), doi:10.1063/1.4705760\n\n Note that non-local functionals (eg vdw-DF) are NOT specified here but in input_dft"},
+      {"id":"london","type":"bool","default":false,"required":false,"desc":""},
+      {"id":"london_s6","type":"real","default":0.75,"required":false,"desc":"global scaling parameter for DFT-D. Default is good for PBE."},
+      {"id":"london_c6","label":"london_c6(i), i=1,ntyp","type":"real","default":null,"required":false,"desc":"atomic C6 coefficient of each atom type\n\n( if not specified default values from S. Grimme, J. Comp. Chem. 27, 1787 (2006),doi:10.1002/jcc.20495 are used; see file Modules/mm_dispersion.f90 )"},
+      {"id":"london_rvdw","label":"london_rvdw(i), i=1,ntyp","type":"real","default":null,"required":false,"desc":"atomic vdw radii of each atom type\n\n(if not specified default values from S. Grimme, J. Comp. Chem. 27, 1787 (2006), doi:10.1002/jcc.20495 are used; see file Modules/mm_dispersion.f90 )"},
+      {"id":"london_rcut","type":"real","default":200,"required":false,"desc":"cutoff radius (a.u.) for dispersion interactions"},
+      {"id":"dftd3_version","type":"select","options":["dftd3_version = 2", "dftd3_version = 3", "dftd3_version = 4", "dftd3_version = 5", "dftd3_version = 6"],"default":"dftd3_version = 3","required":false,"desc":"Version of Grimme implementation of Grimme-D3: \n\ndftd3_version = 2:\nOriginal Grimme-D2 parametrization \n\ndftd3_version = 3:\nGrimme-D3 (zero damping) \n\ndftd3_version = 4:\nGrimme-D3 (BJ damping)\n\ndftd3_version = 5:\nGrimme-D3M (zero damping) \n\ndftd3_version = 6:\nGrimme-D3M (BJ damping) \n\nNOTE: not all functionals are parametrized."},
+      {"id":"dftd3_threebody","type":"bool","default":true,"required":false,"desc":"Turn three-body terms in Grimme-D3 on. \n If .false. two-body contributions only are computed, using two-body parameters of Grimme-D3.\nIf dftd3_version=2, three-body contribution is always disabled."},
+      {"id":"ts_vdw_econv_thr","type":"real","default":1e-06,"required":false,"desc":"Optional: controls the convergence of the vdW energy (and forces). The default value is a safe choice, likely too safe, but you do not gain much in increasing it"},
+      {"id":"ts_vdw_isolated","type":"bool","default":false,"required":false,"desc":"Optional: set it to .TRUE. when computing the Tkatchenko-Scheffler vdW energy or the Many-Body dispersion (MBD) energy for an isolated (non-periodic) system."},
+      {"id":"xdm","type":"bool","default":false,"required":false,"desc":""},
+      {"id":"xdm_a1","type":"real","default":0.6836,"required":false,"desc":"Damping function parameter a1 (adimensional). It is NOT necessary to give a value if the functional is one of B86bPBE, PW86PBE, PBE, BLYP.\n For functionals in this list, the coefficients are given in:\n\nhttps://github.com/aoterodelaroza/postg/blob/master/xdm.param\n or \nhttps://erin-r-johnson.github.io/software/\n\n A. Otero de la Roza, E. R. Johnson, J. Chem. Phys. 138, 204109 (2013),doi:10.1063/1.4705760"},
+      {"id":"xdm_a2","type":"real","default":1.5045,"required":false,"desc":"Damping function parameter a2 (angstrom). It is NOT necessary to give a value if the functional is one of B86bPBE, PW86PBE, PBE, BLYP.\n For functionals in this list, the coefficients are given in:\n\nhttps://github.com/aoterodelaroza/postg/blob/master/xdm.param\n or \nhttps://erin-r-johnson.github.io/software/\n\n A. Otero de la Roza, E. R. Johnson, J. Chem. Phys. 138, 204109 (2013),doi:10.1063/1.4705760"},
+      {"id":"space_group","type":"integer","default":0,"required":false,"desc":"The number of the space group of the crystal, as given\nin the International Tables of Crystallography A (ITA).\nThis allows to give in input only the inequivalent atomic\npositions. The positions of all the symmetry equivalent atoms\nare calculated by the code. Used only when the atomic positions\nare of type crystal_sg. \n See also uniqueb, origin_choice, rhombohedral"},
+      {"id":"uniqueb","type":"bool","default":false,"required":false,"desc":"Used only for monoclinic lattices.\n If .TRUE. the b unique ibrav (-12 or -13) are used, and symmetry equivalent positions are chosen assuming that the twofold axis or the mirror normal is parallel to the b axis.\n If .FALSE. it is parallel to the c axis."},
+      {"id":"origin_choice","type":"integer","default":1,"required":false,"desc":"Used only for space groups that in the ITA allow the use of two different origins. \norigin_choice =1, means the first origin, while origin_choice =2 is the second origin."},
+      {"id":"rhombohedral","type":"bool","default":true,"required":false,"desc":"Used only for rhombohedral space groups.\nWhen .TRUE. the coordinates of the inequivalent atoms are\ngiven with respect to the rhombohedral axes, when .FALSE.\nthe coordinates of the inequivalent atoms are given with\nrespect to the hexagonal axes. \n They are converted internally to the rhombohedral axes and ibrav =5 is used in both cases."},
+      {"id":"zgate","type":"real","default":0.5,"required":false,"desc":"used only if gate = .TRUE.\nSpecifies the position of the charged plate which represents the counter charge in doped systems (tot_charge .ne. 0).\nIn units of the unit cell length in z direction, zgate in ]0,1[\nDetails of the gate potential can be found in T. Brumme, M. Calandra, F. Mauri; PRB 89, 245406 (2014)."},
+      {"id":"relaxz","type":"bool","default":false,"required":false,"desc":"used only if gate = .TRUE.\nAllows the relaxation of the system towards the charged plate. Use carefully and utilize either a layer of fixed atoms or a potential barrier (block =.TRUE.) to avoid the atoms moving to the position of the plate or the dipole of the dipole correction (dipfield=.TRUE.)."},
+      {"id":"block","type":"bool","default":false,"required":false,"desc":"used only if gate = .TRUE.\nAdds a potential barrier to the total potential seen by the electrons to mimic a dielectric in field effect configuration and/or to avoid electrons spilling into the vacuum region for electron doping. Potential barrier is from block_1 to block_2 and has a height of block_height.\n If dipfield = .TRUE. then eopreg is used for a smooth increase and decrease of the potential barrier."},
+      {"id":"block_1","type":"real","default":0.45,"required":false,"desc":"used only if gate = .TRUE. and block = .TRUE.\nlower beginning of the potential barrier, in units of the unit cell size along z, block_1 in ]0,1["},
+      {"id":"block_2","type":"real","default":0.55,"required":false,"desc":"used only if gate = .TRUE. and block = .TRUE.\nupper beginning of the potential barrier, in units of the unit cell size along z, block_2 in ]0,1["},
+      {"id":"block_height","type":"real","default":0.1,"required":false,"desc":"used only if gate = .TRUE. and block = .TRUE.\nHeight of the potential barrier in Rydberg."},
+      {"id":"nextffield","type":"integer","default":0,"required":false,"desc":"Number of activated external ionic force fields.\nSee Doc/ExternalForceFields.tex for further explanation and parameterizations"},
+    ]
+  },	
+ {
+	id: "ELECTRONS",
+	name: "Electrons",
+    description: "Namelist ELECTRONS",
+    params: [
+      {"id":"electron_maxstep","type":"integer","default":100,"required":false,"desc":"maximum number of iterations in a scf step. If exact exchange is active,\nthis will affect the inner loops."},
+      {"id":"exx_maxstep","type":"integer","default":100,"required":false,"desc":"maximum number of outer iterations in a scf calculation with exact exchange."},
+      {"id":"scf_must_converge","type":"bool","default":true,"required":false,"desc":"If .false. do not stop molecular dynamics or ionic relaxation when electron_maxstep is reached. Use with care."},
+      {"id":"conv_thr","type":"real","default":1e-06,"required":false,"desc":"Convergence threshold for selfconsistency:\n estimated energy error < conv_thr (note that conv_thr is extensive, like the total energy).\n\nFor non-self-consistent calculations, conv_thr is used to set the default value of the threshold (ethr) for iterative diagonalization: see diago_thr_init"},
+      {"id":"adaptive_thr","type":"bool","default":null,"required":false,"desc":"If .TRUE. this turns on the use of an adaptive conv_thr for the inner scf loops when using EXX."},
+      {"id":"conv_thr_init","type":"real","default":0.001,"required":false,"desc":"When adaptive_thr = .TRUE. this is the convergence threshold used for the first scf cycle."},
+      {"id":"conv_thr_multi","type":"real","default":0.1,"required":false,"desc":"When adaptive_thr = .TRUE. the convergence threshold for each scf cycle is given by:\nmax(conv_thr, conv_thr_multi * dexx )"},
+      {"id":"mixing_mode","type":"select","options":["plain", "TF", "local-TF"],"default":"plain","required":false,"desc":"Available options are:\n'plain':\n charge density Broyden mixing\n\n'TF' :\nas above, with simple Thomas-Fermi screening (for highly homogeneous systems) \n\n'local-TF' :\nas above, with local-density-dependent TF screening(for highly inhomogeneous systems)"},
+      {"id":"mixing_beta","type":"real","default":0.7,"required":false,"desc":"mixing factor for self-consistency"},
+      {"id":"mixing_ndim","type":"integer","default":8,"required":false,"desc":"number of iterations used in mixing scheme.\nIf you are tight with memory, you may reduce it to 4 or so."},
+      {"id":"mixing_fixed_ns","type":"integer","default":0,"required":false,"desc":"For DFT+U : number of iterations with fixed ns ( ns is the atomic density appearing in the Hubbard term )."},
+      {"id":"diagonalization","type":"select","options":["david", "cg", "ppcg", "paro", "ParO", "rmm-davidson", "rmm-paro"],"default":"david","required":false,"desc":"Available options are:\n'david' :\nDavidson iterative diagonalization with overlap matrix (default). Fast, may in some rare cases fail.\n\n'cg' :\nConjugate-gradient-like band-by-band diagonalization. MUCH slower than 'david' but uses less memory and is (a little bit) more robust.\n\n'ppcg' :\nPPCG iterative diagonalization (end support on Dec 2024)\n\n'paro', 'ParO' :\nParO iterative diagonalization\n\n'rmm-davidson', 'rmm-paro' :\nRMM-DIIS iterative diagonalization.\nTo stabilize the SCF loop RMM-DIIS is alternated with calls to Davidson or ParO solvers depending on the string used.\nOther variables that can be used to tune the behavior of RMM-DIIS are: diago_rmm_ndim and diago_rmm_conv"},
+      {"id":"diago_thr_init","type":"real","default":null,"required":false,"desc":"Convergence threshold (ethr) for iterative diagonalization (the check is on eigenvalue convergence).\n\nFor scf calculations: default is 1.D-2 if starting from a superposition of atomic orbitals; 1.D-5 if starting from a charge density. During self consistency the threshold is automatically reduced (but never below 1.D-13) when approaching convergence.\n\nFor non-scf calculations: default is (conv_thr/N elec)/10."},
+      {"id":"diago_cg_maxiter","type":"integer","default":null,"required":false,"desc":"For conjugate gradient diagonalization: max number of iterations"},
+      {"id":"diago_david_ndim","type":"integer","default":2,"required":false,"desc":"For Davidson diagonalization: dimension of workspace (number of wavefunction packets, at least 2 needed). A larger value may yield a smaller number of iterations in the algorithm but uses more memory and more CPU time in subspace diagonalization (cdiaghg/rdiaghg). You may try diago_david_ndim=4 if you are not tight on memory\nand if the time spent in subspace diagonalization is small compared to the time spent in h_psi"},
+      {"id":"diago_rmm_ndim","type":"integer","default":4,"required":false,"desc":"For RMM-DIIS diagonalization: dimension of workspace\n(number of wavefunction packets, at least 2 needed)."},
+      {"id":"diago_rmm_conv","type":"bool","default":false,"required":false,"desc":"If .TRUE., RMM-DIIS is performed up to converge.\nIf .FALSE., RMM-DIIS is performed only once."},
+      {"id":"diago_gs_nblock","type":"integer","default":16,"required":false,"desc":"For RMM-DIIS diagonalization:\nblocking size of Gram-Schmidt orthogonalization"},
+      {"id":"diago_full_acc","type":"bool","default":false,"required":false,"desc":"If .TRUE. all the empty states are diagonalized at the same level\nof accuracy of the occupied ones. Otherwise the empty states are\ndiagonalized using a larger threshold (this should not affect\ntotal energy, forces, and other ground-state properties)."},
+      {"id":"efield","type":"real","default":0.0,"required":false,"desc":"Amplitude of the finite electric field (in Ry a.u.; 1 a.u. = 36.3609*10^10 V/m). Used only if lelfield ==.TRUE. and if k-points (K_POINTS card) are not automatic."},
+      {"id":"efield_cart","label":"efield_cart(i), i=1,3","type":"array","ncols":3,"colNames":["efx","efy","efz"],"default":[[0.0,0.0,0.0]],"required":false,"desc":"Finite electric field (in Ry a.u.=36.3609*10^10 V/m) in cartesian axis. Used only if lelfield ==.TRUE. and if k-points (K_POINTS card) are automatic."},
+      {"id":"efield_phase","type":"select","options":["read", "write", "none"],"default":"none","required":false,"desc":"Available options are:\n'read' :\nset the zero of the electronic polarization (with lelfield ==.true.) to the result of a previous calculation\n\n'write' :\nwrite on disk data on electronic polarization to be read in another calculation\n\n'none' :\nnone of the above points"},
+      {"id":"startingpot","type":"select","options":["atomic", "file"],"default":null,"required":false,"desc":"Available options are:\n'atomic' :\nstarting potential from atomic charge superposition (default for scf, *relax, *md)\n\n'file' :\nstart from existing \"charge-density.xml\" file in the directory specified by variables prefix and outdir\nFor nscf and bands calculation this is the default and the only sensible possibility."},
+      {"id":"startingwfc","type":"select","options":["atomic", "atomic+random", "random", "file"],"default":"atomic+random","required":false,"desc":"Available options are:\n'atomic' :\nStart from superposition of atomic orbitals.\nIf not enough atomic orbitals are available, fill with random numbers the remaining wfcs\nThe scf typically starts better with this option, but in some high-symmetry cases one can \"lose\" valence states, ending up in the wrong ground state.\n\n'atomic+random' :\nAs above, plus a superimposed \"randomization\" of atomic orbitals. Prevents the \"loss\" of states mentioned above.\n\n'random' :\nStart from random wfcs. Slower start of scf but safe.\nIt may also reduce memory usage in conjunction with diagonalization='cg'.\n\n'file' :\nStart from an existing wavefunction file in the directory specified by variables prefix and outdir."},
+      {"id":"tqr","type":"bool","default":false,"required":false,"desc":"If .true., use a real-space algorithm for augmentation charges of ultrasoft pseudopotentials and PAWsets.\nFaster but numerically less accurate than the default G-space algorithm. Use with care and after testing!"},
+      {"id":"real_space","type":"bool","default":false,"required":false,"desc":"If .true., exploit real-space localization to compute matrix elements for nonlocal projectors. Faster and in principle better scaling than the default G-space algorithm, but numerically less accurate, may lead to some loss of translational invariance. Use with care and after testing!"},
+    ]
+  },
+ {
+	id:   "IONS",
+	name:"Ions",
+    description: "REQUIRED if calculation == 'relax', 'md', 'vc-hrelax', or 'vc-md' OPTIONAL for calculation == 'scf' (only ion_positions is used)",
+    params: [
+      {"id":"ion_positions","type":"select","options":["default", "from_input"],"default":"default","required":false,"desc":"Available options are: \n\n'default' :\nif restarting, use atomic positions read from therestart file; in all other cases, use atomic positions from standard input.\n\n'from_input':\nread atomic positions from standard input, even if restarting."},
+      {"id":"ion_velocities","type":"select","options":["default", "from_input"],"default":"default","required":false,"desc":"Initial ionic velocities. Available options are:\n'default' :\nstart a new simulation from random thermalized\ndistribution of velocities if tempw is set, with zero velocities otherwise; restart from atomic velocities read from the restart file\n\n'from_input' :\nstart or continue the simulation with atomic velocities read from standard input - see card ATOMIC_VELOCITIES"},
+      {"id":"ion_dynamics","type":"select","options":["bfgs", "damp", "fire", "verlet", "velocity-verlet", "langevin", "langevin-smc", "beeman"],"default":null,"required":false,"desc":"Specify the type of ionic dynamics.\n\nFor different type of calculation different possibilities are allowed and different default values apply:\n------------------CASE (calculation == 'relax' )\n\n'bfgs' :\n(default) use BFGS quasi-newton algorithm, based on the trust radius procedure, for structural relaxation\n\n'damp' :\nuse damped (quick-min Verlet) dynamics for structural relaxation\nCan be used for constrained optimisation: see CONSTRAINTS card\n\n'fire' :\nuse the FIRE minimization algorithm employing the semi-implicit Euler integration scheme see:\n Bitzek et al.,PRL, 97, 170201, (2006), doi: 10.1103/PhysRevLett.97.170201\n Guenole et al.,CMS, 175, 109584, (2020), doi: 10.1016/j.commatsci.2020.109584\n\nCan be used for constrained optimisation: see CONSTRAINTS card \n\n------------------CASE (calculation == 'md')\n\n'verlet' :\n(default) use Verlet algorithm to integrate Newton's equation. For constrained dynamics, see CONSTRAINTS card \
+	  \n\n'velocity-verlet' :\nuse velocity-Verlet algorithm to integrate Newton's equation. For constrained dynamics, see CONSTRAINTS card.\n\n 'langevin' :\nion dynamics is over-damped Langevin\n\n'langevin-smc' :\n over-damped Langevin with Smart Monte Carlo:\nsee R.J. Rossky, JCP, 69, 4628 (1978), doi:10.1063/1.436415\n\n------------------CASE (calculation == 'vc-relax')\n\n'bfgs' :\n(default) use BFGS quasi-newton algorithm;cell_dynamics must be 'bfgs' too\n\n'damp' :\nuse damped (Beeman) dynamics for structural relaxation\n\n------------------CASE (calculation == 'vc-md' )\n\n'beeman' :\n(default)  use Beeman algorithm to integrate Newton's equation"},
+      {"id":"pot_extrapolation","type":"select","options":["none", "atomic", "first_order", "second_order"],"default":"atomic","required":false,"desc":"Used to extrapolate the potential from preceding ionic steps.\n\n'none' :\n no extrapolation\n\n'atomic' :\nextrapolate the potential as if it was a sum of atomic-like orbitals\n\n'first_order' :\nextrapolate the potential with first-order formula\n\n'second_order' :\nas above, with second order formula \n\nNote: 'first_order' and 'second-order' extrapolation make sense only for molecular dynamics calculations"},
+      {"id":"wfc_extrapolation","type":"select","options":["none", "first_order", "second_order"],"default":"none","required":false,"desc":"Used to extrapolate the wavefunctions from preceding ionic steps.\n\n'none' :\n no extrapolation\n\n'first_order' :\nextrapolate the wave-functions with first-order formula.\n\n'second_order' :\nas above, with second order formula.\n\nNote: 'first_order' and 'second-order' extrapolation make sense only for molecular dynamics calculations"},
+      {"id":"remove_rigid_rot","type":"bool","default":false,"required":false,"desc":"This keyword is useful when simulating the dynamics and/or the thermodynamics of an isolated system. If set to true the total torque of the internal forces is set to zero by adding new forces that compensate the spurious interaction with the periodic images. This allows for the use of smaller supercells.\n\nBEWARE: since the potential energy is no longer consistent with the forces (it still contains the spurious interaction with the repeated images), the total energy is not conserved anymore. However the dynamical and thermodynamical properties should be in closer agreement with those of an isolated system. Also the final energy of a structural relaxation will be higher, but the relaxation itself should be faster."},
+      {"id":"ion_temperature","type":"select","options":["rescaling", "rescale-v", "rescale-T", "reduce-T", "nose", "berendsen", "andersen", "svr", "initial", "not_controlled"],"default":"not_controlled","required":false,"desc":"Available options are:\n\n'rescaling' :\ncontrol ionic temperature via velocity rescaling (first method) see parameters tempw, tolp, and nraise (for VC-MD only).\n\n'rescale-v' :\ncontrol ionic temperature via velocity rescaling\n(second method) see parameters tempw and nraise\n\n'rescale-T' :\nscale temperature of the thermostat every nraise steps by delta_t, starting from tempw. The temperature is controlled via velocitiy rescaling.\n\n'reduce-T' :\nreduce temperature of the thermostat every nraise steps by the (negative) value delta_t, starting from tempw. If delta_t is positive, the target temperature is augmented. The temperature is controlled via velocitiy rescaling.\n\n'nose' :\ncontrol ionic temperature using Nose-Hoover thermostat. See also parameters fnosep, tempw, nhpcl, ndega, nhptyp\n\n'berendsen' :\ncontrol ionic temperature using \"soft\" velocity - see parameters tempw and nraise \
+	  \n\n'andersen' :\ncontrol ionic temperature using Andersen thermostat see parameters tempw and nraise\n\n'svr' :\n control ionic temperature using stochastic-velocity rescaling (Donadio, Bussi, Parrinello, J. Chem. Phys. 126, 014101, 2007),with parameters tempw and nraise.\n\n'initial' :\ninitialize ion velocities to temperature tempw and leave uncontrolled further on\n\n'not_controlled' :\n(default) ionic temperature is not controlled"},
+      {"id":"tempw","type":"real","default":300.0,"required":false,"desc":"Starting temperature (Kelvin) in MD runs target temperature for most thermostats."},
+      {"id":"fnosep","type":"real","default":1.0,"required":false,"desc":"oscillation frequency of the Nose thermostat (in THz)[note that 3 THz = 100 cm^-1], meaningful only with \"ion_temperature = 'nose'\" for Nose-Hoover chain one can set frequencies for all nhpcl thermostats ( fnosep = X Y Z etc.) If only first is set, the defaults for the others will be the same."},
+      {"id":"nhpcl","type":"integer","default":1,"required":false,"desc":"number of thermostats in the Nose-Hoover chain; currently maximum allowed is 4"},
+      {"id":"nhptyp","type":"integer","default":0,"required":false,"desc":"type of the \"massive\" Nose-Hoover chain thermostat:\n * nhptyp = 0 uses one NH chain for all atoms.\n * nhtyp=1 uses a NH chain per each atomic type\n * nhptyp=2 use a NH chaing per atom, this one is usefulf for extremely rapid equipartioning.\n * nhptyp =3 together with nhgrp allows fine grained thermostat control"},
+      {"id":"nhgrp","label":"nhgrp(i), i=1,ntyp","type":"integer","default":0,"required":false,"desc":"specifies which thermostat group to use for given atomic type when >0 assigns all the atoms in this type to thermostat labeled nhgrp(i), when =0 each atom in the type gets its own thermostat. Finally, when <0, then this atomic type will have temperature \"not controlled\".\nExample: HCOOLi, with types H (1), C(2), O(3), Li(4);setting nhgrp={2 2 0 -1} will add a common thermostat for both H & C, one thermostat per each O (2 in total), and a non-updated thermostat for Li which will effectively make temperature for Li \"not controlled\""},
+      {"id":"fnhscl","label":"fnhscl(i), i=1,ntyp","type":"real","default":null,"required":false,"desc":"these are the scaling factors to be used together with nhptyp=3 and nhgrp(i) in order to take care of possible reduction in the degrees of freedom due to constraints. Suppose that with the previous example HCOOLi, C-H bond is constrained. Then, these 2 atoms will have 5 degrees of freedom in total instead of 6, and one can set fnhscl={5/6 5/6 1. 1.}. This way the target kinetic energy for H&C will become 6(kT/2)*5/6 = 5(kT/2). This option is to be used for simulations with many constraints, such as rigid water with something else in there"},
+      {"id":"ndega","type":"integer","default":0,"required":false,"desc":"number of degrees of freedom used for temperature calculation ndega <= 0 sets the number of degrees of freedom to\n[3*nat-abs(ndega)], ndega > 0 is used as the target number"},
+      {"id":"tolp","type":"real","default":100.0,"required":false,"desc":"Tolerance for velocity rescaling. Velocities are rescaled if the run-averaged and target temperature differ more than tolp."},
+      {"id":"delta_t","type":"real","default":1.0,"required":false,"desc":"if ion_temperature == 'rescale-T' :\n at each step the instantaneous temperature is multiplied by delta_t; this is done rescaling all the velocities.\n\nif ion_temperature == 'reduce-T' :\n every 'nraise' steps the instantaneous temperature is reduced by -delta_t (i.e. delta_t < 0 is added to T)\n\nThe instantaneous temperature is calculated at the end of every ionic move and BEFORE rescaling. This is the temperature reported in the main output.\n\nFor delta_t < 0, the actual average rate of heating or cooling should be roughly C*delta_t/(nraise*dt) (C=1 for an\nideal gas, C=0.5 for a harmonic solid, theorem of energy equipartition between all quadratic degrees of freedom)."},
+      {"id":"nraise","type":"integer","default":1,"required":false,"desc":"if ion_temperature == 'reduce-T' :\n every nraise steps the instantaneous temperature is reduced by -delta_t (i.e. delta_t is added to the temperature)\n\nif ion_temperature == 'rescale-v' :\n every nraise steps the average temperature, computed from the last nraise steps, is rescaled to tempw\n\nif ion_temperature == 'rescaling' and calculation == 'vc-md' : every nraise steps the instantaneous temperature is rescaled to tempw\n\nif ion_temperature == 'berendsen' :\n the \"rise time\" parameter is given in units of the time step: tau = nraise*dt, so dt/tau = 1/nraise\n\nif ion_temperature == 'andersen' :\n the \"collision frequency\" parameter is given as nu=1/tau defined above, so nu*dt = 1/nraise\n\nif ion_temperature == 'svr' :\n the \"characteristic time\" of the thermostat is set to tau = nraise*dt"},
+      {"id":"refold_pos","type":"bool","default":false,"required":false,"desc":"This keyword applies only in the case of molecular dynamics or damped dynamics. If true the ions are refolded at each step into the supercell."},
+      {"id":"upscale","type":"real","default":100.0,"required":false,"desc":"Max reduction factor for conv_thr during structural optimization conv_thr is automatically reduced when the relaxation approaches convergence so that forces are still accurate,but conv_thr will not be reduced to less that conv_thr / upscale."},
+      {"id":"bfgs_ndim","type":"integer","default":1,"required":false,"desc":"Number of old forces and displacements vectors used in the PULAY (GDIIS) mixing of the residual vectors obtained on the basisof the inverse hessian matrix given by the BFGS algorithm. The variable tgdiis_step in this case sets whether to use to full GDIIS step or the BFGS trust_radius. When bfgs_ndim = 1, the standard quasi-Newton BFGS method is used.\n(bfgs only)"},
+      {"id":"tgdiis_step","type":"bool","default":true,"required":false,"desc":"When G-DIIS (bfgs_ndim > 1) is used for the structural relaxation this variable selects whether to use to full gdiis step or the BFGS trus radius.\n(bfgs only)"},
+      {"id":"trust_radius_max","type":"real","default":0.8,"required":false,"desc":"Maximum ionic displacement in the structural relaxation.\n(bfgs only)"},
+      {"id":"trust_radius_min","type":"real","default":0.001,"required":false,"desc":"Minimum ionic displacement in the structural relaxation BFGS is reset when trust_radius < trust_radius_min.\n(bfgs only)"},
+      {"id":"trust_radius_ini","type":"real","default":0.5,"required":false,"desc":"Initial ionic displacement in the structural relaxation.\n(bfgs only)"},
+      {"id":"w_1","type":"real","default":0.01,"required":false,"desc":"Parameters used in line search based on the Wolfe conditions.\n(bfgs only)"},
+      {"id":"w_2","type":"real","default":0.5,"required":false,"desc":"Parameters used in line search based on the Wolfe conditions.\n(bfgs only)"},
+      {"id":"fire_alpha_init","type":"real","default":0.2,"required":false,"desc":"Initial value of the alpha mixing factor in the FIRE minimization scheme;recommended values are between 0.1 and 0.3"},
+      {"id":"fire_falpha","type":"real","default":0.99,"required":false,"desc":"Scaling of the alpha mixing parameter for steps with P > 0;"},
+      {"id":"fire_nmin","type":"integer","default":5,"required":false,"desc":"Minimum number of steps with P > 0 before increase of dt"},
+      {"id":"fire_f_inc","type":"real","default":1.1,"required":false,"desc":"Factor for increasing dt"},
+      {"id":"fire_f_dec","type":"real","default":0.5,"required":false,"desc":"Factor for decreasing dt"},
+      {"id":"fire_dtmax","type":"real","default":10.0,"required":false,"desc":"Determines the maximum value of dt in the FIRE minimization;\n dtmax = fire_dtmax*dt"},
+    ]
+  },
+
+{	
+	id: "CELL",
+	name:"Cell",
+    description: "Namelist CELL",
+    params: [
+      {"id":"cell_dynamics","type":"select","options":["none", "sd", "damp-pr", "damp-w", "bfgs", "pr", "w"],"default":null,"required":false,"desc":"Specify the type of dynamics for the cell.For different type of calculation different possibilities are allowed and different default values apply:\n\n------------------CASE (calculation == 'vc-relax' )\n\n'none' :\nno dynamics\n\n'sd' :\nsteepest descent ( not implemented )\n\n'damp-pr' :\ndamped (Beeman) dynamics of the Parrinello-Rahman extended lagrangian\n \n\n'damp-w' :\ndamped (Beeman) dynamics of the new Wentzcovitch extended lagrangian\n\n'bfgs' :\nBFGS quasi-newton algorithm (default)\nion_dynamics must be 'bfgs' too \n\n------------------CASE (calculation == 'vc-md' )\n\n'none' :\nno dynamics\n\n'pr' :\n(Beeman) molecular dynamics of the Parrinello-Rahman extended lagrangian\n\n'w' :\n(Beeman) molecular dynamics of the new Wentzcovitch extended lagrangian"},
+      {"id":"press","type":"real","default":0.0,"required":false,"desc":"Target pressure [KBar] in a variable-cell md or relaxation run."},
+      {"id":"wmass","type":"real","default":null,"required":false,"desc":"Fictitious cell mass [amu] for variable-cell simulations (both 'vc-md' and 'vc-relax').\n DEFAULT: 0.75*Tot_Mass/pi**2 for Parrinello-Rahman MD; 0.75*Tot_Mass/pi**2/Omega**(2/3) for Wentzcovitch MD"},
+      {"id":"cell_factor","type":"real","default":null,"required":false,"desc":"Used in the construction of the pseudopotential tables.\nIt should exceed the maximum linear contraction of the cell during a simulation."},
+      {"id":"press_conv_thr","type":"real","default":null,"required":false,"desc":"Convergence threshold on the pressure for variable cell relaxation ('vc-relax' : note that the other convergence thresholds for ionic relaxation apply as well)."},
+      {"id":"cell_dofree","type":"select","options":["all", "ibrav", "a", "b", "c", "fixa", "fixb", "fixc", "x", "y", "z", "xy", "xz", "yz", "xyz", "shape", "volume", "2Dxy", "2Dshape", "epitaxial_ab", "epitaxial_ac", "epitaxial_bc"],"default":"all","required":false,"desc":"Select which of the cell parameters should be moved:\n\n'all' :\n all axis and angles are moved\n\n'ibrav' :\nall axis and angles are moved, but the lattice remains consistent with the initial ibrav choice. You can use this option in combination with any other one by specifying \"ibrav+option\". Please note that some combinations do not make sense for some crystals and will guarantee that the relax will never converge. E.g. 'ibrav+2Dxy' is not a problem for hexagonal cells, but will never converge for cubic ones.\n\n'a' :\n the x component of axis 1 (v1_x) is fixed\n\n'b' :\n the y component of axis 2 (v2_y) is fixed\n\n'c' :\n the z component of axis 3 (v3_z) is fixed\n\n'fixa' :\n axis 1 (v1_x,v1_y,v1_z) is fixed\n\n'fixb' :\n axis 2 (v2_x,v2_y,v2_z) is fixed\n\n'fixc' :\n axis 3 (v3_x,v3_y,v3_z) is fixed \
+	  \n\n'x' :\nonly the x component of axis 1 (v1_x) is moved\n\n'y' :\n only the y component of axis 2 (v2_y) is moved\n\n'z' : \nonly the z component of axis 3 (v3_z) is moved\n\n'xy' :\n only v1_x and v2_y are moved       \n\n'xz' :\n only v1_x and v3_z are moved\n\n'yz' :\n only v2_y and v3_z are moved\n\n'xyz' :\n only v1_x, v2_y, v3_z are moved\n\n'shape' :\nall axis and angles, keeping the volume fixed\n\n'volume' :\nthe volume changes, keeping all angles fixed (i.e. only celldm(1) changes)\n\n'2Dxy' :\nonly x and y components are allowed to change\n\n'2Dshape' :\nas above, keeping the area in xy plane fixed\n\n'epitaxial_ab' :\nfix axis 1 and 2 while allowing axis 3 to move\n\n'epitaxial_ac' :\n fix axis 1 and 3 while allowing axis 2 to move\n\n'epitaxial_bc' :\n fix axis 2 and 3 while allowing axis 1 to move"},
+    ]
+  },
+{
+	id:"FCP",
+	name:"FCP",
+    description:"Input this namelist only if Control.lfcp = .TRUE.",
+    params: [
+      {"id":"fcp_mu","type":"real","default":null,"required":true,"desc":"The target Fermi energy (eV). One can start with appropriate total charge of the system by giving tot_charge."},
+      {"id":"fcp_dynamics","type":"select","options":["bfgs", "newton", "damp", "lm", "velocity-verlet", "verlet"],"default":null,"required":false,"desc":"Specify the type of dynamics for the Fictitious Charge Particle (FCP).\nFor different type of calculation different possibilities are allowed and different default values apply:\n\n------------------CASE (calculation == 'relax' )\n\n'bfgs' :\n(default) BFGS quasi-newton algorithm, coupling with ions relaxation\nion_dynamics must be 'bfgs' too\n\n'newton' :\nNewton-Raphson algorithm with DIIS \nion_dynamics must be 'damp' too\n\n'damp' :\ndamped (quick-min Verlet) dynamics for FCP relaxation \nion_dynamics must be 'damp' too\n\n'lm' :\nLine-Minimization algorithm for FCP relaxation\nion_dynamics must be 'damp' too\n\n------------------CASE (calculation == 'md' )\n\n'velocity-verlet' :\n(default)Velocity-Verlet algorithm to integrate Newton's equation.\nion_dynamics must be 'verlet' too\n\n'verlet' :\nVerlet algorithm to integrate Newton's equation.\nion_dynamics must be 'verlet' too"},
+      {"id":"fcp_conv_thr","type":"real","default":0.01,"required":false,"desc":"Convergence threshold on force (eV) for FCP relaxation."},
+      {"id":"fcp_ndiis","type":"integer","default":4,"required":false,"desc":"Size of DIIS for FCP relaxation,\nused only if fcp_dynamics = 'newton'."},
+      {"id":"fcp_mass","type":"real","default":null,"required":false,"desc":"Mass of the FCP. \nDEFAULT: 5.D+6 / (xy area) for ESM only; 5.D+4 / (xy area) for ESM-RISM"},
+      {"id":"fcp_velocity","type":"real","default":null,"required":false,"desc":"Initial velocity of the FCP.\nDEFAULT:  determined by fcp_temperature"},
+      {"id":"fcp_temperature","type":"select","options":["rescaling", "rescale-v", "rescale-T", "reduce-T", "berendsen", "andersen", "initial", "not_controlled"],"default":"ion_temperature","required":false,"desc":"Default:  IONS.ion_temperature\n Available options are:\n\n'rescaling' :\ncontrol FCP's temperature via velocity rescaling (first method) see parameters fpc_tempw and fcp_tolp.\n\n'rescale-v' :\ncontrol FCP's temperature via velocity rescaling (second method) see parameters fcp_tempw and fcp_nraise\n\n'rescale-T' :\ncontrol FCP's temperature via velocity rescaling (third method) see parameter fcp_delta_t\n\n'reduce-T' :\nreduce FCP's temperature every fcp_nraise steps by the (negative) value fcp_delta_t\n\n'berendsen' :\ncontrol FCP's temperature using \"soft\" velocity rescaling - see parameters fcp_tempw and fcp_nraise\n\n'andersen' :\ncontrol FCP's temperature using Andersen thermostat see parameters fcp_tempw and fcp_nraise\n\n'initial' :\ninitialize FCP's velocities to temperature fcp_tempw and leave uncontrolled further on\n\n'not_controlled' :\n(default) FCP's temperatur"},
+      {"id":"fcp_tempw","type":"real","default":null,"required":false,"desc":"Starting temperature (Kelvin) in FCP dynamics runs target temperature for most thermostats."},
+      {"id":"fcp_tolp","type":"real","default":null,"required":false,"desc":"Tolerance for velocity rescaling. Velocities are rescaled if the run-averaged and target temperature differ more than tolp."},
+      {"id":"fcp_delta_t","type":"real","default":null,"required":false,"desc":"Default: IONS.delta_t \n\nif fcp_temperature == 'rescale-T' :\n at each step the instantaneous temperature is multiplied by fcp_delta_t; this is done rescaling all the velocities.\n\nif fcp_temperature == 'reduce-T' :\n every fcp_nraise steps the instantaneous temperature is reduced by -fcp_delta_t (i.e. fcp_delta_t < 0 is added to T)\n\nThe instantaneous temperature is calculated at the end of FCP's move and BEFORE rescaling. This is the temperature reported in the main output.\n\nFor fcp_delta_t < 0, the actual average rate of heating or cooling should be roughly C*fcp_delta_t/(fcp_nraise*dt) (C=1 for an ideal gas, C=0.5 for a harmonic solid, theorem of energy equipartition between all quadratic degrees of freedom)."},
+      {"id":"fcp_nraise","type":"integer","default":null,"required":false,"desc":"Default: IONS.nraise \n\nif fcp_temperature == 'reduce-T' :\n every fcp_nraise steps the instantaneous temperature is reduced by -fcp_delta_t (i.e. fcp_delta_t is added to the temperature)\n\nif fcp_temperature == 'rescale-v' :\n every fcp_nraise steps the average temperature, computed from the last fcp_nraise steps, is rescaled to fcp_tempw\n\nif fcp_temperature == 'berendsen' :\n the \"rise time\" parameter is given in units of the time step: tau = fcp_nraise*dt, so dt/tau = 1/fcp_nraise\n\nif fcp_temperature == 'andersen' :\n the \"collision frequency\" parameter is given as nu=1/tau defined above, so nu*dt = 1/fcp_nraise"},
+      {"id":"freeze_all_atoms","type":"bool","default":false,"required":false,"desc":"If .TRUE., freeze all atoms\nto perform relaxation or dynamics only with FCP."},
+    ]
+  },
+	
+{
+	id:	"RISM",
+	name:"RISM",
+    description: "Input this namelist only if Control.trism = .TRUE.",
+    params: [
+      {"id":"nsolv","type":"integer","default":null,"required":true,"desc":"The number of solvents (i.e. molecular species) in the unit cell"},
+      {"id":"closure","type":"select","options":["kh", "hnc"],"default":"kh","required":false,"desc":"Specify the type of closure equation:\n\n'kh':\nThe Kovalenko and Hirata's model.\n[A.Kovalenko, F.Hirata, JCP 110, 10095 (1999), doi:10.1063/1.478883] \n\n'hnc':\nThe HyperNetted-Chain model, which is suitable only for solvents without charge.\n[J.P.Hansen et al., Theory of simple liquids. Academic Press, London, 1990]"},
+      {"id":"tempv","type":"real","default":300.0,"required":false,"desc":"Temperature (Kelvin) of solvents."},
+      {"id":"ecutsolv","type":"real","default":null,"required":false,"desc":"Kinetic energy cutoff (Ry) for solvent's correlation functions.\nIf a solute is an isolated system or slab, you may allowed to use default value.\n For a frameworked or porous solute (e.g. Zeolite, MOF), it is desirable to apply a larger value.\n Solvents confined in a framework often have a high frequency."},
+      {"id":"solute_lj","label":"solute_lj(i), i=1,ntyp","type":"select","options":["none", "uff", "clayff", "opls-aa"],"default":"uff","required":false,"desc":"Specify the Lennard-Jones potential of solute on atomic type 'i':\n\n'none': The Lennard-Jones potential is not specified here.You must set solute_epsilon and solute_sigma. \n\n'uff': Universal Force Field.\n[A.K.Rappe et al., JACS 144, 10024 (1992), doi:10.1021/ja00051a040] \n\n'clayff': Clay's Force Field\n[R.T.Cygan et al., JPC B 108, 1255 (2004), doi:10.1021/jp0363287]\n\n'opls-aa': OPLS-AA (generic parameters for QM/MM)"},
+      {"id":"solute_epsilon","label":"solute_epsilon(i), i=1,ntyp","type":"real","default":null,"required":false,"desc":"The Lennard-Jones potential of solute on atomic type 'i'.\nHere, you can set the parameter 'epsilon' (kcal/mol)."},
+      {"id":"solute_sigma","label":"solute_sigma(i), i=1,ntyp","type":"real","default":null,"required":false,"desc":"The Lennard-Jones potential of solute on atomic type 'i'.\nHere, you can set the parameter 'sigma' (Angstrom)."},
+      {"id":"starting1d","type":"select","options":["zero", "file", "fix"],"default":null,"required":false,"desc":"'zero': Starting correlation functions of 1D-RISM from zero.\n( default for scf, *relax, *md )\n\n'file': Start from existing \"1d-rism_csvv_r.xml\" file in the directory specified by variables \"prefix\" and \"outdir\". \n\n'fix': Read from existing \"1d-rism_csvv_r.xml\" file in the directory specified by variables \"prefix\" and \"outdir\", and never calculate 1D-RISM. \n For nscf and bands calculation this is the default."},
+      {"id":"starting3d","type":"select","options":["zero", "file"],"default":null,"required":false,"desc":"'zero': Starting correlation functions of 3D-RISM from zero.\n( default for scf, *relax, *md )\n\n'file': Start from existing \"3d-rism_csuv_r.dat\" file in the directory specified by variables \"prefix\" and \"outdir\".\nFor nscf and bands calculation this is the default."},
+      {"id":"smear1d","type":"real","default":2.0,"required":false,"desc":"Coulomb smearing radius (a.u.) for 1D-RISM."},
+      {"id":"smear3d","type":"real","default":2.0,"required":false,"desc":"Coulomb smearing radius (a.u.) for 3D-RISM."},
+      {"id":"rism1d_maxstep","type":"integer","default":50000,"required":false,"desc":"Maximum number of iterations in a 1D-RISM step."},
+      {"id":"rism3d_maxstep","type":"integer","default":5000,"required":false,"desc":"Maximum number of iterations in a 3D-RISM step."},
+      {"id":"rism1d_conv_thr","type":"real","default":1e-08,"required":false,"desc":"Convergence threshold for 1D-RISM."},
+      {"id":"rism3d_conv_thr","type":"real","default":null,"required":false,"desc":"Convergence threshold for 3D-RISM."},
+      {"id":"mdiis1d_size","type":"integer","default":20,"required":false,"desc":"Size of Modified DIIS (MDIIS) for 1D-RISM."},
+      {"id":"mdiis3d_size","type":"integer","default":10,"required":false,"desc":"Size of Modified DIIS (MDIIS) for 3D-RISM."},
+      {"id":"mdiis1d_step","type":"real","default":0.5,"required":false,"desc":"Step of Modified DIIS (MDIIS) for 1D-RISM."},
+      {"id":"mdiis3d_step","type":"real","default":0.8,"required":false,"desc":"Step of Modified DIIS (MDIIS) for 3D-RISM."},
+      {"id":"rism1d_bond_width","type":"real","default":null,"required":false,"desc":"Gaussian width of bonds to smear intra-molecular correlation for 1D-RISM.\nIf 3D-RISM calculation, default is 0.\nIf Laue-RISM calculation, default is 2 / SQRT(ecutwfc)."},
+      {"id":"rism1d_dielectric","type":"real","default":-1.0,"required":false,"desc":"Dielectric constant for 1D-RISM.\nIf rism1d_dielectric > 0, dielectrically consistent RISM (DRISM) is performed.\n\nFor details of DRISM, see:\nJ.S.Perkyns and B.M.Pettitt, CPL 1992, 190, 626, doi:10.1016/0009-2614(92)85201-K"},
+      {"id":"rism1d_molesize","type":"real","default":2.0,"required":false,"desc":"Size of solvent molecules (a.u.) for 1D-RISM.\nThis is used only if rism1d_dielectric > 0.\nIf you have large molecules, you have to set ~ 20 a.u. ."},
+      {"id":"rism1d_nproc","type":"integer","default":128,"required":false,"desc":"Number of processes to calculate 1D-RISM."},
+      {"id":"rism3d_conv_level","type":"select","options":["","0.0", "0.0<x<1.0", "1.0"],"default":"","required":false,"desc":"Convergence level of 3D-RISM.\n\n0.0: Convergence level is 'low'.\nConvergence threshold of 3D-RISM is greater than rism3d_conv_thr, when estimated energy error >> conv_thr .\nThe threshold becomes rism3d_conv_thr, when estimated energy error is enough small. \n\n0.0<x<1.0: Convergence level is 'medium'.\nConvergence threshold of 3D-RISM is intermediate value between 'low' and 'high', where rism3d_conv_level is mixing rate. \n\n1.0: Convergence level is 'high'.\nConvergence threshold of 3D-RISM is always rism3d_conv_thr.\n\n DEFAULT: 0.1 if laue_both_hands == false .AND. lgcscf == false; 0.3 if laue_both_hands == false .AND. lgcscf == true; 0.5 if laue_both_hands == true"},
+      {"id":"rism3d_planar_average","type":"bool","default":null,"required":false,"desc":"If .TRUE., planar averages of solvent densities and potentials\nare calculated and written to 'prefix.rism1'.\nFor 3D-RISM, default is .FALSE.\nFor Laue-RISM, default is .TRUE."},
+      {"id":"laue_nfit","type":"integer","default":4,"required":false,"desc":"The number of z-grid points for the polynomial fit along the cell edge.\nThis is only for Laue-RISM."},
+      {"id":"laue_expand_right","type":"real","default":-1.0,"required":false,"desc":"If positive value, set the ending position offset [in a.u.]\nof the solvent region on right-hand side of the unit cell,\nmeasured relative to the unit cell edge.\n(the solvent region ends at z = + [L_z/2 + laue_expand_right].)\nThis is only for Laue-RISM."},
+      {"id":"laue_expand_left","type":"real","default":-1.0,"required":false,"desc":"If positive value, set the ending position offset [in a.u.]\nof the solvent region on left-hand side of the unit cell,\nmeasured relative to the unit cell edge.\n(the solvent region ends at z = - [L_z/2 + laue_expand_left].)\nThis is only for Laue-RISM."},
+      {"id":"laue_starting_right","type":"real","default":0.0,"required":false,"desc":"Set the starting position [in a.u.] of the solvent region\non right-hand side of the unit cell. Then the solvent region is\ndefined as [laue_starting_right , L_z/2 + laue_expand_right],\nwhere distribution functions are finite.\nThis is only for Laue-RISM."},
+      {"id":"laue_starting_left","type":"real","default":0.0,"required":false,"desc":"Set the starting position [in a.u.] of the solvent region\non left-hand side of the unit cell. Then the solvent region is\ndefined as [ -L_z/2 - laue_expand_left , laue_starting_left],\nwhere distribution functions are finite.\nThis is only for Laue-RISM."},
+      {"id":"laue_buffer_right","type":"real","default":null,"required":false,"desc":"If positive value, set the buffering length [in a.u.]\nof the solvent region on right-hand side of the unit cell.\nThen correlation functions are defined inside of\n[laue_starting_right - laue_buffer_right, L_z/2 +laue_expand_right].\nThis is only for Laue-RISM."},
+      {"id":"laue_buffer_left","type":"real","default":null,"required":false,"desc":"If positive value, set the buffering length [in a.u.]\nof the solvent region on left-hand side of the unit cell.\nThen correlation functions are defined inside of\n[ -L_z/2 - laue_expand_left,laue_starting_left + laue_buffer_left ].\nThis is only for Laue-RISM."},
+      {"id":"laue_both_hands","type":"bool","default":false,"required":false,"desc":"If .TRUE., you can set different densities\nto the solvent regions of right-hand side and left-hand side.\nSee SOLVENTS card."},
+      {"id":"laue_wall","type":"select","options":["none", "auto", "manual"],"default":"auto","required":false,"desc":"Set the repulsive wall with (1/r)^12 term of Lennard-Jones potential.\nThis is only for Laue-RISM. \n\n'none': The repulsive wall is not defined. \n\n'auto': The repulsive wall is defined, whose edge position is set automatically.\nOne does not have to set laue_wall_z (the edge position). \n\n'manual': The repulsive wall is defined, whose edge position is set manually.\nOne have to set laue_wall_z (the edge position)."},
+      {"id":"laue_wall_z","type":"real","default":0.0,"required":false,"desc":"Set the edge position [in a.u.] of the repulsive wall.\nIf laue_expand_right > 0.0, the repulsive wall is defined on [ -inf , laue_wall_z ].\nIf laue_expand_left > 0.0, the repulsive wall is defined on [ laue_wall_z , inf ].\nThis is only for Laue-RISM and laue_wall == 'manual' ."},
+      {"id":"laue_wall_rho","type":"real","default":0.01,"required":false,"desc":"The density (1/bohr^3) of the repulsive wall.\nThis is only for Laue-RISM and laue_wall /= 'none' ."},
+      {"id":"laue_wall_epsilon","type":"real","default":0.1,"required":false,"desc":"The Lennard-Jones potential of the repulsive wall.\nHere, you can set the parameter 'epsilon' (kcal/mol).\nThis is only for Laue-RISM and laue_wall /= 'none' ."},
+      {"id":"laue_wall_sigma","type":"real","default":4.0,"required":false,"desc":"The Lennard-Jones potential of the repulsive wall.\nHere, you can set the parameter 'sigma' (Angstrom).\nThis is only for Laue-RISM and laue_wall /= 'none' ."},
+      {"id":"laue_wall_lj6","type":"bool","default":false,"required":false,"desc":"If .TRUE., the attractive term -(1/r)^6 of Lennard-Jones potential is added.\nThis is only for Laue-RISM and laue_wall /= 'none' ."},
+    ]
+  },
+
+	{
+	id : "ATOMIC_SPECIES",
+	name: "Atomic Species",
+    description: "Atomic species with mass",
+    params: [
+	{"id":"atomic_species_array",label:"Mass for species","type":"array","ncols":3,"colNames":["Species","Mass","PP Filename"],"default":null,"required":false,"desc":"'Label of the atom' :\n Acceptable syntax: chemical symbol X (1 or 2 characters, case-insensitive) or chemical symbol plus a number or a letter, as in \"Xn\" (e.g. Fe1) or \"X_*\" or \"X-*\" (e.g. C1, C_h; max total length cannot exceed 3 characters).\n\n 'Mass of the atomic species' : \n[amu: mass of C = 12]: used only when performing Molecular Dynamics run or structural optimization runs using Damped MD. Not actually used in all other cases (but stored in data files, so phonon calculations will use these values unless other values are provided)\n\n'Pseudopotential File' :\n  File containing PP for this species. The pseudopotential file is assumed to be in the new UPF format. If it doesn't work, the pseudopotential format is determined by the file name:\n\n*.vdb or *.van Vanderbilt US pseudopotential code\n*.RRKJ3 Andrea Dal Corso's code (old format)\n none of the above old PWscf norm-conserving format"},
+	]
+  },
+  {
+	 id :"ATOMIC_POSITIONS",
+     name: "Atomic Positions",
+    description: "Atomic Positions with their unit.\nIF CONTROL.calculation == 'bands' OR CONTROL.calculation == 'nscf' : \nSpecified atomic positions will be IGNORED and those from the previous scf calculation will be used instead !!!",
+    params: [
+      {"id":"atomic_positions_unit",label:"Units for atomic positions","type":"select","options":["","alat", "bohr", "angstrom", "crystal","crystal_sg"],"default":null,"required":false,"desc":"Unit for atomic positions"},
+	  {"id":"atomic_positions_array",label:"Species atomic positions","type":"array","ncols":4,"colNames":["Species","X","Y","Z"],"default":null,"required":false,"desc":"Label of the atom as specified in ATOMIC_SPECIES, along with their positions."}
+	]
+  },
+
+ // ── K_POINTS (CARD · 4 params) ──────────────────────────────────────────
+   {
+	id: "K_POINTS",
+	name: "K Points",
+    description: "K Points for scheme = \"automatic\"",
+    params: [
+      {"id":"kpoint_grid_array","label":"K Point grid","type":"array","ncols":3,"colNames":["nk1","nk2","nk3"],"default":null,"required":false,"desc":"These parameters specify the k-point grid (nk1 x nk2 x nk3) as in Monkhorst-Pack grids."},
+      {"id":"kpoint_shift_array","label":"K Point shifts","type":"array","ncols":3,"colNames":["sk1","sk2","sk3"],"default":null,"required":false, "desc":"The grid offsets; sk1, sk2, sk3 must be 0 ( no offset ) or 1 ( grid displaced by half a grid step in the corresponding direction )."}     
+    ]
+  },
+
+  // ── CELL_PARAMETERS (CARD · 1 params) ───────────────────────────────────
+  {
+	id: "CELL_PARAMETERS",
+	name: "Cell Parameters",
+    description: "Card CELL_PARAMETERS",
+    params: [
+	{"id":"crystal_lattice_unit",label:"Unit","type":"select","options":["bohr","alat"],"default":null,"required":false,"desc":"Unit for crystal lattice vectors; options are:\n\n 'bohr' / 'angstrom':  lattice vectors in bohr-radii / angstrom.\n  In this case the lattice parameter alat = sqrt(v1*v1). \n\n 'alat' / nothing specified: lattice vectors in units of the lattice parameter (either celldm(1) or A). Not specifying units is DEPRECATED  and will not be allowed in the future. \n\n If neither unit nor lattice parameter are specified, 'bohr' is assumed - DEPRECATED, will no longer be allowed"},
+      {"id":"crystal_lattice_vectors","label":"Crystal lattice vectors","type":"array","ncols":3,"colNames":["vx","vy","vz"],"default":null,"required":false,"desc":"Crystal lattice vectors (in cartesian axis); each row is a lattice vector (1st, 2nd then 3rd)."}
+    ]
+  },
+
+  // ── OCCUPATIONS (CARD · 2 params) ──────────────────────────────────────
+{
+	id:  "OCCUPATIONS",
+	name: "Occupations",
+    description: "Optional card, used only if SYSTEM.occupations == 'from_input', ignored otherwise !",
+    params: [
+      {"id":"f1_inp","type":"array","ncols":10,"colNames":["f1_inp1","f1_inp2","f1_inp3","f1_inp4","f1_inp5","f1_inp6","f1_inp7","f1_inp8","f1_inp9","f1_inp10"], "default":null,"required":false,"desc":"Occupations of individual states (Up to nbnd, MAX 10 PER ROW).\nFor spin-polarized calculations, these are majority spin states."},
+      {"id":"f2_inp","type":"array","ncols":10,"colNames":["f2_inp1","f2_inp2","f2_inp3","f2_inp4","f2_inp5","f2_inp6","f2_inp7","f2_inp8","f2_inp9","f2_inp10"],"default":null,"required":false,"desc":"Occupations of minority spin states (Up to nbnd, MAX 10 PER ROW)\nTo be specified only for spin-polarized calculations."},
+    ]
+  },
+
+  // ── ATOMIC_VELOCITIES (CARD · 2 params) ─────────────────────────────────
+{
+	id: "ATOMIC_VELOCITIES",
+	name: "Atomic Velocities",
+    description: "Atomic species with their velocities",
+    params: [
+	{"id":"atomic_velocities_array","type":"array","ncols":4,"colNames":["Species","Vx","Vy","Vz"],"default":null,"required":false,"desc":"Label (species) of the atom as specified in ATOMIC_SPECIES, along with atomic velocities along x y and z direction.\n Should be in atomic units (a.u.)"}
+    ]
+  },
+  {
+	id: "ATOMIC_FORCES",
+	name: "Atomic Forces",
+    description: "Atomic species with external forces acting on atoms.",
+    params: [
+		{"id":"atomic_forces_array","type":"array","ncols":4,"colNames":["Species","Fx","Fy","Fz"],"default":null,"required":false,"desc":"Label (species) of the atom as specified in ATOMIC_SPECIES, along with external force on atom X (cartesian components, Ry/a.u. units).\n BEWARE: if the sum of external forces is not zero, the center of mass of the system will move"}
+    ]
+  }
+ ];
+
+    // Flatten parameters for easy access
+    let allParamsMap = new Map();
+    for (let section of SECTIONS) {
+        for (let param of section.params) {
+            allParamsMap.set(param.id, { schema: param, sectionId: section.id });
+        }
+    }
+
+    // Runtime storage for parameter values
+    let globalRuntime = {};
+
+    function initParamRuntime(schema) {
+        if (schema.type === "array") {
+            let initialRows = [];
+            if (schema.default && Array.isArray(schema.default)) {
+                initialRows = schema.default.map(row => {
+                    let newRow = [];
+                    for (let i = 0; i < schema.ncols; i++) {
+                        let val = (i < row.length) ? row[i] : "";
+                        if (typeof val === 'number') newRow.push(val);
+                        else newRow.push(String(val));
+                    }
+                    return newRow;
+                });
+            }
+            return { rows: initialRows };
+        } else if (schema.type === "select") {
+            let defaultValue = schema.default !== undefined ? schema.default : (schema.options?.[0] || "");
+            return { value: String(defaultValue) };
+        } else if (schema.type === "bool") {
+            let defaultValue = schema.default === true;
+            return { value: defaultValue };
+        } else if (schema.type === "real") {
+            let def = schema.default !== undefined ? schema.default : 0.0;
+            return { value: (typeof def === 'number') ? def : parseFloat(def) || 0.0 };
+        } else if (schema.type === "integer") {
+            let def = schema.default !== undefined ? schema.default : 0;
+            return { value: typeof def === 'number' ? def : parseInt(def) || 0 };
+        } else {
+            return { value: schema.default !== undefined ? String(schema.default) : "" };
+        }
+    }
+
+    for (let [paramId, { schema }] of allParamsMap.entries()) {
+        globalRuntime[paramId] = initParamRuntime(schema);
+    }
+
+    // ========== CARD SELECTION STATE (always active) ==========
+    let selectedCardsSet = new Set();  // stores paramId strings
+
+    // ========== DETECT IF A SECTION HAS SELECTED PARAMETERS ==========
+    // Simple function: returns true if any parameter in the given section is selected
+    function sectionHasSelectedParameters(sectionId) {
+        const section = SECTIONS.find(s => s.id === sectionId);
+        if (!section) return false;
+        // Check each parameter in the section
+        for (let param of section.params) {
+            if (selectedCardsSet.has(param.id)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // Get count of selected parameters in a section
+    function getSelectedCountInSection(sectionId) {
+        const section = SECTIONS.find(s => s.id === sectionId);
+        if (!section) return 0;
+        let count = 0;
+        for (let param of section.params) {
+            if (selectedCardsSet.has(param.id)) count++;
+        }
+        return count;
+    }
+
+    // Update sidebar section indicators based on which sections have selected parameters
+    function updateSectionIndicators() {
+        const sectionButtons = document.querySelectorAll('#sectionList .section-btn');
+        sectionButtons.forEach(btn => {
+            const sectionId = btn.dataset.sectionId;
+            if (sectionId) {
+                const hasSelected = sectionHasSelectedParameters(sectionId);
+                if (hasSelected) {
+                    btn.classList.add('has-selected');
+                    // Add or update the visual dot if not present
+                    let dot = btn.querySelector('.selection-dot');
+                    if (!dot) {
+                        dot = document.createElement('span');
+                        dot.className = 'selection-dot';
+                        btn.appendChild(dot);
+                    }
+                } else {
+                    btn.classList.remove('has-selected');
+                    const dot = btn.querySelector('.selection-dot');
+                    if (dot) dot.remove();
+                }
+            }
+        });
+        
+        // Also update current section info display
+        updateCurrentSectionInfo();
+    }
+
+    // Show a summary for the current active section
+    function updateCurrentSectionInfo() {
+        const activeId = activeSectionId;
+        if (!activeId) return;
+        const selectedCount = getSelectedCountInSection(activeId);
+        const infoDiv = document.getElementById('currentSectionSelectedInfo');
+        if (infoDiv) {
+            if (selectedCount > 0) {
+                infoDiv.style.display = 'inline-flex';
+                infoDiv.innerHTML = `${selectedCount} selected parameter${selectedCount !== 1 ? 's' : ''} in this section`;
+            } else {
+                infoDiv.style.display = 'none';
+            }
+        }
+    }
+
+    // Helper: update selection counter and UI elements
+    function updateSelectionUI() {
+        const count = selectedCardsSet.size;
+        const countSpan = document.getElementById('selectedCardsCount');
+        if (countSpan) countSpan.textContent = count;
+        
+        // Visually highlight cards that are selected
+        document.querySelectorAll('.param-card').forEach(card => {
+            const paramId = card.dataset.paramId;
+            if (paramId && selectedCardsSet.has(paramId)) {
+                card.classList.add('selected');
+            } else {
+                card.classList.remove('selected');
+            }
+        });
+        
+        // Update section indicators (sidebar dots + current section info)
+        updateSectionIndicators();
+    }
+
+    // Toggle selection for a card given its parameter id
+    function toggleCardSelection(paramId) {
+        if (selectedCardsSet.has(paramId)) {
+            selectedCardsSet.delete(paramId);
+        } else {
+            selectedCardsSet.add(paramId);
+        }
+        updateSelectionUI();
+    }
+
+    // Deselect all cards
+    function deselectAllCards() {
+        selectedCardsSet.clear();
+        updateSelectionUI();
+    }
+
+    // ========== TOML GENERATION ==========
+    function escapeTomlString(s) {
+        return String(s).replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, "\\n");
+    }
+
+    function generateCleanTOML() {
+        let lines = [];
+        let sectionParamsMap = new Map();
+        for (let [paramId, { schema, sectionId }] of allParamsMap.entries()) {
+            const runtime = globalRuntime[paramId];
+            if (!runtime) continue;
+            if (!sectionParamsMap.has(sectionId)) sectionParamsMap.set(sectionId, []);
+            sectionParamsMap.get(sectionId).push({ id: paramId, schema: schema, runtime: runtime });
+        }
+        for (let section of SECTIONS) {
+            const params = sectionParamsMap.get(section.id);
+            if (!params || params.length === 0) continue;
+			
+			if (sectionHasSelectedParameters(section.id)){
+				lines.push(`[${section.id}]`);
+				
+				//Hack: hardcode this
+				if(section.id =='K_POINTS'){  // add a fixed param
+					lines.push(`kpoint_scheme = "automatic"`);
+				}	
+				
+				for (let { id, schema, runtime } of params) {
+					if (selectedCardsSet.has(schema.id)){
+						let value;
+						if (schema.type === "array") {
+							const rows = runtime.rows || [];
+							if (rows.length === 0) value = "[]";
+							else {
+								let allRowStrings = [];
+								for (let row of rows) {
+									let rowValues = [];
+									for (let i = 0; i < schema.ncols; i++) {
+										let cell = (i < row.length) ? row[i] : "";
+										if (cell === "") rowValues.push('""');
+										else if (typeof cell === 'number') rowValues.push(cell.toString());
+										else rowValues.push(`"${escapeTomlString(String(cell))}"`);
+									}
+									allRowStrings.push(`[${rowValues.join(", ")}]`);
+								}
+								value = `[${allRowStrings.join(", ")}]`;
+							}
+							// rewrite Celldm was a list
+			//				if(section.id =='SYSTEM' && schema.id == 'celldm' && rows.length != 0){ 
+			//					for (let row of rows) {
+			//						lines.push("celldm(" + `${escapeTomlString(String(row[0]))}` + ") = " + `${escapeTomlString(String(row[1]))}` );
+			//					}
+			//				}
+			//				else {
+								lines.push(`${id} = ${value}`);
+				//			}
+						} else if (schema.type === "bool") {
+							lines.push(`${id} = ${runtime.value === true ? "true" : "false"}`);
+						} else if (schema.type === "real" || schema.type === "integer") {
+							let numVal = typeof runtime.value === 'number' ? runtime.value : parseFloat(runtime.value) || 0;
+							lines.push(`${id} = ${numVal}`);
+						} else if (schema.type === "select" || schema.type === "string") {
+							lines.push(`${id} = "${escapeTomlString(String(runtime.value))}"`);
+						}
+					}
+				}
+				lines.push("");
+			}
+        }
+        return lines.join("\n").trim();
+    }
+
+    function downloadToml() {
+        const blob = new Blob([generateCleanTOML()], {type: "text/plain"});
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        let prefixVal = globalRuntime["prefix"]?.value || "pwscf";
+        a.download = `ph_parameters_${prefixVal}.toml`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+    }
+
+    // ========== RENDERING ==========
+    function paramMatchesSearch(param, query) {
+        if (!query.trim()) return true;
+        const q = query.toLowerCase();
+        return param.id.toLowerCase().includes(q) || (param.label && param.label.toLowerCase().includes(q)) || (param.desc && param.desc.toLowerCase().includes(q));
+    }
+
+    function getFilteredParams() {
+        const section = SECTIONS.find(s => s.id === activeSectionId);
+        if (!section) return [];
+        return section.params.filter(p => paramMatchesSearch(p, searchQuery));
+    }
+
+    function renderParamBody(schema, runtime, container) {
+        if (schema.type === "array") {
+            renderArrayBody(schema, runtime, container);
+        } else if (schema.type === "select") {
+            const html = `<select class="select-input">${schema.options.map(opt => `<option ${runtime.value === opt ? 'selected' : ''}>${escapeHtml(opt)}</option>`).join('')}</select><div class="actions-bar"><button class="reset-btn">⟳ Reset</button></div>`;
+            container.innerHTML = html;
+            container.querySelector('select').addEventListener('change', (e) => { runtime.value = e.target.value; });
+            container.querySelector('.reset-btn').addEventListener('click', () => { runtime.value = schema.default; renderParamBody(schema, runtime, container); });
+        } else if (schema.type === "bool") {
+            const val = runtime.value === true;
+            const html = `<div class="bool-group"><label><input type="radio" name="bool_${schema.id}" value="true" ${val ? 'checked' : ''}> True</label><label><input type="radio" name="bool_${schema.id}" value="false" ${!val ? 'checked' : ''}> False</label></div><div class="actions-bar"><button class="reset-btn">⟳ Reset</button><button class="toggle-btn">🔄 Toggle</button></div>`;
+            container.innerHTML = html;
+            container.querySelectorAll(`input[name="bool_${schema.id}"]`).forEach(r => r.addEventListener('change', (e) => { if(e.target.checked) runtime.value = e.target.value === 'true'; }));
+            container.querySelector('.reset-btn').addEventListener('click', () => { runtime.value = schema.default === true; renderParamBody(schema, runtime, container); });
+            container.querySelector('.toggle-btn').addEventListener('click', () => { runtime.value = !runtime.value; renderParamBody(schema, runtime, container); });
+        } else {
+            const isReal = schema.type === "real";
+            let display = isReal ? (typeof runtime.value === 'number' ? runtime.value : 0) : String(runtime.value);
+            const html = `<input type="${isReal ? 'number' : 'text'}" class="scalar-input" value="${escapeHtml(String(display))}" step="${isReal ? 'any' : ''}"><div class="actions-bar"><button class="reset-btn">⟳ Reset</button></div>`;
+            container.innerHTML = html;
+            container.querySelector('input').addEventListener('input', (e) => {
+                if (isReal) { let n = parseFloat(e.target.value); runtime.value = isNaN(n) ? 0.0 : n; }
+                else runtime.value = e.target.value;
+            });
+            container.querySelector('.reset-btn').addEventListener('click', () => { runtime.value = schema.default; renderParamBody(schema, runtime, container); });
+        }
+    }
+    
+    function renderArrayBody(schema, runtime, container) {
+        const ncols = schema.ncols;
+        let rows = runtime.rows || [];
+        const refresh = () => {
+            let html = `<div class="array-table-wrapper"><table class="array-table"><thead><tr>${Array(ncols).fill().map((_,i)=>`<th>${escapeHtml(schema.colNames?.[i] || `Col${i+1}`)}</th>`).join('')}<th>Del</th></tr></thead><tbody>`;
+            rows.forEach((row, rIdx) => {
+                html += `<tr>`;
+                for(let c=0; c<ncols; c++) {
+                    let val = (c < row.length) ? row[c] : "";
+                    html += `<td><input type="text" class="cell-input" data-row="${rIdx}" data-col="${c}" value="${escapeHtml(String(val))}"></td>`;
+                }
+                html += `<td><button class="remove-row-btn" data-row="${rIdx}">✖</button></tr>`;
+            });
+            html += `</tbody></table></div><div class="actions-bar"><button class="add-row-btn btn-primary">Add row</button><button class="clear-rows-btn">Clear</button></div>`;
+            container.innerHTML = html;
+            container.querySelectorAll('.cell-input').forEach(inp => inp.addEventListener('input', (e) => {
+                let row = parseInt(e.target.dataset.row), col = parseInt(e.target.dataset.col);
+                if(runtime.rows[row]) runtime.rows[row][col] = e.target.value === "" ? "" : (isNaN(Number(e.target.value)) ? e.target.value : Number(e.target.value));
+            }));
+            container.querySelectorAll('.remove-row-btn').forEach(btn => btn.addEventListener('click', () => { runtime.rows.splice(parseInt(btn.dataset.row),1); refresh(); }));
+            container.querySelector('.add-row-btn')?.addEventListener('click', () => { runtime.rows.push(new Array(ncols).fill("")); refresh(); });
+            container.querySelector('.clear-rows-btn')?.addEventListener('click', () => { runtime.rows = []; refresh(); });
+        };
+        refresh();
+    }
+
+    let activeSectionId = SECTIONS[0]?.id || null;
+    let searchQuery = "";
+
+    function renderCards() {
+        const container = document.getElementById('cardsContainer');
+        const section = SECTIONS.find(s => s.id === activeSectionId);
+        if (!section) { container.innerHTML = '<div class="empty-state">No section</div>'; return; }
+        const filteredParams = getFilteredParams();
+        if (filteredParams.length === 0) { container.innerHTML = `<div class="empty-state">No parameters match "${escapeHtml(searchQuery)}"</div>`; return; }
+        container.innerHTML = '';
+        for (let param of filteredParams) {
+            const runtime = globalRuntime[param.id];
+            const cardDiv = document.createElement('div');
+            cardDiv.className = `param-card ${selectedCardsSet.has(param.id) ? 'selected' : ''}`;
+            cardDiv.dataset.paramId = param.id;
+            cardDiv.innerHTML = `
+                <div class="card-header">
+                    <div class="card-header-top">
+                        <div class="card-title"><h3>${escapeHtml(param.label || param.id)}</h3></div>
+                        <div><span class="card-id">${param.id}</span><span class="badge-type">${param.type}</span></div>
+                    </div>
+                    <div class="card-desc">${escapeHtml(param.desc || '')}</div>
+                </div>
+                <div class="card-body" id="body_${param.id}"></div>
+            `;
+            container.appendChild(cardDiv);
+            renderParamBody(param, runtime, cardDiv.querySelector(`#body_${param.id}`));
+            
+            cardDiv.addEventListener('click', (e) => {
+                let target = e.target;
+                let isInteractive = target.closest('input, select, button, .cell-input, .select-input, .scalar-input, .reset-btn, .toggle-btn, .add-row-btn, .clear-rows-btn, .remove-row-btn, .bool-group input, label');
+                if (!isInteractive) {
+                    toggleCardSelection(param.id);
+                }
+            });
+        }
+        updateSelectionUI();
+    }
+
+    function globalReset() {
+        for (let [paramId, { schema }] of allParamsMap.entries()) {
+            globalRuntime[paramId] = initParamRuntime(schema);
+        }
+        renderCards();
+    }
+
+    function renderSidebar() {
+        const container = document.getElementById('sectionList');
+        container.innerHTML = '';
+        SECTIONS.forEach(section => {
+            const btn = document.createElement('button');
+            btn.className = `section-btn ${activeSectionId === section.id ? 'active' : ''}`;
+            btn.dataset.sectionId = section.id;
+            btn.innerHTML = `<span>${section.name}</span><span class="section-badge">${section.params.length}</span>`;
+            btn.addEventListener('click', () => {
+                activeSectionId = section.id;
+                searchQuery = "";
+                document.getElementById('globalSearchInput').value = "";
+                renderSidebar();
+                document.getElementById('currentSectionTitle').innerText = section.name;
+                document.getElementById('currentSectionDesc').innerText = section.description;
+                renderCards();
+                updateCurrentSectionInfo();
+            });
+            container.appendChild(btn);
+        });
+        // Apply selection indicators after building sidebar
+        updateSectionIndicators();
+    }
+
+    function escapeHtml(str) { if(!str) return ""; return String(str).replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[m])); }
+
+    function init() {
+        renderSidebar();
+        if (SECTIONS.length) {
+            activeSectionId = SECTIONS[0].id;
+            document.getElementById('currentSectionTitle').innerText = SECTIONS[0].name;
+            document.getElementById('currentSectionDesc').innerText = SECTIONS[0].description;
+        }
+        renderCards();
+        document.getElementById('globalSearchInput').addEventListener('input', (e) => { searchQuery = e.target.value; renderCards(); });
+        document.getElementById('globalResetBtn').addEventListener('click', globalReset);
+        document.getElementById('globalExportBtn').addEventListener('click', downloadToml);
+        document.getElementById('deselectAllCardsBtn').addEventListener('click', deselectAllCards);
+        updateSelectionUI();
+    }
+
+    init();
+</script>
+</body>
+</html>
