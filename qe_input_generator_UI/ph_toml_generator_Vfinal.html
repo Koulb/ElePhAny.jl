@@ -1,0 +1,1445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>PH Quantum Espresso TOML Exporter</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            background: linear-gradient(135deg, #1a2a3a 0%, #0f1a24 100%);
+            font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, sans-serif;
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+        }
+
+        .app-container {
+            display: flex;
+            min-height: 100vh;
+            max-width: 1600px;
+            margin: 0 auto;
+            background: rgba(15, 25, 35, 0.6);
+            backdrop-filter: blur(2px);
+        }
+
+        .sidebar {
+            width: 280px;
+            background: rgba(15, 23, 42, 0.95);
+            backdrop-filter: blur(8px);
+            border-right: 1px solid #334155;
+            padding: 1.5rem 1rem;
+            overflow-y: auto;
+            flex-shrink: 0;
+            box-shadow: 4px 0 20px rgba(0,0,0,0.3);
+        }
+
+        .sidebar h2 {
+            color: #e2e8f0;
+            font-size: 1.2rem;
+            margin-bottom: 1.5rem;
+            font-weight: 600;
+            border-left: 3px solid #3b82f6;
+            padding-left: 0.8rem;
+        }
+
+        .section-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .section-btn {
+            background: transparent;
+            text-align: left;
+            padding: 0.75rem 1rem;
+            border-radius: 0.75rem;
+            font-weight: 500;
+            font-size: 0.9rem;
+            color: #cbd5e1;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            border: none;
+            cursor: pointer;
+            width: 100%;
+            position: relative;
+        }
+
+        .section-btn:hover {
+            background: #1e293b;
+            color: white;
+        }
+
+        .section-btn.active {
+            background: #3b82f6;
+            color: white;
+            box-shadow: 0 4px 8px rgba(59,130,246,0.3);
+        }
+
+        /* INDICATOR for sections that have selected parameters */
+        .section-btn.has-selected {
+            border-left: 3px solid #c7f0c3;
+            background: rgba(199, 240, 195, 0.15);
+        }
+
+        .section-btn.has-selected.active {
+            background: #3b82f6;
+            border-left-color: #c7f0c3;
+        }
+
+        .section-btn.has-selected .selection-dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            background: #c7f0c3;
+            border-radius: 50%;
+            margin-left: auto;
+            box-shadow: 0 0 4px #c7f0c3;
+        }
+
+        .section-badge {
+            font-size: 0.7rem;
+            background: #334155;
+            padding: 0.15rem 0.5rem;
+            border-radius: 20px;
+            margin-left: auto;
+        }
+
+        .section-btn.active .section-badge {
+            background: #1e40af;
+        }
+
+        .main-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 1.5rem 2rem;
+            overflow-y: auto;
+        }
+
+        .top-bar {
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(12px);
+            border-radius: 1.2rem;
+            padding: 0.8rem 1.5rem;
+            margin-bottom: 2rem;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .search-area {
+            flex: 2;
+            min-width: 200px;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 0.6rem 1rem;
+            border-radius: 40px;
+            border: none;
+            background: #1e293b;
+            color: white;
+            font-size: 0.85rem;
+            outline: none;
+            transition: 0.2s;
+        }
+
+        .search-input:focus {
+            background: #0f172a;
+            box-shadow: 0 0 0 2px #3b82f6;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 0.8rem;
+            flex-wrap: wrap;
+        }
+
+        .btn-top {
+            background: #2d3a4e;
+            border: none;
+            padding: 0.5rem 1.2rem;
+            border-radius: 40px;
+            color: white;
+            font-weight: 500;
+            cursor: pointer;
+            transition: 0.15s;
+        }
+
+        .btn-top.reset-btn {
+            background: #7c2d2d;
+        }
+
+        .btn-top.reset-btn:hover {
+            background: #9b3a3a;
+        }
+
+        .btn-top.export-btn {
+            background: #3b82f6;
+        }
+
+        .btn-top.export-btn:hover {
+            background: #2563eb;
+        }
+
+        .section-header {
+            margin-bottom: 1.5rem;
+        }
+
+        .section-title {
+            color: white;
+            font-size: 1.4rem;
+            font-weight: 600;
+            margin-bottom: 0.2rem;
+        }
+
+        .section-desc {
+            color: #94a3b8;
+            font-size: 0.85rem;
+        }
+
+        .cards-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        @media (max-width: 640px) {
+            .cards-grid {
+                grid-template-columns: 1fr;
+                gap: 1.2rem;
+            }
+            .main-panel {
+                padding: 1rem;
+            }
+            .top-bar {
+                flex-direction: column;
+                align-items: stretch;
+            }
+        }
+
+        @media (min-width: 641px) and (max-width: 900px) {
+            .cards-grid {
+                grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+            }
+        }
+
+        @media (min-width: 1200px) {
+            .cards-grid {
+                grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+            }
+        }
+
+        /* ========== CARD STYLES with SELECTABLE FEATURE ========== */
+        .param-card {
+            background: rgba(255,255,255,0.97);
+            border-radius: 1.2rem;
+            box-shadow: 0 12px 28px -8px rgba(0,0,0,0.3);
+            overflow: hidden;
+            transition: transform 0.2s, box-shadow 0.2s, background-color 0.2s ease;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .param-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 20px 35px -12px rgba(0,0,0,0.4);
+        }
+
+        /* SELECTED STATE: Pastel Green background */
+        .param-card.selected {
+            background-color: #c7f0c3 !important;
+            box-shadow: 0 18px 32px -10px rgba(60, 100, 50, 0.35);
+            border-left: 4px solid #2e7d32;
+        }
+
+        /* Keep inner elements readable when selected */
+        .param-card.selected .card-header {
+            background: rgba(220, 245, 210, 0.8);
+            border-bottom-color: #9bc48f;
+        }
+
+        .param-card.selected .card-title h3 {
+            color: #0a2f0a;
+        }
+
+        .param-card.selected .card-desc {
+            color: #1e4620;
+        }
+
+        .param-card.selected .badge-type {
+            background: #d4f0cf;
+            color: #1f4a1a;
+        }
+
+        .param-card.selected .card-id {
+            background: #e0f0da;
+            color: #1b4d1b;
+        }
+
+        .card-header {
+            padding: 1rem 1.2rem;
+            background: #f8fafc;
+            border-bottom: 2px solid #e2e8f0;
+            flex-shrink: 0;
+            transition: background 0.2s;
+        }
+
+        .card-header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-bottom: 0.3rem;
+        }
+
+        .card-title h3 {
+            margin: 0;
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #0f172a;
+        }
+
+        .card-id {
+            font-family: monospace;
+            font-size: 0.65rem;
+            background: #eef2ff;
+            padding: 0.2rem 0.5rem;
+            border-radius: 20px;
+            color: #1e40af;
+        }
+
+        .badge-type {
+            background: #e6f0ff;
+            padding: 0.2rem 0.6rem;
+            border-radius: 30px;
+            font-size: 0.65rem;
+            font-weight: 500;
+        }
+
+        /* MODIFIED: Scrolling text box for large descriptions */
+        .card-desc {
+            font-size: 0.7rem;
+            color: #475569;
+            margin-top: 6px;
+            line-height: 1.3;
+            max-height: 100px;
+            overflow-y: auto;
+            padding-right: 4px;
+			white-space: pre-line;  	 Add this line */
+			/* white-space: pre-wrap; /* instead, which preserves both spaces and line breaks. */
+			word-break: normal;         /* Normal word breaking */
+			overflow-wrap: normal;      /* Don't force breaks */
+        }
+        
+		
+        /* Custom scrollbar for the description box */
+        .card-desc::-webkit-scrollbar {
+            width: 4px;
+        }
+        
+        .card-desc::-webkit-scrollbar-track {
+            background: #e2e8f0;
+            border-radius: 4px;
+        }
+        
+        .card-desc::-webkit-scrollbar-thumb {
+            background: #94a3b8;
+            border-radius: 4px;
+        }
+        
+        .card-desc::-webkit-scrollbar-thumb:hover {
+            background: #64748b;
+        }
+
+        .card-body {
+            padding: 1rem 1.2rem 1.2rem;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            pointer-events: auto;
+        }
+
+        /* Ensure inputs/controls are clickable without toggling card selection */
+        .card-body input,
+        .card-body select,
+        .card-body button,
+        .card-body label,
+        .card-body .bool-group,
+        .array-table-wrapper,
+        .actions-bar button,
+        .cell-input,
+        .select-input,
+        .scalar-input,
+        .reset-btn,
+        .toggle-btn,
+        .add-row-btn,
+        .clear-rows-btn,
+        .remove-row-btn {
+            pointer-events: auto;
+            position: relative;
+            z-index: 2;
+        }
+
+        .array-table-wrapper {
+            overflow-x: auto;
+            border-radius: 0.8rem;
+            border: 1px solid #e2edf2;
+            background: white;
+            margin-bottom: 0.5rem;
+        }
+
+        .array-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.7rem;
+            min-width: 280px;
+        }
+
+        .array-table th {
+            background: #f1f5f9;
+            padding: 0.4rem 0.5rem;
+            font-size: 0.7rem;
+        }
+
+        .array-table td {
+            padding: 0.3rem;
+        }
+
+        .cell-input {
+            width: 100%;
+            padding: 0.3rem 0.4rem;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            font-size: 0.7rem;
+        }
+
+        .select-input, .scalar-input {
+            width: 100%;
+            padding: 0.5rem;
+            border-radius: 8px;
+            border: 1px solid #cbd5e1;
+            font-size: 0.8rem;
+        }
+
+        .bool-group {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            background: #f9fafb;
+            padding: 0.5rem 0.8rem;
+            border-radius: 0.8rem;
+            flex-wrap: wrap;
+        }
+
+        .actions-bar {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.8rem;
+            flex-wrap: wrap;
+        }
+
+        button {
+            background: #f1f5f9;
+            border: none;
+            padding: 0.3rem 0.8rem;
+            border-radius: 30px;
+            font-size: 0.7rem;
+            cursor: pointer;
+            transition: 0.1s;
+        }
+
+        .btn-primary {
+            background: #2c3e66;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #1e2a4a;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 2rem;
+            color: #94a3b8;
+            background: rgba(0,0,0,0.2);
+            border-radius: 1rem;
+            grid-column: 1 / -1;
+        }
+
+        /* Selection status bar */
+        .selection-status-bar {
+            background: #0f172a;
+            border-radius: 2rem;
+            padding: 0.4rem 1.2rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.8rem;
+            font-size: 0.8rem;
+            color: #cbd5e6;
+            margin-left: auto;
+        }
+
+        .selection-count-badge {
+            background: #3b82f6;
+            border-radius: 40px;
+            padding: 0.2rem 0.7rem;
+            font-weight: 600;
+        }
+
+        /* Section summary indicator in header */
+        .section-summary {
+            margin-top: 0.75rem;
+            padding: 0.5rem 0.75rem;
+            background: rgba(199, 240, 195, 0.15);
+            border-radius: 40px;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.75rem;
+            color: #c7f0c3;
+            border: 1px solid rgba(199, 240, 195, 0.3);
+        }
+    </style>
+</head>
+<body>
+<div class="app-container">
+    <div class="sidebar" id="sidebar">
+        <h2>PH Quantum Espresso TOML Exporter</h2>
+        <h2>version 7.5</h2>
+        <div class="section-list" id="sectionList"></div>
+    </div>
+    <div class="main-panel">
+        <div class="top-bar">
+            <div class="search-area">
+                <input type="text" id="globalSearchInput" class="search-input" placeholder="🔍 Search parameters...">
+            </div>
+            <div class="action-buttons">
+                <button id="globalResetBtn" class="btn-top reset-btn">⟳ Reset All</button>
+                <button id="globalExportBtn" class="btn-top export-btn">📄 Export TOML</button>
+            </div>
+        </div>
+        <div class="section-header">
+            <div class="section-title" id="currentSectionTitle">Select a section</div>
+            <div class="section-desc" id="currentSectionDesc">Parameters organized by category</div>
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.8rem; margin-top: 0.5rem;">
+                <div id="currentSectionSelectedInfo" class="section-summary" style="display: none;"></div>
+                <div class="selection-status-bar" id="selectionStatusBar">
+                    <span>Selected cards:</span>
+                    <span class="selection-count-badge" id="selectedCardsCount">0</span>
+                    <button id="deselectAllCardsBtn" style="background: #334155; color: white; font-size: 0.7rem;">Clear selection</button>
+                </div>
+            </div>
+        </div>
+        <div id="cardsContainer" class="cards-grid">
+            <div class="empty-state">✨ Choose a section from the left</div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // ==============================================================
+    // SCHEMA DEFINITION - Parameters organized by sections
+    // ==============================================================
+    const SECTIONS = [
+  {
+         id: "TITLE_LINE",
+		 name: "Title line", 
+		 description: "Title line for the job",
+		 params: [
+                   { id: "title_line",
+					label: "Title line",
+                    type: "string",
+                    default: null,
+                    required: true,
+                    desc: "Title of the job, a line that is reprinted on output."
+					}
+		]
+   },
+   
+   {       
+		id: "INPUTPH", name: "INPUTPH", description: "Main input parameters for ph.x",
+		params: [
+             	{
+                    id: "amass",
+                    type: "real",
+                    default: 0.0,
+                    required: false,
+                    desc: "Atomic mass [amu] of each atomic type. If not specified, masses are read from data file."
+                },
+                {
+                    id: "outdir",
+                    type: "string",
+                    default: "./",
+                    required: false,
+                    desc: "Directory containing input, output, and scratch files; must be the same as specified in the calculation of the unperturbed system."
+                },
+                {
+                    id: "prefix",
+                    type: "string",
+                    default: "pwscf",
+                    required: false,
+                    desc: "Prepended to input/output filenames; must be the same used in the calculation of unperturbed system."
+                },
+                {
+                    id: "niter_ph",
+                    type: "integer",
+                    default: 100,
+                    required: false,
+                    desc: "Maximum number of iterations in a scf step."
+                },
+                {
+                    id: "tr2_ph",
+                    type: "real",
+                    default: 1e-12,
+                    required: false,
+                    desc: "Threshold for self-consistency."
+                },
+                {
+                    id: "alpha_mix",
+                    type: "real",
+                    default: 0.7,
+                    required: false,
+                    desc: "Mixing factor for updating the scf potential."
+                },
+                {
+                    id: "nmix_ph",
+                    type: "integer",
+                    default: 4,
+                    required: false,
+                    desc: "Number of iterations used in potential mixing."
+                },
+                {
+                    id: "verbosity",
+                    type: "select",
+                    options: ["debug", "high", "medium", "low", "default", "minimal"],
+                    default: "default",
+                    required: false,
+                    desc: "Output verbosity level."
+                },
+                {
+                    id: "reduce_io",
+                    type: "bool",
+                    default: false,
+                    required: false,
+                    desc: "Reduce I/O to the strict minimum. BEWARE: If .true., restart from interrupted run is not allowed."
+                },
+                {
+                    id: "max_seconds",
+                    type: "real",
+                    default: 1e7,
+                    required: false,
+                    desc: "Maximum allowed run time before the job stops smoothly."
+                },
+                {
+                    id: "dftd3_hess",
+                    type: "string",
+                    default: "prefix.hess",
+                    required: false,
+                    desc: "File where the D3 dispersion hessian matrix is read."
+                },
+                {
+                    id: "fildyn",
+                    type: "string",
+                    default: "matdyn",
+                    required: false,
+                    desc: "File where the dynamical matrix is written."
+                },
+                {
+                    id: "fildrho",
+                    type: "string",
+                    default: "",
+                    required: false,
+                    desc: "File where the charge density responses are written."
+                },
+                {
+                    id: "fildvscf",
+                    type: "string",
+                    default: "",
+                    required: false,
+                    desc: "File where the potential variation is written."
+                },
+                {
+                    id: "epsil",
+                    type: "bool",
+                    default: false,
+                    required: false,
+                    desc: "If .true., compute macroscopic dielectric constant (q=0, non-metal)."
+                },
+                {
+                    id: "lrpa",
+                    type: "bool",
+                    default: false,
+                    required: false,
+                    desc: "If .true., dielectric constant calculated at RPA level with DV_xc=0."
+                },
+                {
+                    id: "lnoloc",
+                    type: "bool",
+                    default: false,
+                    required: false,
+                    desc: "If .true., dielectric constant calculated without local fields."
+                },
+                {
+                    id: "trans",
+                    type: "bool",
+                    default: true,
+                    required: false,
+                    desc: "If .false., phonons are not computed."
+                },
+                {
+                    id: "lraman",
+                    type: "bool",
+                    default: false,
+                    required: false,
+                    desc: "If .true., calculate non-resonant Raman coefficients."
+                },
+                {
+                    id: "lmultipole",
+                    type: "bool",
+                    default: false,
+                    required: false,
+                    desc: "If .true., prints induced density and potentials for multipole extraction."
+                },
+                {
+                    id: "eth_rps",
+                    type: "real",
+                    default: 1e-9,
+                    required: false,
+                    desc: "Threshold for calculation of Pc R|psi> (Raman)."
+                },
+                {
+                    id: "eth_ns",
+                    type: "real",
+                    default: 1e-12,
+                    required: false,
+                    desc: "Threshold for non-scf wavefunction calculation (Raman)."
+                },
+                {
+                    id: "dek",
+                    type: "real",
+                    default: 1e-3,
+                    required: false,
+                    desc: "Delta_xk used for wavefunction derivation wrt k (Raman)."
+                },
+                {
+                    id: "recover",
+                    type: "bool",
+                    default: false,
+                    required: false,
+                    desc: "If .true., restart from an interrupted run."
+                },
+                {
+                    id: "low_directory_check",
+                    type: "bool",
+                    default: false,
+                    required: false,
+                    desc: "If .true., search in phsave directory only the quantities requested in input."
+                },
+                {
+                    id: "only_init",
+                    type: "bool",
+                    default: false,
+                    required: false,
+                    desc: "If .true., only bands and initialization quantities are calculated."
+                },                
+				{
+                    id: "qplot",
+                    type: "bool",
+                    default: false,
+                    required: false,
+                    desc: "If .true., a list of q points is read from input."
+                },
+                {
+                    id: "q2d",
+                    type: "bool",
+                    default: false,
+                    required: false,
+                    desc: "If .true., three q points and relative weights are read for 2D q-grid."
+                },
+                {
+                    id: "q_in_band_form",
+                    type: "bool",
+                    default: false,
+                    required: false,
+                    desc: "When qplot=.true. and q2d=.false., generate q-points along lines."
+                },
+                {
+                    id: "electron_phonon",
+                    type: "select",
+                    options: ["simple", "interpolated", "lambda_tetra", "gamma_tetra", "epa", "ahc"],
+                    default: "",
+                    required: false,
+                    desc: "Electron-phonon coupling calculation method."
+                },
+                {
+                    id: "el_ph_nsigma",
+                    type: "integer",
+                    default: 10,
+                    required: false,
+                    desc: "Number of double-delta smearing values for electron-phonon coupling."
+                },
+                {
+                    id: "el_ph_sigma",
+                    type: "real",
+                    default: 0.02,
+                    required: false,
+                    desc: "Spacing between double-delta smearing values."
+                },
+                {
+                    id: "ahc_dir",
+                    type: "string",
+                    default: "ahc_dir/",
+                    required: false,
+                    desc: "Directory where AHC output binary files are written."
+                },
+                {
+                    id: "ahc_nbnd",
+                    type: "integer",
+                    default: null,
+                    required: true,
+                    desc: "Number of bands for electron self-energy computation (REQUIRED for electron_phonon='ahc')."
+                },
+                {
+                    id: "ahc_nbndskip",
+                    type: "integer",
+                    default: 0,
+                    required: false,
+                    desc: "Number of bands to exclude when computing self-energy."
+                },
+                {
+                    id: "skip_upper",
+                    type: "bool",
+                    default: false,
+                    required: false,
+                    desc: "If .true., skip calculation of the upper Fan self-energy."
+                },
+                {
+                    id: "lshift_q",
+                    type: "bool",
+                    default: false,
+                    required: false,
+                    desc: "Use wave-vector grid displaced by half a grid step."
+                },
+                {
+                    id: "zeu",
+                    type: "bool",
+                    default: null,
+                    required: false,
+                    desc: "If .true., compute effective charges from dielectric response."
+                },
+                {
+                    id: "zue",
+                    type: "bool",
+                    default: false,
+                    required: false,
+                    desc: "If .true., compute effective charges from phonon density responses."
+                },
+                {
+                    id: "elop",
+                    type: "bool",
+                    default: false,
+                    required: false,
+                    desc: "If .true., calculate electro-optic tensor."
+                },
+                {
+                    id: "fpol",
+                    type: "bool",
+                    default: false,
+                    required: false,
+                    desc: "If .true., calculate dynamic polarizabilities."
+                },
+                {
+                    id: "ldisp",
+                    type: "bool",
+                    default: false,
+                    required: false,
+                    desc: "If .true., calculate phonons for a grid of q-points."
+                },
+                {
+                    id: "nogg",
+                    type: "bool",
+                    default: false,
+                    required: false,
+                    desc: "If .true., disable gamma_gamma trick at q=0."
+                },
+                {
+                    id: "asr",
+                    type: "bool",
+                    default: false,
+                    required: false,
+                    desc: "Apply Acoustic Sum Rule to dynamical matrix."
+                },
+                {
+                    id: "ldiag",
+                    type: "bool",
+                    default: false,
+                    required: false,
+                    desc: "If .true., force diagonalization of partial dynamical matrix."
+                },
+                {
+                    id: "lqdir",
+                    type: "bool",
+                    default: false,
+                    required: false,
+                    desc: "Create separate subdirectory for each q vector."
+                },
+                {
+                    id: "search_sym",
+                    type: "bool",
+                    default: true,
+                    required: false,
+                    desc: "Disable mode symmetry analysis if .false."
+                },
+                {
+                    id: "q-points",
+                    type: "array",
+                    default: [[0,0,0]],
+					ncols: 3,
+					colNames: ["nq1","nq2","nq3"],
+                    required: false,
+                    desc: "Parameters of the Monkhorst-Pack grid (no offset) used when ldisp=.true. Same meaning as for nk1, nk2, nk3in the input of pw.x.."
+                },
+                {
+                    id: "k_point",
+                    type: "array",
+                    default: [[0,0,0,0,0,0]],
+					ncols: 6,
+					colNames: ["nk1","nk2","nk3","k1","k2","k3"],
+                    required: false,
+                    desc: "When these parameters are specified the phonon program runs a pw non-self consistent calculation with a different k-point grid than that used for the charge density. This occurs even in the Gamma case.nk1, nk2, nk3 are the parameters of the Monkhorst-Pack gridwith offset determined by k1, k2, k3."
+                },
+
+                {
+                    id: "diagonalization",
+                    type: "select",
+                    options: ["david", "cg"],
+                    default: "david",
+                    required: false,
+                    desc: "Diagonalization method for non-SCF calculations."
+                },
+                {
+                    id: "read_dns_bare",
+                    type: "bool",
+                    default: false,
+                    required: false,
+                    desc: "If .true., read precomputed occupation matrix variations (DFPT+U)."
+                },
+                {
+                    id: "ldvscf_interpolate",
+                    type: "bool",
+                    default: false,
+                    required: false,
+                    desc: "Use Fourier interpolation of phonon potential."
+                },
+                {
+                    id: "wpot_dir",
+                    type: "string",
+                    default: "w_pot/",
+                    required: false,
+                    desc: "Directory where w_pot binary files are written."
+                },
+                {
+                    id: "do_long_range",
+                    type: "bool",
+                    default: false,
+                    required: false,
+                    desc: "Add long-range part (Frohlich) to interpolated potential."
+                },
+                {
+                    id: "do_charge_neutral",
+                    type: "bool",
+                    default: false,
+                    required: false,
+                    desc: "Impose charge neutrality on Born effective charges."
+                },
+                {
+                    id: "start_irr",
+                    type: "integer",
+                    default: 1,
+                    required: false,
+                    desc: "First irreducible representation to calculate."
+                },
+                {
+                    id: "last_irr",
+                    type: "integer",
+                    default: null,
+                    required: false,
+                    desc: "Last irreducible representation to calculate."
+                },
+                {
+                    id: "nat_todo",
+                    type: "integer",
+                    default: 0,
+                    required: false,
+                    desc: "Number of atoms to displace (subset calculation)."
+                },
+                {
+                    id: "modenum",
+                    type: "integer",
+                    default: 0,
+                    required: false,
+                    desc: "Index of irreducible representation for single-mode phonon calculation."
+                },
+                {
+                    id: "start_q",
+                    type: "integer",
+                    default: 1,
+                    required: false,
+                    desc: "First q-point to calculate (when ldisp=.true.)."
+                },
+                {
+                    id: "last_q",
+                    type: "integer",
+                    default: null,
+                    required: false,
+                    desc: "Last q-point to calculate (when ldisp=.true.)."
+                }
+			]
+   },
+
+            // Section 3: xq line (single q-point)
+ 	{ id: "XQ_LINE", name: "Wavevector", description: "Single phonon wavevector (when ldisp=.false. and qplot=.false.)",
+			params: [
+                {
+                    id: "xq",
+                    type: "array",
+                    subtype: "real",
+                    default: null,
+                    ncols: 3,
+					colNames: ["xq1","xq2","xq3"],
+                    required: true,
+                    desc: "Single phonon wavevector coordinates in units of 2pi/a0 (cartesian coordinates). Used when ldisp != true and qplot != true"
+                }
+				]
+     },
+
+            // Section 4: qPointsSpecs (for qplot=.true.)
+	{	 
+		id: "QPOINTS_SPECS", name: "qPointsSpecs", description: "Q-point list specification (when qplot=.true.)",
+			params: [
+			    {
+                    id: "qpoints",
+                    type: "array",
+                    subtype: "real",
+                    ncols: 4,
+					colNames: ["xq1","xq2","xq3", "nq"],
+                    default: null,
+                    required: false,
+                    desc: "Used only with ldisp=.true. and qplot=.true. \nThe phonon wavevector (xq1,xq3,xq3), in units of 2pi/a0 (a0 = lattice parameter). \nThe meaning of these q points and their weights nq depend on the flags q2d and q_in_band_form. (NB: nq is integer)"
+                }
+
+			]
+    },
+	
+	          // Section 5: atom list (when nat_todo specified)
+{
+  id: "ATOM_LIST", name: "Atoms", description: "List of atoms to displace (when nat_todo specified)",
+	params: [
+                {
+                    id: "atoms",
+                    type: "array",
+					ncols: 1,
+					colNames: ["atom"],
+                    subtype: "integer",
+                    default: null,
+                    required: false,
+                    desc: "List of atomic indices to include in the calculation when nat_todo is specified. There must be nat_todo rows (integer)."
+                }
+		]
+  }
+
+ ];
+
+    let allParamsMap = new Map();
+    for (let section of SECTIONS) {
+        for (let param of section.params) {
+            allParamsMap.set(param.id, { schema: param, sectionId: section.id });
+        }
+    }
+
+    // Runtime storage for parameter values
+    let globalRuntime = {};
+
+    function initParamRuntime(schema) {
+        if (schema.type === "array") {
+            let initialRows = [];
+            if (schema.default && Array.isArray(schema.default)) {
+                initialRows = schema.default.map(row => {
+                    let newRow = [];
+                    for (let i = 0; i < schema.ncols; i++) {
+                        let val = (i < row.length) ? row[i] : "";
+                        if (typeof val === 'number') newRow.push(val);
+                        else newRow.push(String(val));
+                    }
+                    return newRow;
+                });
+            }
+            return { rows: initialRows };
+        } else if (schema.type === "select") {
+            let defaultValue = schema.default !== undefined ? schema.default : (schema.options?.[0] || "");
+            return { value: String(defaultValue) };
+        } else if (schema.type === "bool") {
+            let defaultValue = schema.default === true;
+            return { value: defaultValue };
+        } else if (schema.type === "real") {
+            let def = schema.default !== undefined ? schema.default : 0.0;
+            return { value: (typeof def === 'number') ? def : parseFloat(def) || 0.0 };
+        } else if (schema.type === "integer") {
+            let def = schema.default !== undefined ? schema.default : 0;
+            return { value: typeof def === 'number' ? def : parseInt(def) || 0 };
+        } else {
+            return { value: schema.default !== undefined ? String(schema.default) : "" };
+        }
+    }
+
+    for (let [paramId, { schema }] of allParamsMap.entries()) {
+        globalRuntime[paramId] = initParamRuntime(schema);
+    }
+
+    // ========== CARD SELECTION STATE (always active) ==========
+    let selectedCardsSet = new Set();  // stores paramId strings
+
+    // ========== DETECT IF A SECTION HAS SELECTED PARAMETERS ==========
+    // Simple function: returns true if any parameter in the given section is selected
+    function sectionHasSelectedParameters(sectionId) {
+        const section = SECTIONS.find(s => s.id === sectionId);
+        if (!section) return false;
+        // Check each parameter in the section
+        for (let param of section.params) {
+            if (selectedCardsSet.has(param.id)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // Get count of selected parameters in a section
+    function getSelectedCountInSection(sectionId) {
+        const section = SECTIONS.find(s => s.id === sectionId);
+        if (!section) return 0;
+        let count = 0;
+        for (let param of section.params) {
+            if (selectedCardsSet.has(param.id)) count++;
+        }
+        return count;
+    }
+
+    // Update sidebar section indicators based on which sections have selected parameters
+    function updateSectionIndicators() {
+        const sectionButtons = document.querySelectorAll('#sectionList .section-btn');
+        sectionButtons.forEach(btn => {
+            const sectionId = btn.dataset.sectionId;
+            if (sectionId) {
+                const hasSelected = sectionHasSelectedParameters(sectionId);
+                if (hasSelected) {
+                    btn.classList.add('has-selected');
+                    // Add or update the visual dot if not present
+                    let dot = btn.querySelector('.selection-dot');
+                    if (!dot) {
+                        dot = document.createElement('span');
+                        dot.className = 'selection-dot';
+                        btn.appendChild(dot);
+                    }
+                } else {
+                    btn.classList.remove('has-selected');
+                    const dot = btn.querySelector('.selection-dot');
+                    if (dot) dot.remove();
+                }
+            }
+        });
+        
+        // Also update current section info display
+        updateCurrentSectionInfo();
+    }
+
+    // Show a summary for the current active section
+    function updateCurrentSectionInfo() {
+        const activeId = activeSectionId;
+        if (!activeId) return;
+        const selectedCount = getSelectedCountInSection(activeId);
+        const infoDiv = document.getElementById('currentSectionSelectedInfo');
+        if (infoDiv) {
+            if (selectedCount > 0) {
+                infoDiv.style.display = 'inline-flex';
+                infoDiv.innerHTML = `${selectedCount} selected parameter${selectedCount !== 1 ? 's' : ''} in this section`;
+            } else {
+                infoDiv.style.display = 'none';
+            }
+        }
+    }
+
+    // Helper: update selection counter and UI elements
+    function updateSelectionUI() {
+        const count = selectedCardsSet.size;
+        const countSpan = document.getElementById('selectedCardsCount');
+        if (countSpan) countSpan.textContent = count;
+        
+        // Visually highlight cards that are selected
+        document.querySelectorAll('.param-card').forEach(card => {
+            const paramId = card.dataset.paramId;
+            if (paramId && selectedCardsSet.has(paramId)) {
+                card.classList.add('selected');
+            } else {
+                card.classList.remove('selected');
+            }
+        });
+        
+        // Update section indicators (sidebar dots + current section info)
+        updateSectionIndicators();
+    }
+
+    // Toggle selection for a card given its parameter id
+    function toggleCardSelection(paramId) {
+        if (selectedCardsSet.has(paramId)) {
+            selectedCardsSet.delete(paramId);
+        } else {
+            selectedCardsSet.add(paramId);
+        }
+        updateSelectionUI();
+    }
+
+    // Deselect all cards
+    function deselectAllCards() {
+        selectedCardsSet.clear();
+        updateSelectionUI();
+    }
+
+    // ========== TOML GENERATION ==========
+    function escapeTomlString(s) {
+        return String(s).replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, "\\n");
+    }
+
+    function generateCleanTOML() {
+        let lines = [];
+        let sectionParamsMap = new Map();
+        for (let [paramId, { schema, sectionId }] of allParamsMap.entries()) {
+            const runtime = globalRuntime[paramId];
+            if (!runtime) continue;
+            if (!sectionParamsMap.has(sectionId)) sectionParamsMap.set(sectionId, []);
+            sectionParamsMap.get(sectionId).push({ id: paramId, schema: schema, runtime: runtime });
+        }
+        for (let section of SECTIONS) {
+            const params = sectionParamsMap.get(section.id);
+            if (!params || params.length === 0) continue;
+			if (sectionHasSelectedParameters(section.id)){
+				lines.push(`[${section.id}]`);
+				for (let { id, schema, runtime } of params) {
+					if (selectedCardsSet.has(schema.id)){
+						let value;
+						if (schema.type === "array") {
+							const rows = runtime.rows || [];
+							if (rows.length === 0) value = "[]";
+							else {
+								let allRowStrings = [];
+								for (let row of rows) {
+									let rowValues = [];
+									for (let i = 0; i < schema.ncols; i++) {
+										let cell = (i < row.length) ? row[i] : "";
+										if (cell === "") rowValues.push('""');
+										else if (typeof cell === 'number') rowValues.push(cell.toString());
+										else rowValues.push(`"${escapeTomlString(String(cell))}"`);
+									}
+									allRowStrings.push(`[${rowValues.join(", ")}]`);
+								}
+								value = `[${allRowStrings.join(", ")}]`;
+							}
+							lines.push(`${id} = ${value}`);
+						} else if (schema.type === "bool") {
+							lines.push(`${id} = ${runtime.value === true ? "true" : "false"}`);
+						} else if (schema.type === "real" || schema.type === "integer") {
+							let numVal = typeof runtime.value === 'number' ? runtime.value : parseFloat(runtime.value) || 0;
+							lines.push(`${id} = ${numVal}`);
+						} else if (schema.type === "select" || schema.type === "string") {
+							lines.push(`${id} = "${escapeTomlString(String(runtime.value))}"`);
+						}
+					}
+				}
+				lines.push("");
+			}
+        }
+        return lines.join("\n").trim();
+    }
+
+    function downloadToml() {
+        const blob = new Blob([generateCleanTOML()], {type: "text/plain"});
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        let prefixVal = globalRuntime["prefix"]?.value || "pwscf";
+        a.download = `ph_parameters_${prefixVal}.toml`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+    }
+
+    // ========== RENDERING ==========
+    function paramMatchesSearch(param, query) {
+        if (!query.trim()) return true;
+        const q = query.toLowerCase();
+        return param.id.toLowerCase().includes(q) || (param.label && param.label.toLowerCase().includes(q)) || (param.desc && param.desc.toLowerCase().includes(q));
+    }
+
+    function getFilteredParams() {
+        const section = SECTIONS.find(s => s.id === activeSectionId);
+        if (!section) return [];
+        return section.params.filter(p => paramMatchesSearch(p, searchQuery));
+    }
+
+    function renderParamBody(schema, runtime, container) {
+        if (schema.type === "array") {
+            renderArrayBody(schema, runtime, container);
+        } else if (schema.type === "select") {
+            const html = `<select class="select-input">${schema.options.map(opt => `<option ${runtime.value === opt ? 'selected' : ''}>${escapeHtml(opt)}</option>`).join('')}</select><div class="actions-bar"><button class="reset-btn">⟳ Reset</button></div>`;
+            container.innerHTML = html;
+            container.querySelector('select').addEventListener('change', (e) => { runtime.value = e.target.value; });
+            container.querySelector('.reset-btn').addEventListener('click', () => { runtime.value = schema.default; renderParamBody(schema, runtime, container); });
+        } else if (schema.type === "bool") {
+            const val = runtime.value === true;
+            const html = `<div class="bool-group"><label><input type="radio" name="bool_${schema.id}" value="true" ${val ? 'checked' : ''}> True</label><label><input type="radio" name="bool_${schema.id}" value="false" ${!val ? 'checked' : ''}> False</label></div><div class="actions-bar"><button class="reset-btn">⟳ Reset</button><button class="toggle-btn">🔄 Toggle</button></div>`;
+            container.innerHTML = html;
+            container.querySelectorAll(`input[name="bool_${schema.id}"]`).forEach(r => r.addEventListener('change', (e) => { if(e.target.checked) runtime.value = e.target.value === 'true'; }));
+            container.querySelector('.reset-btn').addEventListener('click', () => { runtime.value = schema.default === true; renderParamBody(schema, runtime, container); });
+            container.querySelector('.toggle-btn').addEventListener('click', () => { runtime.value = !runtime.value; renderParamBody(schema, runtime, container); });
+        } else {
+            const isReal = schema.type === "real";
+            let display = isReal ? (typeof runtime.value === 'number' ? runtime.value : 0) : String(runtime.value);
+            const html = `<input type="${isReal ? 'number' : 'text'}" class="scalar-input" value="${escapeHtml(String(display))}" step="${isReal ? 'any' : ''}"><div class="actions-bar"><button class="reset-btn">⟳ Reset</button></div>`;
+            container.innerHTML = html;
+            container.querySelector('input').addEventListener('input', (e) => {
+                if (isReal) { let n = parseFloat(e.target.value); runtime.value = isNaN(n) ? 0.0 : n; }
+                else runtime.value = e.target.value;
+            });
+            container.querySelector('.reset-btn').addEventListener('click', () => { runtime.value = schema.default; renderParamBody(schema, runtime, container); });
+        }
+    }
+    
+    function renderArrayBody(schema, runtime, container) {
+        const ncols = schema.ncols;
+        let rows = runtime.rows || [];
+        const refresh = () => {
+            let html = `<div class="array-table-wrapper"><table class="array-table"><thead><tr>${Array(ncols).fill().map((_,i)=>`<th>${escapeHtml(schema.colNames?.[i] || `Col${i+1}`)}</th>`).join('')}<th>Del</th></tr></thead><tbody>`;
+            rows.forEach((row, rIdx) => {
+                html += `<tr>`;
+                for(let c=0; c<ncols; c++) {
+                    let val = (c < row.length) ? row[c] : "";
+                    html += `<td><input type="text" class="cell-input" data-row="${rIdx}" data-col="${c}" value="${escapeHtml(String(val))}"></td>`;
+                }
+                html += `<td><button class="remove-row-btn" data-row="${rIdx}">✖</button></td></tr>`;
+            });
+            html += `</tbody></table></div><div class="actions-bar"><button class="add-row-btn btn-primary">Add row</button><button class="clear-rows-btn">Clear</button></div>`;
+            container.innerHTML = html;
+            container.querySelectorAll('.cell-input').forEach(inp => inp.addEventListener('input', (e) => {
+                let row = parseInt(e.target.dataset.row), col = parseInt(e.target.dataset.col);
+                if(runtime.rows[row]) runtime.rows[row][col] = e.target.value === "" ? "" : (isNaN(Number(e.target.value)) ? e.target.value : Number(e.target.value));
+            }));
+            container.querySelectorAll('.remove-row-btn').forEach(btn => btn.addEventListener('click', () => { runtime.rows.splice(parseInt(btn.dataset.row),1); refresh(); }));
+            container.querySelector('.add-row-btn')?.addEventListener('click', () => { runtime.rows.push(new Array(ncols).fill("")); refresh(); });
+            container.querySelector('.clear-rows-btn')?.addEventListener('click', () => { runtime.rows = []; refresh(); });
+        };
+        refresh();
+    }
+
+    let activeSectionId = SECTIONS[0]?.id || null;
+    let searchQuery = "";
+
+    function renderCards() {
+        const container = document.getElementById('cardsContainer');
+        const section = SECTIONS.find(s => s.id === activeSectionId);
+        if (!section) { container.innerHTML = '<div class="empty-state">No section</div>'; return; }
+        const filteredParams = getFilteredParams();
+        if (filteredParams.length === 0) { container.innerHTML = `<div class="empty-state">No parameters match "${escapeHtml(searchQuery)}"</div>`; return; }
+        container.innerHTML = '';
+        for (let param of filteredParams) {
+            const runtime = globalRuntime[param.id];
+            const cardDiv = document.createElement('div');
+            cardDiv.className = `param-card ${selectedCardsSet.has(param.id) ? 'selected' : ''}`;
+            cardDiv.dataset.paramId = param.id;
+            cardDiv.innerHTML = `
+                <div class="card-header">
+                    <div class="card-header-top">
+                        <div class="card-title"><h3>${escapeHtml(param.label || param.id)}</h3></div>
+                        <div><span class="card-id">${param.id}</span><span class="badge-type">${param.type}</span></div>
+                    </div>
+                    <div class="card-desc">${escapeHtml(param.desc || '')}</div>
+                </div>
+                <div class="card-body" id="body_${param.id}"></div>
+            `;
+            container.appendChild(cardDiv);
+            renderParamBody(param, runtime, cardDiv.querySelector(`#body_${param.id}`));
+            
+            cardDiv.addEventListener('click', (e) => {
+                let target = e.target;
+                let isInteractive = target.closest('input, select, button, .cell-input, .select-input, .scalar-input, .reset-btn, .toggle-btn, .add-row-btn, .clear-rows-btn, .remove-row-btn, .bool-group input, label');
+                if (!isInteractive) {
+                    toggleCardSelection(param.id);
+                }
+            });
+        }
+        updateSelectionUI();
+    }
+
+    function globalReset() {
+        for (let [paramId, { schema }] of allParamsMap.entries()) {
+            globalRuntime[paramId] = initParamRuntime(schema);
+        }
+        renderCards();
+    }
+
+    function renderSidebar() {
+        const container = document.getElementById('sectionList');
+        container.innerHTML = '';
+        SECTIONS.forEach(section => {
+            const btn = document.createElement('button');
+            btn.className = `section-btn ${activeSectionId === section.id ? 'active' : ''}`;
+            btn.dataset.sectionId = section.id;
+            btn.innerHTML = `<span>${section.name}</span><span class="section-badge">${section.params.length}</span>`;
+            btn.addEventListener('click', () => {
+                activeSectionId = section.id;
+                searchQuery = "";
+                document.getElementById('globalSearchInput').value = "";
+                renderSidebar();
+                document.getElementById('currentSectionTitle').innerText = section.name;
+                document.getElementById('currentSectionDesc').innerText = section.description;
+                renderCards();
+                updateCurrentSectionInfo();
+            });
+            container.appendChild(btn);
+        });
+        // Apply selection indicators after building sidebar
+        updateSectionIndicators();
+    }
+
+    function escapeHtml(str) { if(!str) return ""; return String(str).replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[m])); }
+
+    function init() {
+        renderSidebar();
+        if (SECTIONS.length) {
+            activeSectionId = SECTIONS[0].id;
+            document.getElementById('currentSectionTitle').innerText = SECTIONS[0].name;
+            document.getElementById('currentSectionDesc').innerText = SECTIONS[0].description;
+        }
+        renderCards();
+        document.getElementById('globalSearchInput').addEventListener('input', (e) => { searchQuery = e.target.value; renderCards(); });
+        document.getElementById('globalResetBtn').addEventListener('click', globalReset);
+        document.getElementById('globalExportBtn').addEventListener('click', downloadToml);
+        document.getElementById('deselectAllCardsBtn').addEventListener('click', deselectAllCards);
+        updateSelectionUI();
+    }
+
+    init();
+</script>
+</body>
+</html>

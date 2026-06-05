@@ -1,0 +1,38 @@
+&CONTROL
+   calculation      = 'scf'
+   verbosity        = 'high'
+   tstress          = .false.
+   tprnfor          = .true.
+   outdir           = './tmp/'
+   prefix           = 'scf'
+   pseudo_dir       = '/home/caubry/Soft/ElePhAny.jl/example/si/dft/'
+/
+&SYSTEM
+   ibrav            = 2
+   ecutwfc          = 60
+   ntyp             = 1
+   nat              = 2
+   celldm(1)        = 10.262195563743724
+/
+&ELECTRONS
+   electron_maxstep = 1000
+   conv_thr         = 1e-13
+   mixing_mode      = 'plain'
+   mixing_beta      = 0.7
+   diagonalization  = 'ppcg'
+/
+&IONS
+/
+&CELL
+/
+
+ATOMIC_SPECIES
+Si 28.0855 Si.upf
+
+K_POINTS automatic
+2 2 2  0 0 0
+
+ATOMIC_POSITIONS crystal
+Si -0.0000000000 0.0000000000 -0.0000000000 
+Si 0.7500000000 0.7500000000 0.7500000000 
+
